@@ -1,5 +1,3 @@
-import org.jetbrains.compose.desktop.application.dsl.TargetFormat
-
 plugins {
     kotlin("jvm")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -25,10 +23,5 @@ compose.desktop {
     application {
         mainClass = "no.grblcommander.desktop.MainKt"
 
-        nativeDistributions {
-            targetFormats(TargetFormat.Deb, TargetFormat.Msi, TargetFormat.Dmg)
-            packageName = "GRBLCommander"
-            packageVersion = "0.1.0"
-        }
     }
 }
