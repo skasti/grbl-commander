@@ -20,7 +20,7 @@ The architecture prioritizes:
 - Extensibility without introducing unnecessary abstraction.
 - Testability without requiring physical CNC hardware.
 
-Linux is the initial deployment target. The application architecture should remain portable to Windows and macOS where practical.
+GRBL Commander supports Linux, Windows, and macOS from the outset. Linux is the primary development, integration, and deployment focus, particularly for dedicated touchscreen CNC computers. Cross-platform compatibility is an architectural requirement rather than a future porting goal.
 
 ## 2. Architectural Style
 
@@ -468,7 +468,69 @@ Raw command access remains possible in Debug mode, but bypassing application-lev
 
 Software validation and toolpath previews cannot guarantee collision-free or safe machine execution.
 
-## 10. Technology
+## 10. Platform Strategy
+
+GRBL Commander is a **cross-platform desktop application** supporting Linux, Windows, and macOS from a shared codebase. Linux is the priority for CNC-machine integration, deployment, testing, and operator experience, but the other desktop platforms are supported targets rather than hypothetical future ports.
+
+### 10.1 Shared Runtime and Codebase
+
+The application uses Kotlin/JVM and Compose Multiplatform Desktop on all supported desktop operating systems.
+
+Kotlin Multiplatform source sets are not required merely to run the same JVM application on multiple operating systems. They may be introduced if a concrete need for platform-specific code justifies them.
+
+Core application functionality must remain platform-independent, including:
+
+- Machine state, command coordination, and execution workflows.
+- GRBL protocol parsing and G-code processing.
+- Programs, macros, and tool management.
+- Toolpath geometry and visualization.
+- UI modes, interaction behavior, and application state.
+
+Portable domain and application code must not depend on operating-system-specific APIs.
+
+### 10.2 Platform Adapters
+
+Platform-specific behavior belongs behind infrastructure interfaces or dedicated adapters, as needed.
+
+Examples include:
+
+- Serial-port discovery, USB device identification, and permissions.
+- Native file dialogs, filesystem locations, and user configuration paths.
+- Touch input and on-screen keyboard integration.
+- Window management, display scaling, and fullscreen or kiosk behavior.
+- Application packaging, installation, and startup integration.
+
+Shared functionality should behave consistently across platforms. An OS-specific integration must not become a requirement for unrelated features, and unavailable optional integrations should degrade gracefully.
+
+### 10.3 Linux-First Optimization
+
+Linux receives particular attention for:
+
+- Stable USB/serial device paths and permissions, including udev-based configuration where applicable.
+- Reliable operation on dedicated CNC computers.
+- Touchscreen ergonomics and optional on-screen keyboard integration.
+- X11 and Wayland behavior.
+- High-DPI scaling and different display sizes.
+- Fullscreen and kiosk-style operation.
+- Native Linux packaging and startup integration.
+
+Linux-specific improvements must remain isolated from shared machine-control and UI logic whenever possible.
+
+### 10.4 Windows and macOS
+
+Windows and macOS use the same application codebase and feature model. Differences in serial-port discovery, permissions, native UI behavior, and packaging are handled by platform integrations.
+
+Features should not be marked as generally supported until their relevant platform behavior has been verified. Linux-specific capabilities must have an explicit alternative or a clearly documented limitation on other platforms.
+
+### 10.5 Build, Testing, and Distribution
+
+Continuous integration should run shared tests and platform-relevant smoke tests on Linux, Windows, and macOS runners. Desktop packaging should produce native distribution artifacts for each supported operating system.
+
+Linux is the primary environment for physical CNC-machine integration testing. Automated cross-platform tests do not replace verification with actual controller hardware.
+
+Cross-platform compatibility is part of the definition of done for changes affecting shared behavior. Platform-specific exceptions must be intentional and documented.
+
+## 11. Technology
 
 Initial technology choices:
 
@@ -482,16 +544,16 @@ Initial technology choices:
 | 2D rendering | Compose Canvas / Skia |
 | Build | Gradle Kotlin DSL |
 | Configuration | Kotlin serialization with an appropriate persistent format |
-| Testing | Kotlin/JVM tests and simulated controller |
+| Testing | Kotlin/JVM tests, simulated controller, and cross-platform CI |
 | Packaging | Platform-native desktop distributions |
 
 Infrastructure libraries should remain replaceable behind interfaces where replacement is reasonably likely.
 
-The domain and application layers should avoid direct dependencies on Compose and transport-specific libraries.
+The domain and application layers should avoid direct dependencies on Compose, transport-specific libraries, or operating-system-specific APIs.
 
-## 11. Source Organization
+## 12. Source Organization
 
-Start with a small number of Gradle modules. Use packages to establish component boundaries.
+Start with a small number of Gradle modules. Use packages to establish component boundaries. The same JVM modules are shared by Linux, Windows, and macOS; platform-specific integrations can remain isolated within infrastructure.
 
 Suggested initial structure:
 
@@ -535,7 +597,7 @@ Additional Gradle modules should be introduced when there is a concrete benefit,
 
 The package layout is illustrative, not a requirement to create every package immediately.
 
-## 12. Testing
+## 13. Testing
 
 Machine-control functionality must be testable without physical hardware.
 
@@ -548,6 +610,8 @@ The test strategy includes:
 - G-code analysis tests with representative programs and macros.
 - UI tests using deterministic machine-state snapshots.
 - Integration tests with supported physical controller configurations.
+- Cross-platform CI on Linux, Windows, and macOS for shared functionality and relevant desktop integrations.
+- Platform-native packaging smoke tests.
 
 The simulated controller should support configurable delays, missing responses, errors, alarms, disconnections, and tool-change pauses.
 
@@ -555,7 +619,7 @@ Existing grblHAL macro repositories can serve as regression fixtures for macro p
 
 Physical machine testing remains necessary before relying on motion-related functionality.
 
-## 13. Implementation Priorities
+## 14. Implementation Priorities
 
 Implementation should proceed incrementally while maintaining the architectural boundaries.
 
@@ -597,7 +661,7 @@ Implementation should proceed incrementally while maintaining the architectural 
 
 These phases describe implementation priorities rather than hard boundaries. Shared components should be introduced when required by real functionality.
 
-## 14. Design Principles
+## 15. Design Principles
 
 The following rules guide architectural decisions:
 
@@ -611,8 +675,9 @@ The following rules guide architectural decisions:
 8. **Make uncertainty visible.** Unknown machine state, unresolved G-code, and incomplete operation status must be represented explicitly.
 9. **Prefer simple boundaries.** Add abstraction where it protects meaningful responsibilities, not merely to anticipate hypothetical extensions.
 10. **Keep the architecture testable.** Machine-independent behavior should be verifiable without connecting to physical hardware.
+11. **Cross-platform by design.** Shared functionality must work on Linux, Windows, and macOS; prioritize Linux integration without coupling core features to Linux-specific APIs.
 
-## 15. References
+## 16. References
 
 - [grblHAL core](https://github.com/grblHAL/core)
 - [grblHAL documentation](https://www.grblhal.org/)
