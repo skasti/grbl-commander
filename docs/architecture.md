@@ -243,6 +243,8 @@ Softkeys use shared components and a common action model. Their labels, enabled 
 
 Global functions retain consistent positions across modes.
 
+**Current implementation:** The desktop shell renders a header, central workspace, eight bottom softkey slots and seven right softkey slots. The workspace contains a welcome screen. Softkey slots are visual placeholders without actions; controller communication, DRO, application modes and machine status reporting are not implemented. The header explicitly displays an unconnected state. The shared slot layout is described in [UI layout](ui-layout.md).
+
 ### 5.2 Application Modes
 
 Initial modes:
@@ -552,6 +554,9 @@ Infrastructure libraries should remain replaceable behind interfaces where repla
 The domain and application layers should avoid direct dependencies on Compose, transport-specific libraries, or operating-system-specific APIs.
 
 ## 12. Source Organization
+
+The current Gradle build contains an `app-desktop` module for the Compose desktop shell. The `core` and `infrastructure` modules in the example below describe the intended organization and are not implemented.
+
 
 Start with a small number of Gradle modules. Use packages to establish component boundaries. The same JVM modules are shared by Linux, Windows, and macOS; platform-specific integrations can remain isolated within infrastructure.
 
