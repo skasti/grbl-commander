@@ -33,17 +33,21 @@ compose.desktop {
             packageVersion = releaseVersion
             description = "Desktop operator interface for GRBL-compatible CNC machines"
 
-            // Compose Desktop 1.9 requires a macOS package version with major > 0.
-            // Shift only the macOS native bundle major; the Git release remains SemVer.
-            val parts = releaseVersion.split('.')
-            val macVersion = listOf(
-                parts[0].toInt() + 1,
-                parts[1].toInt(),
-                parts[2].toInt(),
-            ).joinToString(".")
-            macOS {
-                packageVersion = macVersion
-                packageBuildVersion = macVersion
+            // Compose Desktop 1.9 requires macOS package versions with major > 0.
+            // The macOS native metadata uses a reversible major+1 mapping.
+            // Configure it on the macOS host only; other hosts package their own formats.
+            if (System.getProperty("os.name").startsWith("Mac", ignoreCase = true)) {
+                val parts = releaseVersion.split('.')
+                require(parts.size == 3) { "Expected MAJOR.MINOR.PATCH: $releaseVersion" }
+                val macVersion = listOf(
+                    parts[0].toInt() + 1,
+                    parts[1].toInt(),
+                    parts[2].toInt(),
+                ).joinToString(".")
+                macOS {
+                    packageVersion = macVersion
+                    packageBuildVersion = macVersion
+                }
             }
         }
     }
