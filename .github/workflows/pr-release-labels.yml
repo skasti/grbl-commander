@@ -1,0 +1,21 @@
+name: Release label validation
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate release labels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate major/minor exclusivity
+        env:
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: python3 .github/scripts/release_version.py validate
+      - name: Test semantic version selection
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'

@@ -532,6 +532,8 @@ Linux is the primary environment for physical CNC-machine integration testing. A
 
 Cross-platform compatibility is part of the definition of done for changes affecting shared behavior. Platform-specific exceptions must be intentional and documented.
 
+Native release packaging is driven by GitHub Actions after a pull request is merged into `main`. Git tags determine published versions, and Gradle receives the resolved version for every platform package. Linux releases include DEB and RPM packages, Windows releases include MSI, and macOS releases include DMG. Packaging runs on native CI hosts; releases are only published once all platform artifacts have been built. Version selection and operator-facing distribution limitations are described in [releases.md](releases.md).
+
 ## 11. Technology
 
 Initial technology choices:
