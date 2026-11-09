@@ -6,14 +6,44 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: grbl-commander-release
   cancel-in-progress: false
 
 jobs:
+  recover-initial-release:
+    name: Restore the unpublished v0.1.1 release
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+      # One-time recovery for the first merged release PR, whose installers built
+      # successfully but were not published due to nested artifact directories.
+      # This step is safe to retry and can be removed after v0.1.1 is published.
+      - name: Restore v0.1.1 from the successful packaging jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          if gh release view v0.1.1 >/dev/null 2>&1; then
+            echo "v0.1.1 already published; no recovery required."
+            exit 0
+          fi
+          gh run download 42681459338 --pattern 'release-*' --dir recovered-assets
+          python3 .github/scripts/stage_release_assets.py recovered-assets recovered-files
+          gh release create v0.1.1 recovered-files/* \
+            --target 6e1d110df9b17386513cf3f1624083ef8104dbdf \
+            --title "GRBL Commander v0.1.1" \
+            --generate-notes
+
   prepare:
     name: Determine release version
+    needs: recover-initial-release
     if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     outputs:
@@ -92,17 +122,8 @@ jobs:
           pattern: release-*
           path: release-assets
           merge-multiple: true
-      - name: Verify every supported package format exists
-        shell: bash
-        run: |
-          shopt -s nullglob
-          for format in deb rpm msi dmg; do
-            packages=(release-assets/*."$format")
-            if (( ${#packages[@]} == 0 )); then
-              echo "::error::Missing .$format package; refusing to publish an incomplete release."
-              exit 1
-            fi
-          done
+      - name: Validate and flatten native installers
+        run: python3 .github/scripts/stage_release_assets.py release-assets release-files
       - name: Create tagged release with installers
         env:
           GH_TOKEN: ${{ github.token }}
@@ -111,7 +132,7 @@ jobs:
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         shell: bash
         run: |
-          gh release create "$TAG" release-assets/* \
+          gh release create "$TAG" release-files/* \
             --target "$MERGE_SHA" \
             --title "GRBL Commander $TAG" \
             --generate-notes

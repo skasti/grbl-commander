@@ -28,7 +28,7 @@ The Release workflow builds and tests the application on each supported OS using
 | Windows | `.msi` |
 | macOS | `.dmg` |
 
-Native packaging must run on its corresponding operating system. Packages include a Java runtime. The workflow verifies that **all four formats** exist before creating a GitHub Release with the version tag, generated release notes, and installer assets.
+Native packaging must run on its corresponding operating system. Packages include a Java runtime. The workflow locates installer files recursively in downloaded CI artifacts (including Linux's `deb/` and `rpm/` subdirectories), verifies that **all four formats** exist, and stages them in one flat directory before creating a GitHub Release with the version tag, generated release notes, and installer assets.
 
 The workflow requires GitHub Actions permission to create releases (`contents: write`). If a build or asset verification fails, publication fails rather than publishing an incomplete release; rerun the failed workflow after fixing the cause. The workflow serializes release jobs to reduce concurrent version conflicts.
 
