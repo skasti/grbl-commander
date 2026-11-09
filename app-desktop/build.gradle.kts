@@ -30,6 +30,19 @@ compose.desktop {
             packageName = "grbl-commander"
             packageVersion = project.version.toString()
             description = "Desktop operator interface for GRBL-compatible CNC machines"
+
+            // Compose Desktop 1.9 requires a macOS package version with major > 0.
+            // Shift only the macOS native bundle major; the Git release remains SemVer.
+            val parts = project.version.toString().split('.')
+            val macVersion = listOf(
+                parts[0].toInt() + 1,
+                parts[1].toInt(),
+                parts[2].toInt(),
+            ).joinToString(".")
+            macOS {
+                packageVersion = macVersion
+                packageBuildVersion = macVersion
+            }
         }
     }
 }
