@@ -243,7 +243,25 @@ Softkeys use shared components and a common action model. Their labels, enabled 
 
 Global functions retain consistent positions across modes.
 
-**Current implementation:** The desktop shell renders a header, central workspace, eight bottom softkey slots and seven right softkey slots. The workspace contains a branded splash image. The window icon and header show the supplied app logo. Softkey slots are visual placeholders without actions; controller communication, DRO, application modes and machine status reporting are not implemented. The header explicitly displays an unconnected state. The shared slot layout is described in [UI layout](ui-layout.md).
+**Current implementation:** The desktop shell renders a header, central workspace, eight bottom softkey slots and seven right softkey slots. The workspace hosts an observable screen-instance stack with a branded welcome screen and a runnable in-memory editor/file-explorer navigation example. The window icon and header show the supplied app logo. Softkey slots are visual placeholders without actions; controller communication, DRO, application modes and machine status reporting are not implemented. The header explicitly displays an unconnected state. The shared slot layout is described in [UI layout](ui-layout.md).
+
+### Screen navigation contract
+
+Presentation owns `Screen`, `ScreenStack`, and `ScreenStackHost` in the desktop
+`ui.navigation` package. A non-removable root and identity-based entries preserve
+underlying screen instances, callbacks and composed state across overlay push/pop.
+The host renders root to top within the workspace, retains covered compositions,
+and restricts pointer, keyboard, focus traversal and accessibility interaction to
+the top screen. Header and softkey regions remain owned by `AppShell` outside the
+workspace input boundary. Navigation is observable through Compose snapshot state
+and is confined to the UI thread. It never creates transports or changes controller
+execution state.
+
+Visual overlay layout and input isolation are independent of softkey inheritance.
+Screen-owned softkey definitions and inheritance remain planned. The in-memory
+editor/file-explorer example demonstrates result and cancellation callbacks; real
+program/file services and application modes are not implemented. Detailed lifetime,
+root, rendering and focus semantics are specified in [UI layout](ui-layout.md).
 
 ### 5.2 Application Modes
 
@@ -692,3 +710,4 @@ The following rules guide architectural decisions:
 - [Existing grblHAL macro examples](https://github.com/skasti/grblhal-macros)
 - [Compose Multiplatform](https://www.jetbrains.com/compose-multiplatform/)
 - [jSerialComm](https://github.com/Fazecast/jSerialComm)
+

@@ -8,7 +8,7 @@ While it is not necessarily easy to use or intuitive for users who are not famil
 
 ## Desktop shell
 
-The initial application uses Kotlin/JVM and Compose Multiplatform Desktop. It renders a branded, non-interactive splash image in the workspace and the application logo in the header and desktop window icon, within the common operator layout (header, workspace, bottom softkeys and right softkeys). It does not connect to a controller or execute machine commands.
+The initial application uses Kotlin/JVM and Compose Multiplatform Desktop. It renders a branded welcome image in a screen-stack workspace and the application logo in the header and desktop window icon, within the common operator layout (header, workspace, bottom softkeys and right softkeys). The welcome screen opens an in-memory editor/file-explorer navigation example that preserves editor state while an overlay is open. It does not connect to a controller, access real program files, or execute machine commands.
 
 ### Requirements
 
@@ -27,8 +27,9 @@ Build and test:
 gradle :app-desktop:build
 ```
 
-GitHub Actions builds and tests on Linux, Windows, and macOS. Each merged PR triggers a versioned GitHub Release with native Linux (DEB/RPM), Windows (MSI), and macOS (DMG) installers. GUI and physical-machine integration tests are not included.
+GitHub Actions builds and tests on Linux, Windows, and macOS. Each merged PR triggers a versioned GitHub Release with native Linux (DEB/RPM), Windows (MSI), and macOS (DMG) installers. Headless Compose component tests cover navigation and overlay input isolation. Physical-machine integration tests are not included.
 
 Versions start at v0.1.0. PRs labeled `major` or `minor` choose the corresponding semantic-version bump; other PRs bump patch. See [release process](docs/releases.md) for details, including the required PR label validation check.
 
 For implementation constraints, see [AGENTS.md](AGENTS.md), [architecture](docs/architecture.md), and the [UI layout contract](docs/ui-layout.md).
+

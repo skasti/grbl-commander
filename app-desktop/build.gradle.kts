@@ -21,11 +21,14 @@ dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
     testImplementation(kotlin("test-junit5"))
+    testImplementation(compose.desktop.uiTestJUnit4)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {
     useJUnitPlatform()
+    systemProperty("java.awt.headless", "true")
+    systemProperty("skiko.renderApi", "SOFTWARE")
 }
 
 val releaseVersion = providers.environmentVariable("RELEASE_VERSION")
@@ -136,3 +139,4 @@ compose.desktop {
         }
     }
 }
+
