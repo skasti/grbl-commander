@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: grbl-commander-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Determine release version
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+      - name: Fetch release tags
+        run: git fetch --tags --force
+      - name: Calculate release version
+        id: version
+        env:
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: python3 .github/scripts/release_version.py next
+      - name: Test versioning rules
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
+
+  package:
+    name: Package (${{ matrix.os }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux
+            gradle-tasks: ":app-desktop:packageDeb :app-desktop:packageRpm"
+            paths: |
+              app-desktop/build/compose/binaries/main/deb/*.deb
+              app-desktop/build/compose/binaries/main/rpm/*.rpm
+          - os: windows-latest
+            name: windows
+            gradle-tasks: ":app-desktop:packageMsi"
+            paths: app-desktop/build/compose/binaries/main/msi/*.msi
+          - os: macos-latest
+            name: macos
+            gradle-tasks: ":app-desktop:packageDmg"
+            paths: app-desktop/build/compose/binaries/main/dmg/*.dmg
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "9.8.2"
+      - name: Install RPM packaging tools (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+      - name: Build, test, and package
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: gradle :app-desktop:build ${{ matrix.gradle-tasks }} --no-daemon --stacktrace
+      - name: Upload native installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: ${{ matrix.paths }}
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub release
+    needs: [prepare, package]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Verify every supported package format exists
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for format in deb rpm msi dmg; do
+            packages=(release-assets/*."$format")
+            if (( ${#packages[@]} == 0 )); then
+              echo "::error::Missing .$format package; refusing to publish an incomplete release."
+              exit 1
+            fi
+          done
+      - name: Create tagged release with installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        shell: bash
+        run: |
+          gh release create "$TAG" release-assets/* \
+            --target "$MERGE_SHA" \
+            --title "GRBL Commander $TAG" \
+            --generate-notes

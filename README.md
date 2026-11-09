@@ -27,6 +27,8 @@ Build and test:
 gradle :app-desktop:build
 ```
 
-GitHub Actions runs the build and tests on Linux, Windows and macOS. This initial build does not produce native installers or execute GUI/physical-machine integration tests.
+GitHub Actions builds and tests on Linux, Windows, and macOS. Each merged PR triggers a versioned GitHub Release with native Linux (DEB/RPM), Windows (MSI), and macOS (DMG) installers. GUI and physical-machine integration tests are not included.
+
+Versions start at v0.1.0. PRs labeled `major` or `minor` choose the corresponding semantic-version bump; other PRs bump patch. See [release process](docs/releases.md) for details, including the required PR label validation check.
 
 For implementation constraints, see [AGENTS.md](AGENTS.md), [architecture](docs/architecture.md), and the [UI layout contract](docs/ui-layout.md).

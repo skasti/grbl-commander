@@ -3,3 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.21" apply false
     id("org.jetbrains.compose") version "1.9.3" apply false
 }
+
+allprojects {
+    version = providers.environmentVariable("RELEASE_VERSION")
+        .orElse(providers.gradleProperty("appVersion"))
+        .get()
+}
