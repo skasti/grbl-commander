@@ -21,6 +21,8 @@ tasks.test {
     useJUnitPlatform()
 }
 
+val releaseVersion = providers.gradleProperty("appVersion").get()
+
 compose.desktop {
     application {
         mainClass = "no.grblcommander.desktop.MainKt"
@@ -28,12 +30,12 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.Msi, TargetFormat.Dmg)
             packageName = "grbl-commander"
-            packageVersion = project.version.toString()
+            packageVersion = releaseVersion
             description = "Desktop operator interface for GRBL-compatible CNC machines"
 
             // Compose Desktop 1.9 requires a macOS package version with major > 0.
             // Shift only the macOS native bundle major; the Git release remains SemVer.
-            val parts = project.version.toString().split('.')
+            val parts = releaseVersion.split('.')
             val macVersion = listOf(
                 parts[0].toInt() + 1,
                 parts[1].toInt(),
