@@ -12,8 +12,8 @@ The initial application uses Kotlin/JVM and Compose Multiplatform Desktop. It re
 
 ### Requirements
 
-- JDK 17 or newer
-- Gradle 8.14.3
+- JDK 21 (the build uses a Java 21 toolchain)
+- Gradle 9.8.2 (matching the version used by Yame)
 
 Run the app from the repository root:
 
