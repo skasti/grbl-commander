@@ -44,6 +44,11 @@ compose.desktop {
                 parts[1].toInt(),
                 parts[2].toInt(),
             ).joinToString(".")
+            windows {
+                // Add an entry in the Windows Start menu; no desktop shortcut.
+                menu = true
+                menuGroup = "GRBL Commander"
+            }
             macOS {
                 packageVersion = macVersion
                 packageBuildVersion = macVersion
