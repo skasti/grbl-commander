@@ -71,7 +71,9 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y rpm
       - name: Build, test, and package
-        run: gradle :app-desktop:build ${{ matrix.gradle-tasks }} -PappVersion=${{ needs.prepare.outputs.version }} --no-daemon --stacktrace
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: gradle :app-desktop:build ${{ matrix.gradle-tasks }} --no-daemon --stacktrace
       - name: Upload native installers
         uses: actions/upload-artifact@v4
         with:
