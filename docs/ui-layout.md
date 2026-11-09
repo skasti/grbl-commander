@@ -8,14 +8,16 @@ The shell is composed of four regions, matching the static HTML/CSS and screensh
 
 | Region | Current responsibility |
 | --- | --- |
-| Header | Application identity, current context and explicit connection status |
-| Main workspace | A single startup/welcome screen |
+| Header | Image logo, application identity, current context and explicit connection status |
+| Main workspace | A noninteractive branded splash-screen image |
 | Bottom softkeys | Eight fixed slots, F1 through F8 |
 | Right softkeys | Seven fixed slots, R1 through R7 |
 
 The header spans the entire screen width. The right-side softkeys span the workspace and bottom-softkey row. The main workspace and bottom keys share the remaining width. The initial default sizes are 78 dp for the header, 94 dp for the bottom keys and 142 dp for the right column; they may be adjusted for screen sizes and touch targets.
 
 `AppShell` owns the persistent regions and accepts a Compose content slot for the workspace. `ShellState` contains display-only header information and softkey labels. All softkeys are noninteractive placeholders, not machine commands.
+
+The application icon and header logo use the classpath resource `images/grbl-commander-icon.png` (384 × 256), while the workspace uses `images/grbl-commander-splash.jpg` (1024 × 768). The two optimized assets are derived from the supplied brand artwork. Images preserve their original proportions with `ContentScale.Fit` rather than stretching or cropping. The operating system displays the application icon according to its window-manager conventions.
 
 The startup screen is deliberately disconnected from any controller. It does not simulate a real connected machine or expose motion operations.
 

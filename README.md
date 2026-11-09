@@ -8,7 +8,7 @@ While it is not necessarily easy to use or intuitive for users who are not famil
 
 ## Desktop shell
 
-The initial application uses Kotlin/JVM and Compose Multiplatform Desktop. It renders a non-interactive welcome screen within the common operator layout (header, workspace, bottom softkeys and right softkeys). It does not connect to a controller or execute machine commands.
+The initial application uses Kotlin/JVM and Compose Multiplatform Desktop. It renders a branded, non-interactive splash image in the workspace and the application logo in the header and desktop window icon, within the common operator layout (header, workspace, bottom softkeys and right softkeys). It does not connect to a controller or execute machine commands.
 
 ### Requirements
 

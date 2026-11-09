@@ -1,5 +1,6 @@
 package no.grblcommander.desktop.ui.layout
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +20,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import no.grblcommander.desktop.ui.BrandAssets
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,9 +72,20 @@ private fun ShellHeader(state: ShellState, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Column {
-            Text("GRBL", color = ShellColors.text, fontWeight = FontWeight.Black, fontSize = 17.sp)
-            Text("COMMANDER", color = ShellColors.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.4.sp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
+        ) {
+            Image(
+                painter = painterResource(BrandAssets.ICON),
+                contentDescription = "GRBL Commander logo",
+                modifier = Modifier.width(72.dp).height(48.dp),
+                contentScale = ContentScale.Fit,
+            )
+            Column {
+                Text("GRBL", color = ShellColors.text, fontWeight = FontWeight.Black, fontSize = 17.sp)
+                Text("COMMANDER", color = ShellColors.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.4.sp)
+            }
         }
         Box(Modifier.width(1.dp).height(38.dp).background(ShellColors.outline))
         Column(Modifier.weight(1f)) {

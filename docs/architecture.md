@@ -243,7 +243,7 @@ Softkeys use shared components and a common action model. Their labels, enabled 
 
 Global functions retain consistent positions across modes.
 
-**Current implementation:** The desktop shell renders a header, central workspace, eight bottom softkey slots and seven right softkey slots. The workspace contains a welcome screen. Softkey slots are visual placeholders without actions; controller communication, DRO, application modes and machine status reporting are not implemented. The header explicitly displays an unconnected state. The shared slot layout is described in [UI layout](ui-layout.md).
+**Current implementation:** The desktop shell renders a header, central workspace, eight bottom softkey slots and seven right softkey slots. The workspace contains a branded splash image. The window icon and header show the supplied app logo. Softkey slots are visual placeholders without actions; controller communication, DRO, application modes and machine status reporting are not implemented. The header explicitly displays an unconnected state. The shared slot layout is described in [UI layout](ui-layout.md).
 
 ### 5.2 Application Modes
 
