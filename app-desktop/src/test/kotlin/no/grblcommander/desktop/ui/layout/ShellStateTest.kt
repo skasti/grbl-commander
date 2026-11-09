@@ -7,6 +7,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.test.assertTrue
 
 class ShellStateTest {
     @Test
@@ -31,7 +32,7 @@ class ShellStateTest {
             assertNotNull(stream, "Missing image resource: $resource")
             stream.use {
                 val image = ImageIO.read(it) ?: throw IOException("Cannot decode image resource: $resource")
-                assert(image.width > 0 && image.height > 0)
+                assertTrue(image.width > 0 && image.height > 0)
             }
         }
     }
