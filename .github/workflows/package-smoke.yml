@@ -39,4 +39,6 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y rpm
       - name: Build native packages for next patch version
-        run: gradle ${{ matrix.gradle-tasks }} -PappVersion=0.1.1 --no-daemon --stacktrace
+        env:
+          RELEASE_VERSION: "0.1.1"
+        run: gradle ${{ matrix.gradle-tasks }} --no-daemon --stacktrace
