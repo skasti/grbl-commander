@@ -5,6 +5,7 @@ on:
     paths:
       - ".github/workflows/release.yml"
       - ".github/workflows/package-smoke.yml"
+      - ".github/scripts/assert_msi_start_menu.ps1"
       - "build.gradle.kts"
       - "gradle.properties"
       - "app-desktop/build.gradle.kts"
