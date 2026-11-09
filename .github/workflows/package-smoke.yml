@@ -42,3 +42,7 @@ jobs:
         env:
           RELEASE_VERSION: "0.1.1"
         run: gradle ${{ matrix.gradle-tasks }} --no-daemon --stacktrace
+      - name: Verify Windows MSI contains Start menu shortcut
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/scripts/assert_msi_start_menu.ps1
