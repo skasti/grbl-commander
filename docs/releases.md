@@ -12,7 +12,7 @@ Every pull request merged into `main` triggers the Release workflow. The workflo
 | `minor` | Increase minor; reset patch | v0.2.0 |
 | Neither | Increase patch | v0.1.1 |
 
-A pull request must **not** have both `major` and `minor`. The **Validate release labels** status check runs on label changes and code changes. Repository maintainers must make this check **required** in the `main` branch's protection rules to block invalid merges. Release preparation checks the same invariant as an additional safeguard.
+A pull request must **not** have both `major` and `minor`. The **Validate release labels** status check runs on label changes and code changes. Repository maintainers must create the `major` and `minor` labels (if absent) and make this check **required** in the `main` branch's protection rules to block invalid merges. Release preparation checks the same invariant as an additional safeguard.
 
 When no semantic-version tags exist, the workflow treats v0.1.0 as the baseline and applies the selected bump. Consequently, the first unlabeled merged PR publishes **v0.1.1**; v0.1.0 is the initial project version, not an automatically published release.
 
