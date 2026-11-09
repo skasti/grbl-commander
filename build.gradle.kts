@@ -5,5 +5,7 @@ plugins {
 }
 
 allprojects {
-    version = providers.gradleProperty("appVersion").get()
+    version = providers.environmentVariable("RELEASE_VERSION")
+        .orElse(providers.gradleProperty("appVersion"))
+        .get()
 }
