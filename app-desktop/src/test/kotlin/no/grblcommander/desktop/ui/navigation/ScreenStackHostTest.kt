@@ -3,6 +3,7 @@ package no.grblcommander.desktop.ui.navigation
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
@@ -97,6 +98,53 @@ class ScreenStackHostTest {
         runOnIdle {
             assertSame(editor, stack.top)
             assertEquals("; Example B\n; Preview only", editor.draft)
+        }
+    }
+
+    @Test fun independentComposeHostsResolveTheirOwnExplorer() = runComposeUiTest {
+        val left = EditorScreen()
+        val right = EditorScreen()
+        val leftStack = ScreenStack(left)
+        val rightStack = ScreenStack(right)
+        setContent {
+            Row(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f)) { ScreenStackHost(leftStack) }
+                Box(Modifier.weight(1f)) { ScreenStackHost(rightStack) }
+            }
+        }
+        onAllNodesWithText("Open example file")[0].performTouchInput { click() }
+        runOnIdle {
+            assertTrue(leftStack.top is FileExplorerScreen)
+            assertSame(right, rightStack.top)
+        }
+        onNodeWithText("Cancel").performTouchInput { click() }
+        runOnIdle {
+            assertSame(left, leftStack.top)
+            assertSame(right, rightStack.top)
+            assertEquals(null, left.selectedFile)
+        }
+        onAllNodesWithText("Open example file")[1].performTouchInput { click() }
+        onNodeWithText("example-b.nc").performTouchInput { click() }
+        runOnIdle {
+            assertSame(left, leftStack.top)
+            assertSame(right, rightStack.top)
+            assertEquals("example-b.nc", right.selectedFile)
+            assertEquals(null, left.selectedFile)
+        }
+    }
+
+    @Test fun popFromUiDeliversCancellationAndRestoresEditableScreen() = runComposeUiTest {
+        val editor = EditorScreen()
+        val stack = ScreenStack(editor)
+        setContent { ScreenStackHost(stack) }
+        onNodeWithText("Editor draft").performTextReplacement("Keep this")
+        onNodeWithText("Open example file").performTouchInput { click() }
+        runOnIdle { assertTrue(stack.pop() is FileExplorerScreen) }
+        onNodeWithText("Keep this").assertExists()
+        runOnIdle {
+            assertSame(editor, stack.top)
+            assertEquals(null, editor.selectedFile)
+            assertEquals("Keep this", editor.draft)
         }
     }
 

@@ -16,6 +16,9 @@ class ScreenStackTest {
         override fun hashCode() = 0
     }
 
+    private fun opener(stack: ScreenStack) =
+        FileExplorer(ScreenNavigationContext(stack, stack.entries.last()))
+
     @Test fun rootCannotBeRemovedAndStackCannotBecomeEmpty() {
         val root = StubScreen()
         val stack = ScreenStack(root)
@@ -51,43 +54,101 @@ class ScreenStackTest {
         assertEquals(1, stack.size)
     }
 
-    @Test fun editorRetainsDraftOnCancellationAndReceivesSelection() {
+    @Test fun explicitSelectionRestoresTheSameEditorAndCannotDeliverTwice() {
         val editor = EditorScreen()
         val stack = ScreenStack(editor)
         editor.draft = "Unfinished edit"
-        editor.openFileExplorer(stack)
-        val cancelled = stack.top as FileExplorerScreen
-        cancelled.cancel(stack)
+        val received = mutableListOf<FileExplorerResult>()
+        val explorer = opener(stack)
+        explorer.open(initialDirectory = "/programs", onResult = received::add)
+        val chooser = stack.top as FileExplorerScreen
+        assertEquals("/programs", chooser.initialDirectory)
+        assertTrue(chooser.select(chooser.files.first()))
         assertSame(editor, stack.top)
         assertEquals("Unfinished edit", editor.draft)
-        assertNull(editor.selectedFile)
-        editor.openFileExplorer(stack)
-        val chooser = stack.top as FileExplorerScreen
-        chooser.select(stack, chooser.files.first())
-        assertSame(editor, stack.top)
-        assertEquals("example-a.nc", editor.selectedFile)
-        assertEquals(chooser.files.first().contents, editor.draft)
-        // A stale callback must neither change the editor nor pop a newer screen.
-        editor.openFileExplorer(stack)
+        assertEquals(listOf(FileExplorerResult.Selected("example-a.nc")), received)
+        assertFalse(chooser.cancel())
+        assertFalse(chooser.select(chooser.files.last()))
+        assertEquals(1, received.size)
+
+        explorer.open(onResult = received::add)
         val newer = stack.top
-        chooser.select(stack, chooser.files.last())
+        assertFalse(chooser.select(chooser.files.last()))
         assertSame(newer, stack.top)
-        assertEquals("example-a.nc", editor.selectedFile)
     }
 
-    @Test fun resultIsDeliveredOnceAfterRestoringUnderlyingScreen() {
+    @Test fun popAndDismissDeliverTypedCancellationAfterRestoringOwner() {
         val root = StubScreen()
         val stack = ScreenStack(root)
-        var count = 0
-        val explorer = FileExplorerScreen {
+        val results = mutableListOf<FileExplorerResult>()
+        val explorer = opener(stack)
+        explorer.open { result ->
             assertSame(root, stack.top)
-            assertNull(it)
-            count++
+            results += result
         }
-        stack.push(explorer)
-        explorer.cancel(stack)
-        explorer.cancel(stack)
-        assertEquals(1, count)
-        assertTrue(stack.screens.single() === root)
+        val first = stack.top as FileExplorerScreen
+        assertSame(first, stack.pop())
+        assertFalse(first.cancel())
+        assertEquals(listOf(FileExplorerResult.Cancelled), results)
+
+        explorer.open { result ->
+            assertSame(root, stack.top)
+            results += result
+        }
+        val second = stack.top as FileExplorerScreen
+        assertTrue(stack.dismiss(second))
+        assertFalse(stack.dismiss(second))
+        assertFalse(second.cancel())
+        assertEquals(listOf(FileExplorerResult.Cancelled, FileExplorerResult.Cancelled), results)
+    }
+
+    @Test fun nestedOverlaysOnlyCompleteTopAndDoNotStealOtherCallbacks() {
+        val root = StubScreen()
+        val stack = ScreenStack(root)
+        val outerResults = mutableListOf<FileExplorerResult>()
+        val innerResults = mutableListOf<FileExplorerResult>()
+        val outerOpener = opener(stack)
+        outerOpener.open(onResult = outerResults::add)
+        val outer = stack.top as FileExplorerScreen
+        val innerOpener = opener(stack)
+        innerOpener.open(onResult = innerResults::add)
+        val inner = stack.top as FileExplorerScreen
+        assertFalse(outer.select(outer.files.first()))
+        assertFailsWith<IllegalStateException> { outerOpener.open {} }
+        assertSame(inner, stack.pop())
+        assertEquals(listOf(FileExplorerResult.Cancelled), innerResults)
+        assertTrue(outer.select(outer.files.last()))
+        assertSame(root, stack.top)
+        assertEquals(listOf(FileExplorerResult.Selected("example-b.nc")), outerResults)
+        assertFalse(inner.cancel())
+    }
+
+    @Test fun independentStacksAndDetachedContextsCannotCrossNavigate() {
+        val first = ScreenStack(StubScreen())
+        val second = ScreenStack(StubScreen())
+        val firstContext = ScreenNavigationContext(first, first.entries.last())
+        val secondContext = ScreenNavigationContext(second, second.entries.last())
+        val left = FileExplorer(firstContext)
+        val right = FileExplorer(secondContext)
+        val leftResults = mutableListOf<FileExplorerResult>()
+        val rightResults = mutableListOf<FileExplorerResult>()
+        left.open(onResult = leftResults::add)
+        assertTrue(first.top is FileExplorerScreen)
+        assertEquals(1, second.size)
+        right.open(onResult = rightResults::add)
+        (first.top as FileExplorerScreen).cancel()
+        assertEquals(listOf(FileExplorerResult.Cancelled), leftResults)
+        assertTrue(second.top is FileExplorerScreen)
+        (second.top as FileExplorerScreen).select((second.top as FileExplorerScreen).files.first())
+        assertEquals(listOf(FileExplorerResult.Selected("example-a.nc")), rightResults)
+        firstContext.dispose()
+        assertFailsWith<IllegalStateException> { left.open {} }
+        assertEquals(1, first.size)
+        assertEquals(1, second.size)
+    }
+
+    @Test fun unboundExplorerCannotComplete() {
+        val unbound = FileExplorerScreen("/programs")
+        assertFailsWith<IllegalArgumentException> { unbound.cancel() }
     }
 }
