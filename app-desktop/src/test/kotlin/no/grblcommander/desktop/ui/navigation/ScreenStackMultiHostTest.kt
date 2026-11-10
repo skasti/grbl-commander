@@ -28,8 +28,7 @@ import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
-class ModeScreenStacksHostTest {
-    private enum class Mode { Program, Manual }
+class ScreenStackMultiHostTest {
 
     @Test
     fun nonSaveableRememberAndScreenCompositionsSurviveRoundTrip() = runComposeUiTest {
@@ -49,24 +48,25 @@ class ModeScreenStacksHostTest {
                 Button(onClick = { count++ }) { Text("Manual count $count") }
             }
         }
-        val modes = ModeScreenStacks(Mode.Program) {
-            if (it == Mode.Program) program else manual
-        }
-        setContent { ModeScreenStacksHost(modes) }
+        val programStack = ScreenStack(program)
+        val manualStack = ScreenStack(manual)
+        var activeStack by mutableStateOf(programStack)
+        val stacks = listOf(programStack, manualStack)
+        setContent { ScreenStackHost(stacks, activeStack) }
 
         onNodeWithText("Program count 0").performTouchInput { click() }
-        runOnIdle { modes.selectMode(Mode.Manual) }
+        runOnIdle { activeStack = manualStack }
         onNodeWithText("Program count 1").assertDoesNotExist()
         onNodeWithText("Manual count 0").performTouchInput { click() }
-        runOnIdle { modes.selectMode(Mode.Program) }
+        runOnIdle { activeStack = programStack }
         onNodeWithText("Program count 1").assertExists()
         onNodeWithText("Manual count 1").assertDoesNotExist()
         runOnIdle {
             assertEquals(1, rememberedObjects.size)
             assertEquals(0, disposed)
-            assertSame(program, modes.activeStack.top)
+            assertSame(program, activeStack.top)
         }
-        runOnIdle { modes.selectMode(Mode.Manual) }
+        runOnIdle { activeStack = manualStack }
         onNodeWithText("Manual count 1").assertExists()
         runOnIdle { assertEquals(0, disposed) }
     }
@@ -75,35 +75,35 @@ class ModeScreenStacksHostTest {
     fun nestedOverlaysAndTypedResultsStayOnTheirOriginalStack() = runComposeUiTest {
         val editor = EditorScreen()
         val manual = ManualModeScreen()
-        val modes = ModeScreenStacks(Mode.Program) {
-            if (it == Mode.Program) editor else manual
-        }
-        val programStack = modes.activeStack
+        val programStack = ScreenStack(editor)
+        val manualStack = ScreenStack(manual)
+        var activeStack by mutableStateOf(programStack)
+        val stacks = listOf(programStack, manualStack)
         val outerResults = mutableListOf<FileExplorerResult>()
         val innerResults = mutableListOf<FileExplorerResult>()
         val outer = FileExplorer()
         val inner = FileExplorer()
-        setContent { ModeScreenStacksHost(modes) }
+        setContent { ScreenStackHost(stacks, activeStack) }
         runOnIdle {
             editor.draft = "Unfinished work"
             outer.open(editor, outerResults::add)
             inner.open(outer, innerResults::add)
         }
         onNodeWithText("Choose an example file").assertExists()
-        runOnIdle { modes.selectMode(Mode.Manual) }
+        runOnIdle { activeStack = manualStack }
         onNodeWithText("Open manual details").performTouchInput { click() }
         runOnIdle {
             assertEquals(emptyList(), outerResults)
             assertEquals(emptyList(), innerResults)
             assertSame(inner, programStack.top)
-            assertTrue(modes.activeStack.top is ManualDetailsScreen)
+            assertTrue(activeStack.top is ManualDetailsScreen)
         }
-        runOnIdle { modes.selectMode(Mode.Program) }
+        runOnIdle { activeStack = programStack }
         onNodeWithText("Choose an example file").assertExists()
         runOnIdle {
-            assertSame(programStack, modes.activeStack)
-            assertSame(inner, modes.activeStack.top)
-            assertEquals(3, modes.activeStack.size)
+            assertSame(programStack, activeStack)
+            assertSame(inner, activeStack.top)
+            assertEquals(3, activeStack.size)
             assertTrue(inner.cancel())
             assertSame(outer, programStack.top)
             assertTrue(outer.selectFile("example-a.nc"))
@@ -117,7 +117,7 @@ class ModeScreenStacksHostTest {
             assertSame(editor, programStack.top)
             assertEquals("Unfinished work", editor.draft)
         }
-        runOnIdle { modes.selectMode(Mode.Manual) }
+        runOnIdle { activeStack = manualStack }
         onNodeWithText("Back to Manual").assertExists()
     }
 
@@ -144,15 +144,16 @@ class ModeScreenStacksHostTest {
                 Text("Manual interactive workspace")
             }
         }
-        val modes = ModeScreenStacks(Mode.Program) {
-            if (it == Mode.Program) program else manual
-        }
-        setContent { ModeScreenStacksHost(modes, Modifier.testTag("multi-host")) }
+        val programStack = ScreenStack(program)
+        val manualStack = ScreenStack(manual)
+        var activeStack by mutableStateOf(programStack)
+        val stacks = listOf(programStack, manualStack)
+        setContent { ScreenStackHost(stacks, activeStack, Modifier.testTag("multi-host")) }
         onNodeWithTag("program-editor").performClick()
         runOnIdle { assertTrue(editorFocused) }
         val coveredPoint = onNodeWithTag("program-click").fetchSemanticsNode().boundsInRoot.center
 
-        runOnIdle { modes.selectMode(Mode.Manual) }
+        runOnIdle { activeStack = manualStack }
         onNodeWithText("Manual interactive workspace").assertExists()
         onNodeWithTag("program-editor").assertDoesNotExist()
         onNodeWithTag("program-click").assertDoesNotExist()
@@ -166,7 +167,7 @@ class ModeScreenStacksHostTest {
             assertFalse(editorFocused)
         }
 
-        runOnIdle { modes.selectMode(Mode.Program) }
+        runOnIdle { activeStack = programStack }
         onNodeWithTag("program-editor").assertExists()
         onNodeWithTag("program-click").performTouchInput { click() }
         runOnIdle { assertEquals(1, programClicks) }
@@ -181,39 +182,39 @@ class ModeScreenStacksHostTest {
         }
         val firstRoot = root("first")
         val secondRoot = root("second")
-        val first = ModeScreenStacks(Mode.Program) { mode ->
-            if (mode == Mode.Program) firstRoot else root("first manual")
-        }
-        val second = ModeScreenStacks(Mode.Program) { mode ->
-            if (mode == Mode.Program) secondRoot else root("second manual")
-        }
+        val firstProgramStack = ScreenStack(firstRoot)
+        val firstManualStack = ScreenStack(root("first manual"))
+        val secondProgramStack = ScreenStack(secondRoot)
+        val secondManualStack = ScreenStack(root("second manual"))
+        var firstActive by mutableStateOf(firstProgramStack)
+        var secondActive by mutableStateOf(secondProgramStack)
         setContent {
             Row(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f)) { ModeScreenStacksHost(first) }
-                Box(Modifier.weight(1f)) { ModeScreenStacksHost(second) }
+                Box(Modifier.weight(1f)) { ScreenStackHost(listOf(firstProgramStack, firstManualStack), firstActive) }
+                Box(Modifier.weight(1f)) { ScreenStackHost(listOf(secondProgramStack, secondManualStack), secondActive) }
             }
         }
         onNodeWithText("Open first").performTouchInput { click() }
         runOnIdle {
-            assertTrue(first.activeStack.top is FileExplorer)
-            assertSame(secondRoot, second.activeStack.top)
+            assertTrue(firstActive.top is FileExplorer)
+            assertSame(secondRoot, secondActive.top)
         }
-        runOnIdle { first.selectMode(Mode.Manual) }
+        runOnIdle { firstActive = firstManualStack }
         onNodeWithText("Open first manual").assertExists()
         onNodeWithText("Open second").performTouchInput { click() }
         runOnIdle {
-            assertEquals(Mode.Program, second.activeMode)
-            assertTrue(second.activeStack.top is FileExplorer)
-            assertSame(firstRoot, first.stackFor(Mode.Program).screens.first())
-            assertEquals(2, first.stackFor(Mode.Program).size)
+            assertSame(secondProgramStack, secondActive)
+            assertTrue(secondActive.top is FileExplorer)
+            assertSame(firstRoot, firstProgramStack.screens.first())
+            assertEquals(2, firstProgramStack.size)
         }
-        runOnIdle { first.selectMode(Mode.Program) }
+        runOnIdle { firstActive = firstProgramStack }
         onAllNodesWithText("Choose an example file").assertCountEquals(2)
         // Each host still owns its own top screen and result delivery.
         runOnIdle {
-            assertTrue((first.activeStack.top as FileExplorer).cancel())
-            assertSame(firstRoot, first.activeStack.top)
-            assertTrue(second.activeStack.top is FileExplorer)
+            assertTrue((firstActive.top as FileExplorer).cancel())
+            assertSame(firstRoot, firstActive.top)
+            assertTrue(secondActive.top is FileExplorer)
         }
     }
 
@@ -234,27 +235,28 @@ class ModeScreenStacksHostTest {
                 )
             }
         }
-        val modes = ModeScreenStacks(Mode.Program) {
-            if (it == Mode.Program) program else manual
-        }
-        setContent { ModeScreenStacksHost(modes) }
-        runOnIdle { modes.selectMode(Mode.Manual) }
+        val programStack = ScreenStack(program)
+        val manualStack = ScreenStack(manual)
+        var activeStack by mutableStateOf(programStack)
+        val stacks = listOf(programStack, manualStack)
+        setContent { ScreenStackHost(stacks, activeStack) }
+        runOnIdle { activeStack = manualStack }
         onNodeWithTag("manual-input").performClick()
         runOnIdle { assertTrue(manualFocused) }
 
         // Direct-stack opening is allowed; it must neither redirect navigation
         // into Manual nor activate or focus the inactive Program host.
         val explorer = FileExplorer()
-        runOnIdle { explorer.open(modes.stackFor(Mode.Program)) }
+        runOnIdle { explorer.open(programStack) }
         onNodeWithTag("manual-input").assertExists()
         onNodeWithText("Choose an example file").assertDoesNotExist()
         runOnIdle {
             assertTrue(manualFocused)
-            assertSame(explorer, modes.stackFor(Mode.Program).top)
-            assertSame(manual, modes.activeStack.top)
+            assertSame(explorer, programStack.top)
+            assertSame(manual, activeStack.top)
         }
 
-        runOnIdle { modes.selectMode(Mode.Program) }
+        runOnIdle { activeStack = programStack }
         onNodeWithText("Choose an example file").assertExists()
         runOnIdle { assertFalse(manualFocused) }
     }
