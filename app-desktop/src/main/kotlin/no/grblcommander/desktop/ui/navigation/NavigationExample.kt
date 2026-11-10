@@ -18,27 +18,37 @@ import androidx.compose.ui.unit.dp
 /** In-memory fixture, not a filesystem adapter or an executable machine program. */
 data class ExampleFile(val name: String, val contents: String)
 
+private val exampleFiles = listOf(
+    ExampleFile("example-a.nc", "; Example A\n; Preview only"),
+    ExampleFile("example-b.nc", "; Example B\n; Preview only"),
+)
+
 class EditorScreen : Screen {
     var draft by mutableStateOf("; Navigation example — no machine operations")
     var selectedFile by mutableStateOf<String?>(null)
         private set
 
-    fun openFileExplorer(stack: ScreenStack) {
-        stack.push(FileExplorerScreen { file ->
-            if (file != null) {
-                selectedFile = file.name
-                draft = file.contents
-            }
-        })
+    private fun loadExampleFile(filename: String) {
+        val file = exampleFiles.singleOrNull { it.name == filename } ?: return
+        selectedFile = file.name
+        draft = file.contents
     }
 
     @Composable
     override fun Content(stack: ScreenStack) {
+        val fileExplorer = rememberFileExplorer()
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Navigation example · in-memory files only")
                 Text(selectedFile ?: "Unsaved draft")
-                Button(onClick = { openFileExplorer(stack) }) { Text("Open example file") }
+                Button(onClick = {
+                    fileExplorer.open(initialDirectory = "/programs") { result ->
+                        when (result) {
+                            is FileExplorerResult.Selected -> loadExampleFile(result.filename)
+                            FileExplorerResult.Cancelled -> Unit
+                        }
+                    }
+                }) { Text("Open example file") }
                 OutlinedTextField(
                     value = draft,
                     onValueChange = { draft = it },
@@ -51,35 +61,35 @@ class EditorScreen : Screen {
     }
 }
 
-class FileExplorerScreen(
-    private val onResult: (ExampleFile?) -> Unit,
-) : Screen {
-    val files = listOf(
-        ExampleFile("example-a.nc", "; Example A\n; Preview only"),
-        ExampleFile("example-b.nc", "; Example B\n; Preview only"),
-    )
+class FileExplorerScreen(val initialDirectory: String) : Screen {
+    val files: List<ExampleFile> = exampleFiles
+    private var completion: ScreenResultHandle<FileExplorerResult>? = null
 
-    fun select(stack: ScreenStack, file: ExampleFile) {
+    internal fun bind(handle: ScreenResultHandle<FileExplorerResult>) {
+        check(completion == null) { "File explorer is already bound" }
+        completion = handle
+    }
+
+    /** The navigation stack guards top-of-stack identity and at-most-once delivery. */
+    fun select(file: ExampleFile): Boolean {
         require(file in files) { "Select a file from this explorer" }
-        finish(stack, file)
+        return requireNotNull(completion) { "Open this screen through FileExplorer" }
+            .complete(FileExplorerResult.Selected(file.name))
     }
 
-    fun cancel(stack: ScreenStack) = finish(stack, null)
-
-    private fun finish(stack: ScreenStack, file: ExampleFile?) {
-        // Deliver only once and only while this explorer is topmost.
-        if (stack.dismiss(this)) onResult(file)
-    }
+    fun cancel(): Boolean = requireNotNull(completion) { "Open this screen through FileExplorer" }
+        .complete(FileExplorerResult.Cancelled)
 
     @Composable
     override fun Content(stack: ScreenStack) {
         Surface(Modifier.padding(32.dp)) {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Choose an example file")
+                Text(initialDirectory)
                 files.forEach { file ->
-                    Button(onClick = { select(stack, file) }) { Text(file.name) }
+                    Button(onClick = { select(file) }) { Text(file.name) }
                 }
-                Button(onClick = { cancel(stack) }) { Text("Cancel") }
+                Button(onClick = { cancel() }) { Text("Cancel") }
             }
         }
     }
