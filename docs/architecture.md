@@ -247,30 +247,39 @@ Global functions retain consistent positions across modes.
 
 ### Screen navigation contract
 
-Presentation owns `Screen`, `ScreenStack`, and `ScreenStackHost` in the desktop
-`ui.navigation` package. A non-removable root and identity-based entries preserve
-underlying screen instances, callbacks and composed state across overlay push/pop.
-Result-bearing entries are owned by the stack. Explicit completion restores the
-underlying screen before delivering a typed result once; normal pop/back and
-dismiss deliver typed cancellation. Stale or covered entries cannot finish a
-newer overlay.
-The host renders root to top within the workspace, retains covered compositions,
-and restricts pointer, keyboard, focus traversal and accessibility interaction to
-the top screen. Header and softkey regions remain owned by `AppShell` outside the
-workspace input boundary. Navigation is observable through Compose snapshot state
-and is confined to the UI thread. A per-entry navigation context supplied by the
-host exposes screen-specific facades such as `rememberFileExplorer()` and
-`FileExplorer.open(initialDirectory, onResult)` without requiring application
-callers to manipulate the stack. Contexts expire with their screen compositions;
-independent windows and nested overlays never share a singleton navigator.
-Navigation never creates transports or changes controller execution state.
+Presentation defines `NavigationParent`, `Screen<R>`, `ScreenStack` and
+`ScreenStackHost` in the desktop `ui.navigation` package. Both `Screen<R>`
+and `ScreenStack` implement `NavigationParent`; `screenStack` returns the
+owning stack. A root screen is bound by `ScreenStack(root)` after construction,
+so the root never needs its stack while being initialized. Other screens are
+bound by the stack when opened or pushed, and unbound on removal.
+
+A screen owns its UI in `Content()`, its state, a typed cancellation value,
+and `open(parent, onResult)` / protected `finish(result)` methods. A plain
+screen uses `Screen<Unit>(Unit)` without a dedicated result class. The
+`FileExplorer` screen uses `FileExplorerResult.Selected(filename)` and
+`Cancelled`. `ScreenStack` owns instance identity, observable stack changes,
+binding, root protection, guarded completion and at-most-once callback delivery.
+Ordinary `pop()` and `dismiss()` deliver the screen's cancellation result;
+completion and cancellation restore the underlying screen before the callback
+runs. A covered screen cannot open or finish another screen. Opening with the
+stack itself as parent is an explicit direct navigation action that adds above
+the current top, even when overlays are present. Independent stacks never share
+navigation bindings or a global navigator.
+
+`ScreenStackHost` only renders entries root to top within the workspace,
+retains covered compositions, draws overlays, and restricts pointer, keyboard,
+focus traversal and accessibility interaction to the top screen. Header and
+softkey regions remain owned by `AppShell` outside the workspace input boundary.
+Navigation is observable through Compose snapshot state and confined to the UI
+thread; it does not create transports or modify controller execution state.
 
 Visual overlay layout and input isolation are independent of softkey inheritance.
 Screen-owned softkey definitions and inheritance remain planned. The in-memory
-editor/file-explorer example demonstrates `FileExplorerResult.Selected(filename)`
-and `Cancelled` callbacks, including ordinary pop/back; real
-program/file services and application modes are not implemented. Detailed lifetime,
-root, rendering and focus semantics are specified in [UI layout](ui-layout.md).
+editor/file-explorer example demonstrates typed selection and cancellation,
+including ordinary pop/back; real program/file services and application modes
+are not implemented. Detailed lifetime, root, rendering and focus behavior are
+specified in [UI layout](ui-layout.md).
 
 ### 5.2 Application Modes
 

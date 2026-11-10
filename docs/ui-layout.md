@@ -21,82 +21,105 @@ The application icon and header logo use the classpath resource `images/grbl-com
 
 ## Screen navigation
 
-`Screen` is a presentation contract with `Content(stack)`. `ScreenStack(root)` owns
-screen **instances**, ordered from root to top. Its Compose snapshot state makes
-`top`, `size`, and the read-only `screens` snapshot observable. Call navigation
-methods on the UI thread. `push(screen)` rejects an instance already in the stack;
-different instances remain distinct even if they compare equal. `pop()` returns the
-removed instance, or null at the root. The stack never becomes empty.
-`dismiss(screen)` only removes that exact instance if it is topmost and not root.
-Result-bearing entries deliver their typed cancellation value on `pop()` or
-`dismiss(screen)`. Explicit completion removes the top entry before invoking its
-typed callback. Callbacks are delivered at most once, and stale or covered
-instances cannot finish another overlay.
+`NavigationParent` exposes an owning `screenStack`. Both `ScreenStack` and
+`Screen<R>` implement this interface. `ScreenStack(root)` binds the root after
+the screen has been constructed; access to `root.screenStack` before binding
+fails. The root cannot be removed. An opened screen is bound to exactly one stack
+until dismissed, and cannot simultaneously belong to multiple stacks. Its
+`screenStack` becomes unavailable on removal.
 
-`ScreenStackHost` stays inside the shell workspace. Every entry remains composed,
-keyed by an identity entry, in root-to-top drawing order. Each overlay fills the
-workspace input region and draws a dark scrim above the preceding screen. Its own
-content can occupy only part of that region. Covered screens retain their instance,
-callbacks, ordinary `remember` state, and composition effects. Popping disposes only
-the removed entry; a later push of that instance starts a fresh composition while
-its instance-owned state survives. Screens must not treat composition lifetime as
-permission to receive operator input or perform machine operations.
+`Screen<R>` is one screen instance with its own `Content()`, state, navigation
+methods and typed result. The constructor receives its cancellation result. For
+screens without meaningful results use `Screen<Unit>(Unit)`; no extra result
+class is needed. A child opens with `MyScreen(...).open(this@ParentScreen) {
+result -> ... }`. The parent must be bound and must be the active screen.
+Covered screens cannot open new overlays or complete their own results.
+A screen can call protected `finish(result)` only while it is topmost.
+The stack removes the screen, detaches its binding and then delivers the typed
+callback at most once. Stale and duplicate completion attempts return false.
+
+`ScreenStack` owns screen **instances**, ordered root to top. Its Compose
+snapshot state makes `top`, `size` and the read-only `screens` observable.
+Call navigation on the UI thread. `push(screen)` and typed `open(screen,
+onResult)` add an instance above the current top. Passing a `ScreenStack` as
+the parent in `MyScreen().open(stack) { ... }` does the same, even if another
+screen is already displayed; this is an intentional direct-stack action rather
+than navigation initiated by a covered screen. `pop()` returns the removed
+instance, or null at the root. `dismiss(screen)` only removes that exact
+topmost non-root instance. Both ordinary removal methods deliver the screen's
+cancellation result before returning. Screens are compared by identity even if
+their `equals` methods agree. Different stacks have independent binding,
+results, and UI histories.
+
+`ScreenStackHost` stays inside the persistent shell workspace. It renders
+`Content()` without injecting navigation dependencies. Every entry remains
+composed, keyed by an identity entry, in root-to-top drawing order. Each overlay
+fills the workspace input region and draws a dark scrim above the preceding
+screen; its visible content may occupy only part of that region. Covered screens
+retain their instance, callbacks, ordinary Compose `remember` state, and
+composition effects. Popping disposes only the removed entry; a later push of
+that instance starts a fresh composition while its instance-owned state survives.
 
 Only the top screen receives workspace pointer and keyboard input. Full-workspace
 pointer targets prevent clicks in overlay margins from reaching lower siblings;
 covered layers also consume pointer events before their children. Covered focus
 groups reject focus entry, key preview handlers block stale focused descendants,
-and navigation clears captured focus and focuses the active layer. Covered content
-is removed from the accessibility semantics tree. Focus returns to the active layer,
-not necessarily to the previously focused editor field. The shell lies outside this
-input boundary and is not duplicated by screens.
+and navigation clears captured focus and focuses the active layer. Covered
+content is removed from the accessibility semantics tree. Focus returns to the
+active layer, not necessarily the previously focused editor field. The header
+and softkeys stay outside this input boundary.
 
-Visual overlay/input behavior has no dependency on softkey inheritance. Screen-owned
-softkey definitions, inheritance, global shortcut dispatch and mode switching are
-planned separately. The existing shell softkeys remain noninteractive.
+Visual overlay/input behavior does not depend on softkey inheritance.
+Screen-owned softkey definitions, inheritance, global shortcut dispatch and
+mode switching are planned separately. The current shell softkeys remain
+noninteractive.
 
-### Screen-specific result API
+### Screen-owned typed results
 
-`ScreenStackHost` provides a `ScreenNavigationContext` for each composed screen
-entry through a private Compose CompositionLocal. `rememberFileExplorer()`
-returns a `FileExplorer` facade bound to that entry and host:
+The editor's file selection uses the actual `FileExplorer` screen, without a
+facade, navigator, CompositionLocal, or generic result casts:
 
 ```kotlin
-val fileExplorer = rememberFileExplorer()
-Button(onClick = {
-    fileExplorer.open(initialDirectory = "/programs") { result ->
-        when (result) {
-            is FileExplorerResult.Selected -> loadExampleFile(result.filename)
-            FileExplorerResult.Cancelled -> Unit
-        }
+class FileExplorer(initialDirectory: String) :
+    Screen<FileExplorerResult>(FileExplorerResult.Cancelled) {
+    @Composable override fun Content() { /* file selection UI */ }
+
+    fun selectFile(filename: String) {
+        finish(FileExplorerResult.Selected(filename))
     }
-}) { Text("Open example file") }
+}
+
+// Inside EditorScreen:
+FileExplorer("/programs").open(this@EditorScreen) { result ->
+    when (result) {
+        is FileExplorerResult.Selected -> loadExampleFile(result.filename)
+        FileExplorerResult.Cancelled -> Unit
+    }
+}
+
+// A host may also open directly on its own stack:
+FileExplorer("/programs").open(programStack) { result -> /* ... */ }
 ```
 
-The facade takes screen-specific parameters and delivers
-`FileExplorerResult.Selected(filename)` or `Cancelled`; callers do not
-pass a stack or cast a generic result. An unbound `FileExplorerScreen` cannot
-discover a window and must be opened through the facade. Navigation contexts
-belong to one entry in one host, expire when that composition is removed, and
-cannot open an overlay while their entry is covered. Nested overlays get their
-own contexts; independent windows do not share a singleton navigator.
-
-The stack owns callback delivery, entry identity, at-most-once completion and
-cancellation on normal back/pop. It restores the underlying entry *before*
-delivering the callback. Covered compositions remain alive.
+The concrete example screen and its files are in-memory UI fixtures. Opening
+through a screen automatically resolves that screen's bound stack. Direct-stack
+opening uses the given stack. A detached or covered screen cannot be an active
+navigation parent. Typed completion restores the parent screen before invoking
+its callback; cancelling explicitly, pressing back or calling `pop()` delivers
+the same `Cancelled` result.
 
 ### Runnable example
 
 Choose **Open navigation example** on the welcome screen, edit the draft, then
-choose **Open example file**. Each invocation creates a `FileExplorerScreen` instance.
-**Cancel**, back, or `pop()` dismisses the explorer and delivers
-`FileExplorerResult.Cancelled` to the same editor callback, leaving the draft
-unchanged. Selecting an example file delivers `Selected(filename)`; the editor
-looks up the in-memory fixture and updates its filename and draft. **Back to welcome** dismisses
-the editor. Files are in-memory fixtures, not local/controller filesystem access, and
-this example cannot execute G-code. Explicit cancellation and generic `pop()` produce the same typed cancellation result.
+choose **Open example file**. Each invocation creates a `FileExplorer` screen
+instance. **Cancel** or `pop()` restores the same editor and leaves its draft
+unchanged. Selecting a fixture delivers `Selected(filename)`; the editor
+looks up the in-memory fixture and updates its filename and draft. **Back to
+welcome** completes the editor's `Unit` result. The example has no real local
+or controller filesystem access and cannot execute G-code.
 
-The startup screen is deliberately disconnected from any controller. It does not simulate a real connected machine or expose motion operations.
+The startup screen is deliberately disconnected from any controller. It does
+not simulate a real connected machine or expose motion operations.
 
 ## Architectural requirements
 
