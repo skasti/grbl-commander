@@ -1,31 +1,45 @@
 package no.grblcommander.desktop.ui.navigation
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 
-/** Result contract owned by the file explorer, not a generic navigation result. */
+/** A typed result from the in-memory file chooser. */
 sealed interface FileExplorerResult {
     data class Selected(val filename: String) : FileExplorerResult
     data object Cancelled : FileExplorerResult
 }
 
-/**
- * Screen-specific opener captured from the calling screen's host composition.
- * No Navigator/ScreenStack is passed at the UI call site. Each host has its own context.
- */
-class FileExplorer internal constructor(private val navigation: ScreenNavigationContext) {
-    fun open(
-        initialDirectory: String = "/programs",
-        onResult: (FileExplorerResult) -> Unit,
-    ) {
-        val screen = FileExplorerScreen(initialDirectory)
-        // The UI thread completes the handler before the next Compose frame observes the push.
-        screen.bind(navigation.open(screen, FileExplorerResult.Cancelled, onResult))
-    }
-}
+/** The file explorer is the screen; no facade, global navigator or filesystem. */
+class FileExplorer(val initialDirectory: String = "/programs") :
+    Screen<FileExplorerResult>(FileExplorerResult.Cancelled) {
 
-@Composable
-fun rememberFileExplorer(): FileExplorer {
-    val navigation = LocalScreenNavigationContext.current
-    return remember(navigation) { FileExplorer(navigation) }
+    val files: List<ExampleFile> = exampleFiles
+
+    fun selectFile(filename: String): Boolean {
+        require(files.any { it.name == filename }) { "Select a file from this explorer" }
+        return finish(FileExplorerResult.Selected(filename))
+    }
+
+    fun cancel(): Boolean = finish(FileExplorerResult.Cancelled)
+
+    @Composable
+    override fun Content() {
+        Surface(Modifier.padding(32.dp)) {
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Choose an example file")
+                Text(initialDirectory)
+                files.forEach { file ->
+                    Button(onClick = { selectFile(file.name) }) { Text(file.name) }
+                }
+                Button(onClick = { cancel() }) { Text("Cancel") }
+            }
+        }
+    }
 }

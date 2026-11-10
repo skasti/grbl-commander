@@ -3,10 +3,48 @@ package no.grblcommander.desktop.ui.navigation
 import androidx.compose.runtime.Composable
 
 /**
- * One workspace instance. Keep durable UI state and result callbacks on the instance.
- * Screens never own transports. Navigation is independent of softkey definitions.
+ * A stateful workspace screen with a typed completion result.
+ *
+ * Use Unit for screens without meaningful results. The cancellation value is
+ * delivered when an opened screen is dismissed without explicit completion.
+ * The stack owns the binding and result delivery, not the Compose host.
  */
-interface Screen {
+abstract class Screen<R>(private val cancellationResult: R) : NavigationParent {
+    private var owningStack: ScreenStack? = null
+    private var onResult: ((R) -> Unit)? = null
+
+    override val screenStack: ScreenStack
+        get() = checkNotNull(owningStack) { "Screen is not attached to a ScreenStack" }
+
+    /** Open above an active parent screen, or directly above a stack's current top. */
+    fun open(parent: NavigationParent, onResult: (R) -> Unit = {}) {
+        val stack = parent.screenStack
+        if (parent is Screen<*>) {
+            check(stack.top === parent) { "A covered screen cannot open another screen" }
+        }
+        stack.open(this, onResult)
+    }
+
+    /** Completes this active screen exactly once and restores its parent first. */
+    protected fun finish(result: R): Boolean = owningStack?.finish(this, result) ?: false
+
+    /** Subclasses own their state and presentation, not navigation injection. */
     @Composable
-    fun Content(stack: ScreenStack)
+    abstract fun Content()
+
+    internal fun bind(stack: ScreenStack, receiver: (R) -> Unit) {
+        check(owningStack == null) { "Screen instance is already attached to a ScreenStack" }
+        owningStack = stack
+        onResult = receiver
+    }
+
+    /** Called only after the stack has removed this screen from its entries. */
+    internal fun deliver(result: R) {
+        val callback = onResult
+        owningStack = null
+        onResult = null
+        callback?.invoke(result)
+    }
+
+    internal fun cancel() = deliver(cancellationResult)
 }

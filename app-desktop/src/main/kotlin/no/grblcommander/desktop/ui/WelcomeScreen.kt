@@ -6,7 +6,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import no.grblcommander.desktop.ui.navigation.Screen
-import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.EditorScreen
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -21,9 +20,9 @@ import androidx.compose.ui.unit.dp
  *
  * This screen never claims controller connectivity or implies machine operation.
  */
-class WelcomeScreen : Screen {
+class WelcomeScreen : Screen<Unit>(Unit) {
     @Composable
-    override fun Content(stack: ScreenStack) {
+    override fun Content() {
         Box(Modifier.fillMaxSize()) {
             Image(
                 painter = painterResource(BrandAssets.SPLASH),
@@ -32,7 +31,7 @@ class WelcomeScreen : Screen {
                 contentScale = ContentScale.Fit,
             )
             Button(
-                onClick = { stack.push(EditorScreen()) },
+                onClick = { EditorScreen().open(this@WelcomeScreen) },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
             ) { Text("Open navigation example") }
         }

@@ -6,8 +6,6 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -46,8 +44,6 @@ fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier) {
         stack.entries.forEachIndexed { index, entry ->
             key(entry) {
                 val active = entry === topEntry
-                val navigation = remember(stack, entry) { ScreenNavigationContext(stack, entry) }
-                DisposableEffect(navigation) { onDispose { navigation.dispose() } }
                 val inputGate = Modifier
                     .onPreviewKeyEvent { stack.top !== entry.screen }
                     .pointerInput(entry) {
@@ -92,9 +88,7 @@ fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier) {
                                 }
                             },
                     ) {
-                        CompositionLocalProvider(LocalScreenNavigationContext provides navigation) {
-                            entry.screen.Content(stack)
-                        }
+                        entry.screen.Content()
                     }
                 }
             }

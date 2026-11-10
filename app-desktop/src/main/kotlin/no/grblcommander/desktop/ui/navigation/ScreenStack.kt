@@ -5,74 +5,66 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /**
- * UI-thread-confined navigation, ordered root to top. The root cannot be removed.
- * Instances are compared by identity, including when a Screen overrides equals.
+ * UI-thread-confined stack of screen instances, root to top. The root is bound
+ * at construction and cannot be removed. All navigation is independent of UI
+ * modes, input rendering and controller execution.
  */
-class ScreenStack(root: Screen) {
-    internal class Entry(val screen: Screen, val onDismiss: (() -> Unit)? = null)
+class ScreenStack(root: Screen<*>) : NavigationParent {
+    override val screenStack: ScreenStack get() = this
+
+    internal class Entry(val screen: Screen<*>)
     internal var entries by mutableStateOf(listOf(Entry(root)))
         private set
 
-    val screens: List<Screen> get() = entries.map { it.screen }
-    val top: Screen get() = entries.last().screen
+    init {
+        bindRoot(root)
+    }
+
+    private fun <R> bindRoot(root: Screen<R>) {
+        root.bind(this, {})
+    }
+
+    val screens: List<Screen<*>> get() = entries.map { it.screen }
+    val top: Screen<*> get() = entries.last().screen
     val size: Int get() = entries.size
 
-    fun push(screen: Screen) {
+    /** Direct stack navigation always pushes above the current top screen. */
+    fun <R> push(screen: Screen<R>) {
+        attach(screen, {})
+    }
+
+    /** Open a typed result-bearing screen directly on this stack. */
+    fun <R> open(screen: Screen<R>, onResult: (R) -> Unit) {
+        attach(screen, onResult)
+    }
+
+    private fun <R> attach(screen: Screen<R>, onResult: (R) -> Unit) {
         require(entries.none { it.screen === screen }) { "Screen instance is already on this stack" }
+        screen.bind(this, onResult)
         entries = entries + Entry(screen)
     }
 
-    /** Removes the top entry, then delivers cancellation for a result-bearing screen. */
-    fun pop(): Screen? {
+    /** Pops the active non-root screen and delivers its cancellation result once. */
+    fun pop(): Screen<*>? {
         if (entries.size == 1) return null
         val removed = entries.last()
         entries = entries.dropLast(1)
-        removed.onDismiss?.invoke()
+        removed.screen.cancel()
         return removed.screen
     }
 
-    /** Only the actual top instance may be dismissed, including result-bearing screens. */
-    fun dismiss(screen: Screen): Boolean {
-        if (top !== screen || entries.size == 1) return false
+    /** A stale or covered instance cannot dismiss a different screen. */
+    fun dismiss(screen: Screen<*>): Boolean {
+        if (entries.size == 1 || top !== screen) return false
         pop()
         return true
     }
 
-    /**
-     * Result ownership belongs to this stack, not the screen. Both ordinary pop/back and
-     * explicit completion remove the entry before delivering the callback, exactly once.
-     * The owner entry also prevents covered or detached screens from opening overlays.
-     */
-    internal fun <R> openResult(
-        owner: Entry,
-        screen: Screen,
-        cancellation: R,
-        onResult: (R) -> Unit,
-    ): ScreenResultHandle<R> {
-        check(entries.last() === owner) { "Only the active screen can open an overlay" }
-        require(entries.none { it.screen === screen }) { "Screen instance is already on this stack" }
-        var delivered = false
-        val deliver: (R) -> Unit = { result ->
-            if (!delivered) {
-                delivered = true
-                onResult(result)
-            }
-        }
-        val entry = Entry(screen) { deliver(cancellation) }
-        entries = entries + entry
-        return ScreenResultHandle { result ->
-            if (entries.last() !== entry) {
-                false
-            } else {
-                entries = entries.dropLast(1)
-                deliver(result)
-                true
-            }
-        }
+    /** Explicitly complete only the current non-root instance. */
+    internal fun <R> finish(screen: Screen<R>, result: R): Boolean {
+        if (entries.size == 1 || top !== screen) return false
+        entries = entries.dropLast(1)
+        screen.deliver(result)
+        return true
     }
-}
-
-/** Typed, entry-bound completion; stale and duplicate completions return false. */
-internal class ScreenResultHandle<R>(private val completeAction: (R) -> Boolean) {
-    fun complete(result: R): Boolean = completeAction(result)
 }
