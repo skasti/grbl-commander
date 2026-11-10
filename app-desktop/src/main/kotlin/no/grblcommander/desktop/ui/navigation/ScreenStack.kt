@@ -49,7 +49,7 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
         if (entries.size == 1) return null
         val removed = entries.last()
         entries = entries.dropLast(1)
-        removed.screen.cancel()
+        removed.screen.deliverCancellation()
         return removed.screen
     }
 

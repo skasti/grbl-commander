@@ -46,5 +46,5 @@ abstract class Screen<R>(private val cancellationResult: R) : NavigationParent {
         callback?.invoke(result)
     }
 
-    internal fun cancel() = deliver(cancellationResult)
+    internal fun deliverCancellation() = deliver(cancellationResult)
 }
