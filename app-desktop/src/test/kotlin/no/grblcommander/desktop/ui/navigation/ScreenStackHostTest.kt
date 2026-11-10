@@ -34,8 +34,8 @@ class ScreenStackHostTest {
         var clicks = 0
         var text = "draft"
         var editorFocused = false
-        val root = object : Screen {
-            @Composable override fun Content(stack: ScreenStack) {
+        val root = object : Screen<Unit>(Unit) {
+            @Composable override fun Content() {
                 var count by remember { mutableStateOf(0) }
                 var value by remember { mutableStateOf(text) }
                 DisposableEffect(Unit) { onDispose { disposed++ } }
@@ -46,9 +46,9 @@ class ScreenStackHostTest {
                 }
             }
         }
-        val overlay = object : Screen {
-            @Composable override fun Content(stack: ScreenStack) {
-                Button(onClick = { stack.dismiss(this) }) { Text("Dismiss") }
+        val overlay = object : Screen<Unit>(Unit) {
+            @Composable override fun Content() {
+                Button(onClick = { finish(Unit) }) { Text("Dismiss") }
             }
         }
         val stack = ScreenStack(root)
@@ -114,7 +114,7 @@ class ScreenStackHostTest {
         }
         onAllNodesWithText("Open example file")[0].performTouchInput { click() }
         runOnIdle {
-            assertTrue(leftStack.top is FileExplorerScreen)
+            assertTrue(leftStack.top is FileExplorer)
             assertSame(right, rightStack.top)
         }
         onNodeWithText("Cancel").performTouchInput { click() }
@@ -139,7 +139,7 @@ class ScreenStackHostTest {
         setContent { ScreenStackHost(stack) }
         onNodeWithText("Editor draft").performTextReplacement("Keep this")
         onNodeWithText("Open example file").performTouchInput { click() }
-        runOnIdle { assertTrue(stack.pop() is FileExplorerScreen) }
+        runOnIdle { assertTrue(stack.pop() is FileExplorer) }
         onNodeWithText("Keep this").assertExists()
         runOnIdle {
             assertSame(editor, stack.top)
@@ -149,8 +149,8 @@ class ScreenStackHostTest {
     }
 
     @Test fun nestedOverlaysRestoreInOrderAndPublishActiveSemantics() = runComposeUiTest {
-        fun screen(label: String) = object : Screen {
-            @Composable override fun Content(stack: ScreenStack) { Text(label) }
+        fun screen(label: String) = object : Screen<Unit>(Unit) {
+            @Composable override fun Content() { Text(label) }
         }
         val root = screen("root")
         val middle = screen("middle")
