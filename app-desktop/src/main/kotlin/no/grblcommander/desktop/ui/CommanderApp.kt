@@ -7,14 +7,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.navigation.ManualModeScreen
 import no.grblcommander.desktop.ui.navigation.MdiModeScreen
-import no.grblcommander.desktop.ui.navigation.ModeScreenStacks
-import no.grblcommander.desktop.ui.navigation.ModeScreenStacksHost
+import no.grblcommander.desktop.ui.navigation.ScreenStack
+import no.grblcommander.desktop.ui.navigation.ScreenStackHost
 
 /** Stable UI context identities, separate from GRBL controller execution states. */
 private enum class OperatorMode(val label: String) {
@@ -23,33 +26,36 @@ private enum class OperatorMode(val label: String) {
 
 @Composable
 fun CommanderApp() {
-    // One owner per application window. Mode switches only change visibility.
-    val modes = remember {
-        ModeScreenStacks(OperatorMode.Program) { mode ->
-            when (mode) {
-                OperatorMode.Program -> WelcomeScreen()
-                OperatorMode.Manual -> ManualModeScreen()
-                OperatorMode.Mdi -> MdiModeScreen()
-            }
-        }
+    // Each application window owns one persistent ScreenStack for each UI mode.
+    val stacks = remember {
+        mapOf(
+            OperatorMode.Program to ScreenStack(WelcomeScreen()),
+            OperatorMode.Manual to ScreenStack(ManualModeScreen()),
+            OperatorMode.Mdi to ScreenStack(MdiModeScreen()),
+        )
     }
+    var activeMode by remember { mutableStateOf(OperatorMode.Program) }
+
     MaterialTheme(colorScheme = darkColorScheme()) {
         AppShell(
             state = ShellState.startup().copy(
-                title = modes.activeMode.label,
+                title = activeMode.label,
                 context = "In-memory UI demonstration · no machine controls",
             ),
             headerControls = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     OperatorMode.entries.forEach { mode ->
-                        TextButton(onClick = { modes.selectMode(mode) }) {
-                            Text(if (modes.activeMode == mode) "• ${mode.label}" else mode.label)
+                        TextButton(onClick = { activeMode = mode }) {
+                            Text(if (activeMode == mode) "• ${mode.label}" else mode.label)
                         }
                     }
                 }
             },
         ) {
-            ModeScreenStacksHost(modes)
+            ScreenStackHost(
+                stacks = stacks.values.toList(),
+                activeStack = stacks.getValue(activeMode),
+            )
         }
     }
 }
