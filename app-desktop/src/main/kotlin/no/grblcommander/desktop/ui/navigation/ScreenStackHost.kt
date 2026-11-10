@@ -25,28 +25,47 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 /**
  * All entries stay composed in root-to-top drawing order. Each overlay occupies
  * the workspace, with a scrim over the previous entry. Only the top accepts input.
+ * An inactive host keeps its compositions but refuses interaction and focus.
  * Shell controls are outside this host; softkey resolution is a separate concern.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier) {
+fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier, isActive: Boolean = true) {
     val focusManager = LocalFocusManager.current
     val topEntry = stack.entries.last()
     val activeFocus = remember(topEntry) { FocusRequester() }
 
-    LaunchedEffect(topEntry) {
+    LaunchedEffect(topEntry, isActive) {
+        if (!isActive) return@LaunchedEffect
         // Includes captured text-field focus: a covered editor must stop receiving keys.
         focusManager.clearFocus(force = true)
         activeFocus.requestFocus()
     }
 
-    Box(modifier.fillMaxSize().clipToBounds()) {
+    Box(modifier.fillMaxSize().clipToBounds()
+        .then(if (isActive) Modifier else Modifier.clearAndSetSemantics {})
+        .onPreviewKeyEvent { !isActive }
+        .pointerInput(isActive) {
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    if (!isActive) event.changes.forEach { it.consume() }
+                }
+            }
+        }
+        .focusProperties {
+            canFocus = isActive
+            @Suppress("DEPRECATION")
+            enter = { if (isActive) FocusRequester.Default else FocusRequester.Cancel }
+        }
+        .focusGroup()
+    ) {
         stack.entries.forEachIndexed { index, entry ->
             key(entry) {
-                val active = entry === topEntry
+                val active = isActive && entry === topEntry
                 val inputGate = Modifier
-                    .onPreviewKeyEvent { stack.top !== entry.screen }
-                    .pointerInput(entry) {
+                    .onPreviewKeyEvent { !isActive || stack.top !== entry.screen }
+                    .pointerInput(entry, isActive) {
                         awaitPointerEventScope {
                             while (true) {
                                 val event = awaitPointerEvent(PointerEventPass.Initial)
@@ -60,7 +79,7 @@ fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier) {
                         // Cancel traversal into the entire covered group, not just its root.
                         @Suppress("DEPRECATION")
                         enter = {
-                            if (stack.top === entry.screen) FocusRequester.Default
+                            if (isActive && stack.top === entry.screen) FocusRequester.Default
                             else FocusRequester.Cancel
                         }
                     }

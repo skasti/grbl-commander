@@ -45,10 +45,11 @@ internal object ShellColors {
 @Composable
 fun AppShell(
     state: ShellState,
+    headerControls: @Composable () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(ShellColors.frame)) {
-        ShellHeader(state, Modifier.fillMaxWidth().height(78.dp))
+        ShellHeader(state, Modifier.fillMaxWidth().height(78.dp), headerControls)
 
         Row(Modifier.fillMaxSize()) {
             Column(Modifier.weight(1f).fillMaxHeight()) {
@@ -66,7 +67,11 @@ fun AppShell(
 }
 
 @Composable
-private fun ShellHeader(state: ShellState, modifier: Modifier = Modifier) {
+private fun ShellHeader(
+    state: ShellState,
+    modifier: Modifier = Modifier,
+    headerControls: @Composable () -> Unit = {},
+) {
     Row(
         modifier = modifier.background(ShellColors.header).padding(horizontal = 22.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -98,6 +103,7 @@ private fun ShellHeader(state: ShellState, modifier: Modifier = Modifier) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        headerControls()
         Box(
             Modifier
                 .border(1.dp, ShellColors.outline, RoundedCornerShape(6.dp))
