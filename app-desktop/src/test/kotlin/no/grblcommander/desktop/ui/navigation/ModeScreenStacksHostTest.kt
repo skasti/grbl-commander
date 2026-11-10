@@ -216,4 +216,46 @@ class ModeScreenStacksHostTest {
             assertTrue(second.activeStack.top is FileExplorer)
         }
     }
+
+    @Test
+    fun inactiveHostsNeverStealFocusWhenTheirTopScreenChanges() = runComposeUiTest {
+        var manualFocused = false
+        val program = object : Screen<Unit>(Unit) {
+            @Composable override fun Content() { Text("Program root") }
+        }
+        val manual = object : Screen<Unit>(Unit) {
+            @Composable override fun Content() {
+                BasicTextField(
+                    "Manual draft",
+                    onValueChange = {},
+                    modifier = Modifier.testTag("manual-input").onFocusChanged {
+                        manualFocused = it.isFocused
+                    },
+                )
+            }
+        }
+        val modes = ModeScreenStacks(Mode.Program) {
+            if (it == Mode.Program) program else manual
+        }
+        setContent { ModeScreenStacksHost(modes) }
+        runOnIdle { modes.selectMode(Mode.Manual) }
+        onNodeWithTag("manual-input").performClick()
+        runOnIdle { assertTrue(manualFocused) }
+
+        // Direct-stack opening is allowed; it must neither redirect navigation
+        // into Manual nor activate or focus the inactive Program host.
+        val explorer = FileExplorer()
+        runOnIdle { explorer.open(modes.stackFor(Mode.Program)) }
+        onNodeWithTag("manual-input").assertExists()
+        onNodeWithText("Choose an example file").assertDoesNotExist()
+        runOnIdle {
+            assertTrue(manualFocused)
+            assertSame(explorer, modes.stackFor(Mode.Program).top)
+            assertSame(manual, modes.activeStack.top)
+        }
+
+        runOnIdle { modes.selectMode(Mode.Program) }
+        onNodeWithText("Choose an example file").assertExists()
+        runOnIdle { assertFalse(manualFocused) }
+    }
 }
