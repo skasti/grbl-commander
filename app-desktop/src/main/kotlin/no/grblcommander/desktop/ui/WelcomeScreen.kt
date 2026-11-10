@@ -17,7 +17,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 
 /**
- * A static placeholder until mode-specific workspaces are implemented.
+ * Welcome artwork and entry point for the in-memory navigation example.
  *
  * This screen never claims controller connectivity or implies machine operation.
  */
@@ -25,12 +25,12 @@ class WelcomeScreen : Screen {
     @Composable
     override fun Content(stack: ScreenStack) {
         Box(Modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(BrandAssets.SPLASH),
-            contentDescription = "GRBL Commander splash screen",
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            contentScale = ContentScale.Fit,
-        )
+            Image(
+                painter = painterResource(BrandAssets.SPLASH),
+                contentDescription = "GRBL Commander splash screen",
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                contentScale = ContentScale.Fit,
+            )
             Button(
                 onClick = { stack.push(EditorScreen()) },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),

@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
@@ -26,6 +27,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
  * the workspace, with a scrim over the previous entry. Only the top accepts input.
  * Shell controls are outside this host; softkey resolution is a separate concern.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier) {
     val focusManager = LocalFocusManager.current
