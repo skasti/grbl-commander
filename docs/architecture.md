@@ -243,7 +243,7 @@ Softkeys use shared components and a common action model. Their labels, enabled 
 
 Global functions retain consistent positions across modes.
 
-**Current implementation:** The desktop shell renders a header with Program, Manual and MDI UI-mode selection, a central workspace, eight bottom softkey slots and seven right softkey slots. A window-owned `ModeScreenStacks` keeps separate `ScreenStack` instances for initialized modes. Program includes the branded welcome screen and a runnable in-memory editor/file-explorer example. Manual has a nested details screen with local notes; MDI has an unsent text buffer. Mode changes do not cancel overlays, discard drafts, or alter controller execution state. The window icon and header show the supplied app logo. Softkey slots are noninteractive visual placeholders; controller communication, DRO, real mode operations and machine status reporting are not implemented. The header explicitly displays an unconnected state. The shared slot layout is described in [UI layout](ui-layout.md).
+**Current implementation:** The desktop shell renders a header with Program, Manual and MDI UI-mode selection, a central workspace, eight bottom softkey slots and seven right softkey slots. Each window retains a `ScreenStack` for each UI mode, hosted together by `ScreenStackHost`. Program includes the branded welcome screen and a runnable in-memory editor/file-explorer example. Manual has a nested details screen with local notes; MDI has an unsent text buffer. Mode changes do not cancel overlays, discard drafts, or alter controller execution state. The window icon and header show the supplied app logo. Softkey slots are noninteractive visual placeholders; controller communication, DRO, real mode operations and machine status reporting are not implemented. The header explicitly displays an unconnected state. The shared slot layout is described in [UI layout](ui-layout.md).
 
 ### Screen navigation contract
 
@@ -267,18 +267,17 @@ stack itself as parent is an explicit direct navigation action that adds above
 the current top, even when overlays are present. Independent stacks never share
 navigation bindings or a global navigator.
 
-`ScreenStackHost` renders entries root to top within one workspace stack,
-retains covered compositions, draws overlays, and restricts pointer, keyboard,
-focus traversal and accessibility interaction to its top screen. The window
-creates a `ModeScreenStacks` owner, keyed by stable UI-mode identities, and
-`ModeScreenStacksHost` retains an individual `ScreenStackHost` composition for
-every initialized mode. It draws only the active mode and excludes inactive
-modes from input, accessibility semantics and focus traversal. An inactive
-host does not request focus; activation clears stale focus and focuses its
-current top layer. Switching modes changes neither stack entries nor pending
-typed completion callbacks. All initialized screens retain ordinary Compose
-`remember` state, not merely screen-instance fields. These owners are scoped
-to the application window, not shared globally.
+`ScreenStackHost` accepts a single `ScreenStack` or several stacks with one
+designated active stack. Each hosted stack retains its root-to-top screen
+compositions, including covered overlays. In multi-stack hosting it draws only
+the active stack and restricts pointer, keyboard, focus traversal and
+accessibility interactions to that stack's top screen. An inactive stack
+cannot request focus; activation clears stale focus and focuses the current
+top screen. Switching the active stack does not alter any navigation entries
+or pending typed callbacks. Every screen retains ordinary Compose `remember`
+state, not merely screen-instance fields. `CommanderApp` creates the stacks
+once per application window and keeps the active UI-mode selection in Compose
+state; there is no mode-specific navigation registry or globally shared host.
 
 Header and softkey regions remain owned by `AppShell` outside workspace input
 boundaries. Navigation is observable through Compose snapshot state and confined
@@ -306,7 +305,7 @@ Tool Management may be presented as a mode or as a workspace accessible from Pro
 
 **Application modes are UI contexts, not controller execution states.**
 
-Switching UI mode must not implicitly modify machine state or interrupt an active operation. The window-local mode owner preserves each mode's root, stack, navigation history and composed overlays. The current demonstration provides Program, Manual and MDI contexts; probing, macro and debug workspaces remain planned.
+Switching UI mode must not implicitly modify machine state or interrupt an active operation. Each window retains its mode stacks and their composed navigation histories independently. The current demonstration provides Program, Manual and MDI contexts; probing, macro and debug workspaces remain planned.
 
 ### 5.3 DRO
 

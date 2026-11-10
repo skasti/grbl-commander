@@ -9,7 +9,7 @@ The shell is composed of four regions, matching the static HTML/CSS and screensh
 | Region | Current responsibility |
 | --- | --- |
 | Header | Image logo, application identity, Program/Manual/MDI UI-mode selection, current context and explicit connection status |
-| Main workspace | ModeScreenStacksHost: one retained ScreenStackHost per initialized mode, only the selected mode visible |
+| Main workspace | ScreenStackHost: retains all mode screen stacks and renders only the active stack |
 | Bottom softkeys | Eight fixed slots, F1 through F8 |
 | Right softkeys | Seven fixed slots, R1 through R7 |
 
@@ -70,24 +70,25 @@ focused editor field. The header and softkeys stay outside this input boundary.
 
 ### Independent mode stacks
 
-`CommanderApp` uses `remember { ModeScreenStacks(initialMode) { rootFor(it) } }`
-to create a window-scoped registry keyed by stable UI-mode identities. Calling
-`selectMode(mode)` lazily creates the mode's root and stack, then changes the
-observable active mode without popping or finishing any screen. The registry
-owns stack identities, navigation entries, open overlays and typed callbacks.
-There is no global navigator or implicit redirection to the visible mode:
-`screen.open(parent)` resolves its bound stack and `screen.open(stack)` uses
-the explicit stack even if it is inactive.
+`CommanderApp` creates a stable `Map<OperatorMode, ScreenStack>` with
+`remember`, one stack per mode per application window. It keeps `activeMode`
+in ordinary Compose state. The selected mode controls the header and selects
+`activeStack` for the workspace; switching it never pops, finishes or
+reconstructs another mode's stack. Each stack independently owns its root,
+open screens, overlays and typed callbacks. There is no global navigator or
+implicit redirection to the visible stack: `screen.open(parent)` resolves
+the bound stack and `screen.open(stack)` uses the explicit stack even if
+it is inactive.
 
-`ModeScreenStacksHost` composes each initialized mode's `ScreenStackHost`
-simultaneously, with stable mode keys. Inactive hosts are not drawn, are removed
-from accessibility semantics, consume stray pointer/key input and refuse focus
-entry; they cannot request focus. Only the active host is layered for input.
-Reactivation focuses the current top screen after clearing focus from the old
-mode. Screen instances, open overlay compositions and ordinary non-saveable
-Compose `remember` state survive mode changes. Popping an overlay disposes
-only that overlay; closing the window disposes the entire mode registry and its
-compositions. State is not persisted across process restarts.
+`ScreenStackHost(stacks, activeStack)` composes all supplied stacks using
+stable stack identities and reuses the single-stack rendering/input logic.
+Only the active stack is drawn; inactive stacks remain in the composition,
+are removed from accessibility semantics, reject pointer/keyboard input and
+cannot enter or steal focus. Reactivation focuses the current top screen after
+clearing focus from the previous stack. Screen instances, nested overlay
+compositions and ordinary non-saveable Compose `remember` state survive mode
+changes. Popping an overlay disposes only that overlay; closing the window
+disposes its stacks and compositions. State is not persisted across restarts.
 
 Visual overlay/input behavior does not depend on softkey inheritance.
 Screen-owned softkey definitions, inheritance and global shortcut dispatch
