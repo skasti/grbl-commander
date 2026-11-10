@@ -69,7 +69,7 @@ fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier, isActive:
                         awaitPointerEventScope {
                             while (true) {
                                 val event = awaitPointerEvent(PointerEventPass.Initial)
-                                if (stack.top !== entry.screen) {
+                                if (!isActive || stack.top !== entry.screen) {
                                     event.changes.forEach { it.consume() }
                                 }
                             }
