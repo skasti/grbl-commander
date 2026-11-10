@@ -66,7 +66,7 @@ class ScreenStackTest {
         assertTrue(chooser.select(chooser.files.first()))
         assertSame(editor, stack.top)
         assertEquals("Unfinished edit", editor.draft)
-        assertEquals(listOf(FileExplorerResult.Selected("example-a.nc")), received)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Selected("example-a.nc")), received)
         assertFalse(chooser.cancel())
         assertFalse(chooser.select(chooser.files.last()))
         assertEquals(1, received.size)
@@ -89,7 +89,7 @@ class ScreenStackTest {
         val first = stack.top as FileExplorerScreen
         assertSame(first, stack.pop())
         assertFalse(first.cancel())
-        assertEquals(listOf(FileExplorerResult.Cancelled), results)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Cancelled), results)
 
         explorer.open { result ->
             assertSame(root, stack.top)
@@ -99,7 +99,7 @@ class ScreenStackTest {
         assertTrue(stack.dismiss(second))
         assertFalse(stack.dismiss(second))
         assertFalse(second.cancel())
-        assertEquals(listOf(FileExplorerResult.Cancelled, FileExplorerResult.Cancelled), results)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Cancelled, FileExplorerResult.Cancelled), results)
     }
 
     @Test fun nestedOverlaysOnlyCompleteTopAndDoNotStealOtherCallbacks() {
@@ -116,10 +116,10 @@ class ScreenStackTest {
         assertFalse(outer.select(outer.files.first()))
         assertFailsWith<IllegalStateException> { outerOpener.open {} }
         assertSame(inner, stack.pop())
-        assertEquals(listOf(FileExplorerResult.Cancelled), innerResults)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Cancelled), innerResults)
         assertTrue(outer.select(outer.files.last()))
         assertSame(root, stack.top)
-        assertEquals(listOf(FileExplorerResult.Selected("example-b.nc")), outerResults)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Selected("example-b.nc")), outerResults)
         assertFalse(inner.cancel())
     }
 
@@ -137,10 +137,10 @@ class ScreenStackTest {
         assertEquals(1, second.size)
         right.open(onResult = rightResults::add)
         (first.top as FileExplorerScreen).cancel()
-        assertEquals(listOf(FileExplorerResult.Cancelled), leftResults)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Cancelled), leftResults)
         assertTrue(second.top is FileExplorerScreen)
         (second.top as FileExplorerScreen).select((second.top as FileExplorerScreen).files.first())
-        assertEquals(listOf(FileExplorerResult.Selected("example-a.nc")), rightResults)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Selected("example-a.nc")), rightResults)
         firstContext.dispose()
         assertFailsWith<IllegalStateException> { left.open {} }
         assertEquals(1, first.size)
