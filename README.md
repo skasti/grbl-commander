@@ -8,7 +8,7 @@ While it is not necessarily easy to use or intuitive for users who are not famil
 
 ## Desktop shell
 
-The initial application uses Kotlin/JVM and Compose Multiplatform Desktop. It renders a branded welcome image in a screen-stack workspace and the application logo in the header and desktop window icon, within the common operator layout (header, workspace, bottom softkeys and right softkeys). The welcome screen opens an in-memory editor/file-explorer navigation example that preserves editor state while an overlay is open. It does not connect to a controller, access real program files, or execute machine commands.
+The initial application uses Kotlin/JVM and Compose Multiplatform Desktop. It renders a branded welcome image in a screen-stack workspace and the application logo in the header and desktop window icon, within the common operator layout (header, workspace, bottom softkeys and right softkeys). The welcome screen opens an in-memory editor/file-explorer example using a host-scoped `FileExplorer.open` facade with typed selection and cancellation callbacks. It preserves editor state while the overlay is open and delivers cancellation on back/pop. It does not connect to a controller, access real program files, or execute machine commands.
 
 ### Requirements
 

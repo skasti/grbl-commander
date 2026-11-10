@@ -250,16 +250,25 @@ Global functions retain consistent positions across modes.
 Presentation owns `Screen`, `ScreenStack`, and `ScreenStackHost` in the desktop
 `ui.navigation` package. A non-removable root and identity-based entries preserve
 underlying screen instances, callbacks and composed state across overlay push/pop.
+Result-bearing entries are owned by the stack. Explicit completion restores the
+underlying screen before delivering a typed result once; normal pop/back and
+dismiss deliver typed cancellation. Stale or covered entries cannot finish a
+newer overlay.
 The host renders root to top within the workspace, retains covered compositions,
 and restricts pointer, keyboard, focus traversal and accessibility interaction to
 the top screen. Header and softkey regions remain owned by `AppShell` outside the
 workspace input boundary. Navigation is observable through Compose snapshot state
-and is confined to the UI thread. It never creates transports or changes controller
-execution state.
+and is confined to the UI thread. A per-entry navigation context supplied by the
+host exposes screen-specific facades such as `rememberFileExplorer()` and
+`FileExplorer.open(initialDirectory, onResult)` without requiring application
+callers to manipulate the stack. Contexts expire with their screen compositions;
+independent windows and nested overlays never share a singleton navigator.
+Navigation never creates transports or changes controller execution state.
 
 Visual overlay layout and input isolation are independent of softkey inheritance.
 Screen-owned softkey definitions and inheritance remain planned. The in-memory
-editor/file-explorer example demonstrates result and cancellation callbacks; real
+editor/file-explorer example demonstrates `FileExplorerResult.Selected(filename)`
+and `Cancelled` callbacks, including ordinary pop/back; real
 program/file services and application modes are not implemented. Detailed lifetime,
 root, rendering and focus semantics are specified in [UI layout](ui-layout.md).
 
