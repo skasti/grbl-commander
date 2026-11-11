@@ -17,8 +17,12 @@ abstract class Screen<R>(private val cancellationResult: R) : NavigationParent {
      * Screen-owned overrides. Prefer stable maps and definitions with predicates
      * reading Compose state. For structural changes, expose a snapshot-state map
      * or a getter backed by mutableStateOf(mapOf(...)) so Compose observes them.
-     * Cross-screen inheritance is reserved for issue #4.
+     * The inheritance flags are independent; covered screens are not visible
+     * to a bank unless each screen above them opts into that bank's inheritance.
      */
+    open val inheritBottomKeys: Boolean = false
+    open val inheritRightKeys: Boolean = false
+
     open val bottomKeys: Map<BottomSoftKeySlot, SoftKeyOverride> = emptyMap()
     open val rightKeys: Map<RightSoftKeySlot, SoftKeyOverride> = emptyMap()
 
