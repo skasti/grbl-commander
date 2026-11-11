@@ -99,4 +99,100 @@ class SoftKeyActivationTest {
         assertFalse(activateSoftKey({ stack }, BottomSoftKeySlot.F1))
         assertEquals(0, child.calls)
     }
+
+    @Test fun repeatedResolutionAndPredicateChangesKeepLogicalIdentity() {
+        val screen = Fixture()
+        val stack = ScreenStack(screen)
+        val first = stack.softKeyBinding(BottomSoftKeySlot.F1)!!
+        val again = stack.softKeyBinding(BottomSoftKeySlot.F1)!!
+        assertEquals(first, again)
+        assertEquals(first.hashCode(), again.hashCode())
+
+        screen.allowed.value = false
+        val disabled = stack.softKeyBinding(BottomSoftKeySlot.F1)!!
+        assertEquals(first, disabled)
+        assertFalse(activateSoftKey({ stack }, BottomSoftKeySlot.F1, first))
+        screen.allowed.value = true
+        assertEquals(first, stack.softKeyBinding(BottomSoftKeySlot.F1))
+        assertTrue(activateSoftKey({ stack }, BottomSoftKeySlot.F1, first))
+        assertEquals(1, screen.calls)
+    }
+
+    @Test fun equivalentModifierCopiesHaveStableIdentityAndKeepOriginalOwnership() {
+        val origin = Fixture()
+        val stack = ScreenStack(origin)
+        val originEntry = stack.entries.last()
+        val overlay = Fixture()
+        stack.push(overlay)
+        val modifierEntry = stack.entries.last()
+        val modifier = SoftKeyModifier { it.copy(label = "Choose") }
+
+        // Synthetic #4 output: test provenance without implementing inheritance.
+        fun resolved() = SoftKeyBinding(
+            stack, originEntry, modifier.modify(origin.definition),
+            sourceDefinition = origin.definition,
+            modifiers = listOf(modifierEntry to modifier),
+        )
+        val displayed = resolved()
+        val recalculated = resolved()
+        assertNotSame(displayed.definition, recalculated.definition)
+        assertEquals(displayed, recalculated)
+        assertEquals(displayed.hashCode(), recalculated.hashCode())
+        assertSame(originEntry, displayed.entry)
+        assertSame(origin.definition.action, displayed.definition.action)
+        assertSame(origin.definition.enabled, displayed.definition.enabled)
+
+        // A modifier with equivalent output is still different composition.
+        val otherModifier = SoftKeyModifier { it.copy(label = "Choose") }
+        val recomposed = SoftKeyBinding(
+            stack, originEntry, otherModifier.modify(origin.definition),
+            sourceDefinition = origin.definition,
+            modifiers = listOf(modifierEntry to otherModifier),
+        )
+        assertNotEquals(displayed, recomposed)
+
+        // Reattaching the modifier owner creates a different navigation lifetime.
+        stack.pop()
+        stack.push(overlay)
+        val reopenedModifierEntry = stack.entries.last()
+        assertNotEquals(displayed, SoftKeyBinding(
+            stack, originEntry, modifier.modify(origin.definition),
+            sourceDefinition = origin.definition,
+            modifiers = listOf(reopenedModifierEntry to modifier),
+        ))
+    }
+
+    @Test fun changesToEffectiveFieldsAndSourceInvalidateModifierStyleBinding() {
+        val origin = Fixture()
+        val stack = ScreenStack(origin)
+        val entry = stack.entries.last()
+        val source = origin.definition
+        val actionA: () -> Unit = { origin.calls++ }
+        val actionB: () -> Unit = { error("Obsolete action must not run") }
+        val modifier = SoftKeyModifier { it.copy(label = "Modified") }
+        fun binding(effective: SoftKeyDefinition, sourceDefinition: SoftKeyDefinition = source) =
+            SoftKeyBinding(stack, entry, effective, sourceDefinition, listOf(entry to modifier))
+
+        val initial = binding(modifier.modify(source).copy(action = actionA))
+        assertEquals(initial, binding(modifier.modify(source).copy(action = actionA)))
+        assertNotEquals(initial, binding(modifier.modify(source).copy(action = actionB)))
+        assertNotEquals(initial, binding(modifier.modify(source).copy(label = "Updated", action = actionA)))
+        assertNotEquals(initial, binding(modifier.modify(source).copy(enabled = { false }, action = actionA)))
+        assertNotEquals(initial, binding(modifier.modify(source).copy(active = { true }, action = actionA)))
+        assertNotEquals(initial, binding(modifier.modify(source).copy(action = actionA),
+            source.copy()))
+    }
+
+    @Test fun equivalentSourceReplacementAlsoRejectsPendingActivation() {
+        val screen = Fixture()
+        val stack = ScreenStack(screen)
+        val pending = stack.softKeyBinding(BottomSoftKeySlot.F1)!!
+        screen.definition = screen.definition.copy() // Identical fields, new screen-owned override.
+        assertNotEquals(pending, stack.softKeyBinding(BottomSoftKeySlot.F1))
+        assertFalse(activateSoftKey({ stack }, BottomSoftKeySlot.F1, pending))
+        assertEquals(0, screen.calls)
+        assertTrue(activateSoftKey({ stack }, BottomSoftKeySlot.F1))
+        assertEquals(1, screen.calls)
+    }
+
 }

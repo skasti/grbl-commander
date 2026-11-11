@@ -291,13 +291,23 @@ non-actionable. Modifiers transform definitions without a central action registr
 top screen only; undefined and modifier-only slots render blank. `AppShell`
 renders all fixed slots through one shared tile component. It evaluates predicates
 in composition so Compose snapshot changes update presentation without rebuilding
-maps. `ShellState` contains only header information, not softkey state.
+maps. A screen ordinarily keeps its definitions stable and lets predicates read
+observable state. For structural updates, a screen exposes a `mutableStateMapOf`
+or a map-valued getter backed by `mutableStateOf`; `ScreenStack.softKeyBinding`
+reads it during composition and does not retain a separate effective-key store.
+`ShellState` contains only header information, not softkey state.
 
 `activateSoftKey` reads the currently selected persistent stack and slot, checks
 action availability and enabled state, and invokes the bound callback on the UI
 thread. Pointer activation also verifies the displayed binding's stack, navigation
-entry and definition identity; pending gestures are disposed when that identity
-changes. Pop/reopen creates a different entry lifetime. The shell previews F1–F8
+entry and original screen-owned definition identity. A binding also records any
+applied modifier instance and its owning navigation entry, and compares the
+effective definition's fields (including action and predicates) by value.
+Equivalent `copy()` results from the same source and modifier chain therefore
+retain logical identity, while source replacement, modifier-chain changes and
+effective action/presentation changes invalidate pending gestures. Pop/reopen
+creates a different entry lifetime. Predicate **results** do not affect identity;
+the latest `enabled` result is checked again just before invocation. The shell previews F1–F8
 and Shift+F1–F7 (right bank) before workspace input, using the same activation
 path. `active` affects presentation only. No central action registry, navigator
 or mutable softkey store is involved.

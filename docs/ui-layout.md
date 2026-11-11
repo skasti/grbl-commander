@@ -106,6 +106,13 @@ and is disabled. There is no visibility flag. Disabled labelled definitions
 retain their content. `SoftKeyModifier` transforms a definition, typically with
 `copy`, preserving callbacks and predicates unless explicitly replaced.
 Screens should create definitions once and let predicates read instance state.
+Ordinary predicate changes recompose the tiles without replacing their bindings
+or reconstructing their maps. When a definition/override genuinely changes,
+use a `mutableStateMapOf` for individual slot updates or return a map from a
+`mutableStateOf(mapOf(...))`-backed property. Ordinary mutable maps or non-state
+property changes do not schedule Compose recomposition. Modifiers should also
+be stable screen-owned instances; replace an observable override when their
+composition changes.
 `ScreenStack.softKeyBinding(slot)` selects complete definitions from the current
 top screen. Undefined slots and modifier-only overrides render as blank because
 cross-screen composition belongs to issue #4. No lower screen actions are exposed.
@@ -119,9 +126,17 @@ reads even when a modifier has retained the predicates from another definition.
 Pointer and keyboard input both call `activateSoftKey(currentStack, slot, ...)`.
 The function re-reads the selected stack and current binding, checks action and
 enabled state, and verifies binding identity again before invocation. Pointer
-callbacks carry the displayed binding's stack, entry and definition identity;
-replacement, removal and pop/reopen invalidate them. Binding changes also dispose
-pending tile gestures. `active` does not authorize an action. All navigation and
+callbacks carry the displayed binding's stack, originating entry, original
+definition identity and modifier provenance. The effective definition is compared
+by fields rather than reference: equivalent `copy()` results keep logical
+identity, while changed labels, actions, predicates, source overrides or modifier
+composition invalidate pending gestures. A modifier's provenance includes the
+navigation entry where it is declared so reattaching a screen does not revive
+an old binding. Replacement, removal and pop/reopen invalidate pending callbacks.
+Binding changes also dispose pending tile gestures. Observable predicate-result
+changes only recompose presentation; they do not replace binding identity.
+`enabled` is checked at invocation even if the tile was previously enabled,
+and `active` does not authorize an action. All navigation and
 activation run on the UI thread.
 
 F1–F8 activate the bottom bank. Shift+F1–F7 activate R1–R7; Shift+F8 and shortcuts

@@ -13,7 +13,12 @@ import no.grblcommander.desktop.ui.softkeys.SoftKeyOverride
  * The stack owns the binding and result delivery, not the Compose host.
  */
 abstract class Screen<R>(private val cancellationResult: R) : NavigationParent {
-    /** Stable bindings owned by this instance; inheritance is reserved for issue #4. */
+    /**
+     * Screen-owned overrides. Prefer stable maps and definitions with predicates
+     * reading Compose state. For structural changes, expose a snapshot-state map
+     * or a getter backed by mutableStateOf(mapOf(...)) so Compose observes them.
+     * Cross-screen inheritance is reserved for issue #4.
+     */
     open val bottomKeys: Map<BottomSoftKeySlot, SoftKeyOverride> = emptyMap()
     open val rightKeys: Map<RightSoftKeySlot, SoftKeyOverride> = emptyMap()
 

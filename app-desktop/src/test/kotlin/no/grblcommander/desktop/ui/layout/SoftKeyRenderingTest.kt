@@ -43,6 +43,7 @@ class SoftKeyRenderingTest {
                 }
             }
         }
+        val initiallyDisplayed = stack.softKeyBinding(BottomSoftKeySlot.F1)!!
         onNodeWithTag("softkey-F1").assertIsNotEnabled().assertIsNotSelected()
         onNodeWithText("Choose").assertExists()
         onNodeWithTag("softkey-F2").assertIsNotEnabled()
@@ -50,7 +51,10 @@ class SoftKeyRenderingTest {
         onNodeWithText("F3").assertDoesNotExist()
         runOnIdle { allowed.value = true; highlighted.value = true }
         onNodeWithTag("softkey-F1").assertIsEnabled().assertIsSelected()
-        runOnIdle { assertSame(modified, stack.softKeyBinding(BottomSoftKeySlot.F1)!!.definition) }
+        runOnIdle {
+            assertSame(modified, stack.softKeyBinding(BottomSoftKeySlot.F1)!!.definition)
+            assertEquals(initiallyDisplayed, stack.softKeyBinding(BottomSoftKeySlot.F1))
+        }
         runOnIdle { allowed.value = false }
         onNodeWithTag("softkey-F1").assertIsNotEnabled().assertIsSelected()
         onNodeWithText("Choose").assertExists()
@@ -163,4 +167,64 @@ class SoftKeyRenderingTest {
             assertEquals(FileExplorerResult.Cancelled, results.last())
         }
     }
+
+    @Test fun observableDefinitionReplacementRecomposesAndCancelsPendingTouch() = runComposeUiTest {
+        var oldCalls = 0
+        var newCalls = 0
+        val initial = SoftKeyDefinition("Old action", action = { oldCalls++ })
+        val replacement = SoftKeyDefinition("New action", action = { newCalls++ })
+        val screen = object : Screen<Unit>(Unit) {
+            var overrides by mutableStateOf<Map<BottomSoftKeySlot, SoftKeyOverride>>(
+                mapOf(BottomSoftKeySlot.F1 to initial),
+            )
+            override val bottomKeys get() = overrides
+            @Composable override fun Content() {}
+        }
+        val stack = ScreenStack(screen)
+        val oldBinding = stack.softKeyBinding(BottomSoftKeySlot.F1)!!
+        setContent {
+            MaterialTheme {
+                AppShell(ShellState.startup(), currentStack = { stack }) {
+                    ScreenStackHost(stack)
+                }
+            }
+        }
+        onNodeWithText("Old action").assertExists()
+        onNodeWithTag("softkey-F1").performTouchInput { down(center) }
+        runOnIdle { screen.overrides = mapOf(BottomSoftKeySlot.F1 to replacement) }
+        onNodeWithText("New action").assertExists()
+        onNodeWithText("Old action").assertDoesNotExist()
+        onNodeWithTag("softkey-F1").performTouchInput { up() }
+        runOnIdle {
+            assertEquals(0, oldCalls)
+            assertEquals(0, newCalls)
+            assertFalse(activateSoftKey({ stack }, BottomSoftKeySlot.F1, oldBinding))
+        }
+        onNodeWithTag("softkey-F1").performTouchInput { click() }
+        runOnIdle { assertEquals(0, oldCalls); assertEquals(1, newCalls) }
+    }
+
+    @Test fun observableMutableOverrideMapUpdatesWithoutNavigation() = runComposeUiTest {
+        val screen = object : Screen<Unit>(Unit) {
+            override val bottomKeys = androidx.compose.runtime.mutableStateMapOf<BottomSoftKeySlot, SoftKeyOverride>(
+                BottomSoftKeySlot.F1 to SoftKeyDefinition("Before", action = {}),
+            )
+            @Composable override fun Content() {}
+        }
+        val stack = ScreenStack(screen)
+        setContent {
+            MaterialTheme {
+                SoftkeyTile(BottomSoftKeySlot.F1, stack.softKeyBinding(BottomSoftKeySlot.F1),
+                    { stack }, Modifier.size(120.dp, 80.dp))
+            }
+        }
+        onNodeWithText("Before").assertExists()
+        runOnIdle {
+            screen.bottomKeys[BottomSoftKeySlot.F1] = SoftKeyDefinition("After", action = {})
+        }
+        onNodeWithText("Before").assertDoesNotExist()
+        onNodeWithText("After").assertExists()
+        runOnIdle { assertSame(screen, stack.top) }
+    }
+
 }
