@@ -18,12 +18,14 @@ import kotlin.test.*
 class SoftKeyInheritanceRenderingTest {
     @Test fun inheritedBindingsObserveOwnerStateAndReplaceWithoutStaleClicks() = runComposeUiTest {
         val allowed = mutableStateOf(false)
+        val highlighted = mutableStateOf(false)
         var originalCalls = 0
         var replacementCalls = 0
         var latestCalls = 0
         val baseKeys = mutableStateMapOf<BottomSoftKeySlot, SoftKeyOverride>(
             BottomSoftKeySlot.F1 to SoftKeyDefinition(
                 "Original", action = { originalCalls++ }, enabled = { allowed.value },
+                active = { highlighted.value },
             ),
             BottomSoftKeySlot.F2 to SoftKeyDefinition("Hidden", action = { originalCalls++ }),
         )
@@ -58,12 +60,12 @@ class SoftKeyInheritanceRenderingTest {
             }
         }
         onNodeWithText("Overlay Original").assertExists()
-        onNodeWithTag("softkey-F1").assertIsNotEnabled()
+        onNodeWithTag("softkey-F1").assertIsNotEnabled().assertIsNotSelected()
         onNodeWithTag("softkey-F2").assertIsNotEnabled()
         onNodeWithText("F2").assertDoesNotExist()
 
-        runOnIdle { allowed.value = true }
-        onNodeWithTag("softkey-F1").assertIsEnabled().performTouchInput { click() }
+        runOnIdle { allowed.value = true; highlighted.value = true }
+        onNodeWithTag("softkey-F1").assertIsEnabled().assertIsSelected().performTouchInput { click() }
         runOnIdle {
             assertEquals(1, originalCalls)
             baseKeys[BottomSoftKeySlot.F1] = SoftKeyDefinition(
