@@ -29,14 +29,49 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
     val top: Screen<*> get() = entries.last().screen
     val size: Int get() = entries.size
 
-    /** Top-screen definitions only. Issue #4 will resolve inheritance here. */
+    /** Computed views of each bank; screens remain the sole owners of bindings. */
+    val effectiveBottomKeys: Map<BottomSoftKeySlot, SoftKeyDefinition>
+        get() = BottomSoftKeySlot.entries.mapNotNull { slot ->
+            softKeyDefinition(slot)?.let { slot to it }
+        }.toMap()
+
+    val effectiveRightKeys: Map<RightSoftKeySlot, SoftKeyDefinition>
+        get() = RightSoftKeySlot.entries.mapNotNull { slot ->
+            softKeyDefinition(slot)?.let { slot to it }
+        }.toMap()
+
+    /**
+     * Each bank finds its own inheritance boundary, then applies overrides
+     * bottom-to-top. Reading the screens' maps here observes structural Compose
+     * state changes without keeping a second set of mutable bindings.
+     */
     fun softKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? {
-        val screen = top
-        val override = when (slot) {
-            is BottomSoftKeySlot -> screen.bottomKeys[slot]
-            is RightSoftKeySlot -> screen.rightKeys[slot]
+        val currentEntries = entries
+        var boundary = currentEntries.lastIndex
+        while (boundary > 0) {
+            val screen = currentEntries[boundary].screen
+            val inherits = when (slot) {
+                is BottomSoftKeySlot -> screen.inheritBottomKeys
+                is RightSoftKeySlot -> screen.inheritRightKeys
+            }
+            if (!inherits) break
+            boundary--
         }
-        return override as? SoftKeyDefinition
+
+        var definition: SoftKeyDefinition? = null
+        for (index in boundary..currentEntries.lastIndex) {
+            val screen = currentEntries[index].screen
+            val override = when (slot) {
+                is BottomSoftKeySlot -> screen.bottomKeys[slot]
+                is RightSoftKeySlot -> screen.rightKeys[slot]
+            }
+            definition = when (override) {
+                is SoftKeyDefinition -> override
+                is SoftKeyModifier -> definition?.let(override.modify)
+                null -> definition
+            }
+        }
+        return definition
     }
 
     /** Direct stack navigation always pushes above the current top screen. */
