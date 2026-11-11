@@ -283,7 +283,12 @@ Header and softkey regions remain owned by `AppShell` outside workspace input
 boundaries. Navigation is observable through Compose snapshot state and confined
 to the UI thread; it does not create transports or modify controller execution
 state. Visual overlay layout and input isolation are independent of softkey
-inheritance. Screen-owned softkey definitions and inheritance remain planned.
+inheritance. Screens own stable typed bottom/right maps of immutable `SoftKeyDefinition`
+or `SoftKeyModifier` overrides in `ui.softkeys`. Definitions carry bound instance
+callbacks and reactive enabled/active predicates; `Blank` is empty and
+non-actionable. Modifiers transform definitions without a central action registry.
+Shell rendering/activation integration is in progress. Cross-screen softkey
+inheritance and modifier composition remain planned in issue #4.
 The current mode examples are local UI fixtures; real program/file services
 and machine operations are not implemented. Detailed lifetime, root, rendering
 and focus behavior are specified in [UI layout](ui-layout.md).
@@ -735,4 +740,3 @@ The following rules guide architectural decisions:
 - [Existing grblHAL macro examples](https://github.com/skasti/grblhal-macros)
 - [Compose Multiplatform](https://www.jetbrains.com/compose-multiplatform/)
 - [jSerialComm](https://github.com/Fazecast/jSerialComm)
-

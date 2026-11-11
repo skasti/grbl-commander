@@ -94,6 +94,20 @@ Visual overlay/input behavior does not depend on softkey inheritance.
 Screen-owned softkey definitions, inheritance and global shortcut dispatch
 remain planned. The current shell softkeys remain noninteractive.
 
+### Screen-owned softkey contract
+
+`Screen<R>` owns stable `bottomKeys` and `rightKeys` maps keyed by
+`BottomSoftKeySlot` (F1–F8) and `RightSoftKeySlot` (R1–R7). Values implement
+`SoftKeyOverride`: immutable `SoftKeyDefinition` values hold a label, optional
+Compose `ImageVector`, nullable bound action, and enabled/active predicates
+(default true/false). `SoftKeyDefinition.Blank` has no label, icon or action
+and is disabled. There is no visibility flag. Disabled labelled definitions
+retain their content. `SoftKeyModifier` transforms a definition, typically with
+`copy`, preserving callbacks and predicates unless explicitly replaced.
+Screens should create definitions once and let predicates read instance state.
+Rendering/activation integration is in progress; cross-screen composition and
+modifiers on inherited slots are planned in issue #4.
+
 ### Screen-owned typed results
 
 The editor's file selection uses the actual `FileExplorer` screen, without a
@@ -153,4 +167,3 @@ As the UI grows, modes own their workspace content and contextual actions, not t
 Machine position/DRO, functional mode-specific pages, live connection state, programmable actions, and physical CNC operations are planned and are not part of the desktop demonstration.
 
 See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the repository [AGENTS.md](../AGENTS.md).
-

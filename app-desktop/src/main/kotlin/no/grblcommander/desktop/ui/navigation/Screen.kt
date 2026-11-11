@@ -1,6 +1,9 @@
 package no.grblcommander.desktop.ui.navigation
 
 import androidx.compose.runtime.Composable
+import no.grblcommander.desktop.ui.softkeys.BottomSoftKeySlot
+import no.grblcommander.desktop.ui.softkeys.RightSoftKeySlot
+import no.grblcommander.desktop.ui.softkeys.SoftKeyOverride
 
 /**
  * A stateful workspace screen with a typed completion result.
@@ -10,6 +13,10 @@ import androidx.compose.runtime.Composable
  * The stack owns the binding and result delivery, not the Compose host.
  */
 abstract class Screen<R>(private val cancellationResult: R) : NavigationParent {
+    /** Stable bindings owned by this instance; inheritance is reserved for issue #4. */
+    open val bottomKeys: Map<BottomSoftKeySlot, SoftKeyOverride> = emptyMap()
+    open val rightKeys: Map<RightSoftKeySlot, SoftKeyOverride> = emptyMap()
+
     private var owningStack: ScreenStack? = null
     private var onResult: ((R) -> Unit)? = null
 
