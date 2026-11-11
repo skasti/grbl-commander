@@ -97,6 +97,40 @@ class SoftKeyRenderingTest {
         runOnIdle { assertEquals(2, manualCalls) }
     }
 
+    @Test fun pendingTouchCannotActivateReplacementOrDisabledBinding() = runComposeUiTest {
+        var oldCalls = 0
+        var newCalls = 0
+        val allowed = mutableStateOf(true)
+        val root = object : Screen<Unit>(Unit) {
+            override val bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyDefinition(
+                "Root action", action = { oldCalls++ }, enabled = { allowed.value },
+            ))
+            @Composable override fun Content() {}
+        }
+        val overlay = object : Screen<Unit>(Unit) {
+            override val bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyDefinition(
+                "Overlay action", action = { newCalls++ },
+            ))
+            @Composable override fun Content() {}
+        }
+        val stack = ScreenStack(root)
+        setContent {
+            MaterialTheme {
+                AppShell(ShellState.startup(), currentStack = { stack }) {
+                    ScreenStackHost(stack)
+                }
+            }
+        }
+        onNodeWithTag("softkey-F1").performTouchInput { down(center) }
+        runOnIdle { stack.push(overlay) }
+        onNodeWithTag("softkey-F1").performTouchInput { up() }
+        runOnIdle { assertEquals(0, oldCalls); assertEquals(0, newCalls); stack.pop() }
+        onNodeWithTag("softkey-F1").performTouchInput { down(center) }
+        runOnIdle { allowed.value = false }
+        onNodeWithTag("softkey-F1").performTouchInput { up() }
+        runOnIdle { assertEquals(0, oldCalls); assertEquals(0, newCalls) }
+    }
+
     @Test fun explorerSoftkeysSelectAndCancelWithTypedInstanceResults() = runComposeUiTest {
         val root = object : Screen<Unit>(Unit) { @Composable override fun Content() {} }
         val stack = ScreenStack(root)
