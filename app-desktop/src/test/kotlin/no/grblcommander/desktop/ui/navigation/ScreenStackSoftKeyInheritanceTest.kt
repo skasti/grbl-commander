@@ -174,6 +174,34 @@ class ScreenStackSoftKeyInheritanceTest {
         assertNull(stack.softKeyDefinition(RightSoftKeySlot.R7))
     }
 
+    @Test fun predicateUpdatesDoNotRecomposeStructuralModifiers() {
+        val allowed = mutableStateOf(false)
+        val highlighted = mutableStateOf(false)
+        var modifierCalls = 0
+        val original = SoftKeyDefinition(
+            "Base", action = {}, enabled = { allowed.value }, active = { highlighted.value },
+        )
+        val root = Fixture(bottomKeys = mapOf(BottomSoftKeySlot.F1 to original))
+        val overlay = Fixture(inheritBottomKeys = true, bottomKeys = mapOf(
+            BottomSoftKeySlot.F1 to SoftKeyModifier {
+                modifierCalls++
+                it.copy(label = "Modified")
+            },
+        ))
+        val stack = ScreenStack(root)
+        stack.push(overlay)
+        val first = assertNotNull(stack.softKeyDefinition(BottomSoftKeySlot.F1))
+        assertEquals(1, modifierCalls)
+        allowed.value = true
+        highlighted.value = true
+        assertTrue(first.enabled())
+        assertTrue(first.active())
+        assertSame(first, stack.softKeyDefinition(BottomSoftKeySlot.F1))
+        assertEquals(1, modifierCalls)
+        stack.pop()
+        assertSame(original, stack.softKeyDefinition(BottomSoftKeySlot.F1))
+    }
+
     @Test fun modeSwitchAndPopNeverActivateDetachedOrInactiveScreens() {
         var programCalls = 0
         var manualCalls = 0
