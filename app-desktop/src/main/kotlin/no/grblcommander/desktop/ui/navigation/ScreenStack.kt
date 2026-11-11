@@ -52,11 +52,13 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
     val effectiveRightKeys: Map<RightSoftKeySlot, SoftKeyDefinition>
         get() = resolvedRightKeys
 
-    /** Resolve against this stack's current screens, never an inactive mode. */
-    fun softKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? = when (slot) {
-        is BottomSoftKeySlot -> effectiveBottomKeys[slot]
-        is RightSoftKeySlot -> effectiveRightKeys[slot]
-    }
+    /**
+     * Resolve the latest binding at invocation time, including non-observable
+     * changes to a screen's definition. The shell uses the derived bank views
+     * for rendering, while activation deliberately reads the source directly.
+     */
+    fun softKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? =
+        resolveSoftKeyDefinition(slot)
 
     /**
      * Each bank finds its own inheritance boundary, then applies overrides
