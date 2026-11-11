@@ -8,7 +8,9 @@ While it is not necessarily easy to use or intuitive for users who are not famil
 
 ## Desktop shell
 
-The initial application uses Kotlin/JVM and Compose Multiplatform Desktop. It renders a branded welcome image in a screen-stack workspace and the application logo in the header and desktop window icon, within the common operator layout (header, workspace, bottom softkeys and right softkeys). The welcome screen opens an in-memory editor/file-explorer example through the screen-owned `FileExplorer("/programs").open(editor) { result -> ... }` API, with typed selection and cancellation callbacks. It preserves editor state while the overlay is open and delivers cancellation on back/pop. It does not connect to a controller, access real program files, or execute machine commands.
+The desktop application uses Kotlin/JVM and Compose Multiplatform Desktop. The persistent `AppShell` owns a header with Program, Manual and MDI UI-mode buttons, a workspace, and bottom/right softkey placeholders. Each window owns a persistent `ScreenStack` for each UI mode. `ScreenStackHost` hosts all these stacks, retaining inactive compositions and overlays (including ordinary Compose `remember` state), while only the active stack is visible and interactive. Switching modes never pops screens or delivers pending typed results.
+
+Program starts at the branded welcome screen, which opens an in-memory editor. The editor opens a typed `FileExplorer` overlay using `FileExplorer("/programs").open(this@EditorScreen) { result -> ... }`. Open the explorer, switch to Manual, navigate into its details screen, then return to Program: the explorer and unfinished editor are still present. Manual has a local notes screen; MDI has an unsent text buffer. These are UI fixtures, not machine functions. The application does not connect to a controller, access actual program files or execute commands.
 
 ### Requirements
 

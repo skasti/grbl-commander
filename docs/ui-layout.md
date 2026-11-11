@@ -8,14 +8,14 @@ The shell is composed of four regions, matching the static HTML/CSS and screensh
 
 | Region | Current responsibility |
 | --- | --- |
-| Header | Image logo, application identity, current context and explicit connection status |
-| Main workspace | ScreenStackHost: welcome image and optional navigation example overlays |
+| Header | Image logo, application identity, Program/Manual/MDI UI-mode selection, current context and explicit connection status |
+| Main workspace | ScreenStackHost: retains all mode screen stacks and renders only the active stack |
 | Bottom softkeys | Eight fixed slots, F1 through F8 |
 | Right softkeys | Seven fixed slots, R1 through R7 |
 
 The header spans the entire screen width. The right-side softkeys span the workspace and bottom-softkey row. The main workspace and bottom keys share the remaining width. The initial default sizes are 78 dp for the header, 94 dp for the bottom keys and 142 dp for the right column; they may be adjusted for screen sizes and touch targets.
 
-`AppShell` owns the persistent regions and accepts a Compose content slot for the workspace. `ShellState` contains display-only header information and softkey labels. All softkeys are noninteractive placeholders, not machine commands.
+`AppShell` owns the persistent regions, accepts a Compose content slot for the workspace, and exposes an optional header-controls slot for UI-mode selection. `ShellState` contains display-only header information and softkey labels. The Program, Manual and MDI buttons change presentation context only. All softkeys are noninteractive placeholders, not machine commands.
 
 The application icon and header logo use the classpath resource `images/grbl-commander-icon.png` (384 × 256), while the workspace uses `images/grbl-commander-splash.jpg` (1024 × 768). The icon is an optimized RGBA PNG derived from the supplied transparent artwork, preserving transparent corners for the window icon and header. The splash image remains an optimized JPEG derived from the supplied artwork. Images preserve their original proportions with `ContentScale.Fit` rather than stretching or cropping. The operating system displays the application icon according to its window-manager conventions.
 
@@ -60,19 +60,39 @@ retain their instance, callbacks, ordinary Compose `remember` state, and
 composition effects. Popping disposes only the removed entry; a later push of
 that instance starts a fresh composition while its instance-owned state survives.
 
-Only the top screen receives workspace pointer and keyboard input. Full-workspace
-pointer targets prevent clicks in overlay margins from reaching lower siblings;
-covered layers also consume pointer events before their children. Covered focus
-groups reject focus entry, key preview handlers block stale focused descendants,
-and navigation clears captured focus and focuses the active layer. Covered
-content is removed from the accessibility semantics tree. Focus returns to the
-active layer, not necessarily the previously focused editor field. The header
-and softkeys stay outside this input boundary.
+Only the top screen of the active mode receives workspace pointer and keyboard
+input. Full-workspace pointer targets prevent clicks in overlay margins from
+reaching lower siblings; covered layers also consume pointer events before their
+children. Covered focus groups reject focus entry and key preview handlers block
+stale focused descendants. Covered content is removed from accessibility
+semantics. Focus returns to the active layer, not necessarily the previously
+focused editor field. The header and softkeys stay outside this input boundary.
+
+### Independent mode stacks
+
+`CommanderApp` creates a stable `Map<OperatorMode, ScreenStack>` with
+`remember`, one stack per mode per application window. It keeps `activeMode`
+in ordinary Compose state. The selected mode controls the header and selects
+`activeStack` for the workspace; switching it never pops, finishes or
+reconstructs another mode's stack. Each stack independently owns its root,
+open screens, overlays and typed callbacks. There is no global navigator or
+implicit redirection to the visible stack: `screen.open(parent)` resolves
+the bound stack and `screen.open(stack)` uses the explicit stack even if
+it is inactive.
+
+`ScreenStackHost(stacks, activeStack)` composes all supplied stacks using
+stable stack identities and reuses the single-stack rendering/input logic.
+Only the active stack is drawn; inactive stacks remain in the composition,
+are removed from accessibility semantics, reject pointer/keyboard input and
+cannot enter or steal focus. Reactivation focuses the current top screen after
+clearing focus from the previous stack. Screen instances, nested overlay
+compositions and ordinary non-saveable Compose `remember` state survive mode
+changes. Popping an overlay disposes only that overlay; closing the window
+disposes its stacks and compositions. State is not persisted across restarts.
 
 Visual overlay/input behavior does not depend on softkey inheritance.
-Screen-owned softkey definitions, inheritance, global shortcut dispatch and
-mode switching are planned separately. The current shell softkeys remain
-noninteractive.
+Screen-owned softkey definitions, inheritance and global shortcut dispatch
+remain planned. The current shell softkeys remain noninteractive.
 
 ### Screen-owned typed results
 
@@ -110,7 +130,7 @@ the same `Cancelled` result.
 
 ### Runnable example
 
-Choose **Open navigation example** on the welcome screen, edit the draft, then
+In **Program** mode, choose **Open navigation example** on the welcome screen, edit the draft, then
 choose **Open example file**. Each invocation creates a `FileExplorer` screen
 instance. **Cancel** or `pop()` restores the same editor and leaves its draft
 unchanged. Selecting a fixture delivers `Selected(filename)`; the editor
@@ -118,14 +138,19 @@ looks up the in-memory fixture and updates its filename and draft. **Back to
 welcome** completes the editor's `Unit` result. The example has no real local
 or controller filesystem access and cannot execute G-code.
 
-The startup screen is deliberately disconnected from any controller. It does
-not simulate a real connected machine or expose motion operations.
+While the explorer is open, use the header to select **Manual**, open **Manual
+details**, and optionally type local notes. Return to **Program**: the same
+explorer, editor instance and draft are available; dismiss or select a file
+to deliver the typed result. The Manual details screen remains open when
+switching back. **MDI** contains an unsent, local text buffer. The examples are
+deliberately disconnected from any controller. They neither simulate jogs nor
+expose motion operations.
 
 ## Architectural requirements
 
 As the UI grows, modes own their workspace content and contextual actions, not the global layout. Shared softkey components must support labels, icons, disabled state and typed actions when those capabilities are implemented. The action dispatch layer must remain separate from GRBL transports and physical execution.
 
-Machine position/DRO, mode-specific pages, live connection state, programmable actions, and physical CNC operations are planned and are not part of the startup shell.
+Machine position/DRO, functional mode-specific pages, live connection state, programmable actions, and physical CNC operations are planned and are not part of the desktop demonstration.
 
 See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the repository [AGENTS.md](../AGENTS.md).
 

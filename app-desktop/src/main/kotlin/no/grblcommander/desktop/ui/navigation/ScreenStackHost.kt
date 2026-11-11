@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -21,36 +22,87 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.zIndex
+
+/**
+ * A single workspace host for multiple long-lived screen stacks. Stacks are
+ * retained by the window; switching the active stack never removes an inactive
+ * stack from composition (so ordinary remember state and overlays survive).
+ *
+ * Each stack still owns its navigation and typed result callbacks. This host
+ * only decides which stack is visible and receives operator input.
+ */
+@Composable
+fun ScreenStackHost(
+    stacks: List<ScreenStack>,
+    activeStack: ScreenStack,
+    modifier: Modifier = Modifier,
+) {
+    require(stacks.any { it === activeStack }) { "The active stack must be hosted" }
+    Box(modifier.fillMaxSize().clipToBounds()) {
+        stacks.forEach { stack ->
+            key(stack) {
+                val active = stack === activeStack
+                ScreenStackHost(
+                    stack = stack,
+                    modifier = Modifier.fillMaxSize()
+                        .zIndex(if (active) 1f else 0f)
+                        .drawWithContent { if (active) drawContent() },
+                    isActive = active,
+                )
+            }
+        }
+    }
+}
 
 /**
  * All entries stay composed in root-to-top drawing order. Each overlay occupies
  * the workspace, with a scrim over the previous entry. Only the top accepts input.
+ * An inactive host keeps its compositions but refuses interaction and focus.
  * Shell controls are outside this host; softkey resolution is a separate concern.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier) {
+fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier, isActive: Boolean = true) {
     val focusManager = LocalFocusManager.current
     val topEntry = stack.entries.last()
     val activeFocus = remember(topEntry) { FocusRequester() }
 
-    LaunchedEffect(topEntry) {
+    LaunchedEffect(topEntry, isActive) {
+        if (!isActive) return@LaunchedEffect
         // Includes captured text-field focus: a covered editor must stop receiving keys.
         focusManager.clearFocus(force = true)
         activeFocus.requestFocus()
     }
 
-    Box(modifier.fillMaxSize().clipToBounds()) {
+    Box(modifier.fillMaxSize().clipToBounds()
+        .then(if (isActive) Modifier else Modifier.clearAndSetSemantics {})
+        .onPreviewKeyEvent { !isActive }
+        .pointerInput(isActive) {
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    if (!isActive) event.changes.forEach { it.consume() }
+                }
+            }
+        }
+        .focusProperties {
+            canFocus = isActive
+            @Suppress("DEPRECATION")
+            enter = { if (isActive) FocusRequester.Default else FocusRequester.Cancel }
+        }
+        .focusGroup()
+    ) {
         stack.entries.forEachIndexed { index, entry ->
             key(entry) {
-                val active = entry === topEntry
+                val active = isActive && entry === topEntry
                 val inputGate = Modifier
-                    .onPreviewKeyEvent { stack.top !== entry.screen }
-                    .pointerInput(entry) {
+                    .onPreviewKeyEvent { !isActive || stack.top !== entry.screen }
+                    .pointerInput(entry, isActive) {
                         awaitPointerEventScope {
                             while (true) {
                                 val event = awaitPointerEvent(PointerEventPass.Initial)
-                                if (stack.top !== entry.screen) {
+                                if (!isActive || stack.top !== entry.screen) {
                                     event.changes.forEach { it.consume() }
                                 }
                             }
@@ -60,7 +112,7 @@ fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier) {
                         // Cancel traversal into the entire covered group, not just its root.
                         @Suppress("DEPRECATION")
                         enter = {
-                            if (stack.top === entry.screen) FocusRequester.Default
+                            if (isActive && stack.top === entry.screen) FocusRequester.Default
                             else FocusRequester.Cancel
                         }
                     }
