@@ -1,6 +1,7 @@
 package no.grblcommander.desktop.ui.navigation
 
 import no.grblcommander.desktop.ui.softkeys.*
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -29,23 +30,40 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
     val top: Screen<*> get() = entries.last().screen
     val size: Int get() = entries.size
 
-    /** Computed views of each bank; screens remain the sole owners of bindings. */
-    val effectiveBottomKeys: Map<BottomSoftKeySlot, SoftKeyDefinition>
-        get() = BottomSoftKeySlot.entries.mapNotNull { slot ->
-            softKeyDefinition(slot)?.let { slot to it }
+    /**
+     * Memoized, read-only derivations. Navigation and snapshot-backed key maps
+     * invalidate the appropriate bank; ordinary enabled/active predicate changes
+     * leave the composed definitions intact.
+     */
+    private val resolvedBottomKeys by derivedStateOf {
+        BottomSoftKeySlot.entries.mapNotNull { slot ->
+            resolveSoftKeyDefinition(slot)?.let { slot to it }
         }.toMap()
+    }
+    private val resolvedRightKeys by derivedStateOf {
+        RightSoftKeySlot.entries.mapNotNull { slot ->
+            resolveSoftKeyDefinition(slot)?.let { slot to it }
+        }.toMap()
+    }
+
+    val effectiveBottomKeys: Map<BottomSoftKeySlot, SoftKeyDefinition>
+        get() = resolvedBottomKeys
 
     val effectiveRightKeys: Map<RightSoftKeySlot, SoftKeyDefinition>
-        get() = RightSoftKeySlot.entries.mapNotNull { slot ->
-            softKeyDefinition(slot)?.let { slot to it }
-        }.toMap()
+        get() = resolvedRightKeys
+
+    /** Resolve against this stack's current screens, never an inactive mode. */
+    fun softKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? = when (slot) {
+        is BottomSoftKeySlot -> effectiveBottomKeys[slot]
+        is RightSoftKeySlot -> effectiveRightKeys[slot]
+    }
 
     /**
      * Each bank finds its own inheritance boundary, then applies overrides
-     * bottom-to-top. Reading the screens' maps here observes structural Compose
-     * state changes without keeping a second set of mutable bindings.
+     * bottom-to-top. The derivations above observe structural Compose state
+     * without introducing a separately mutable binding store.
      */
-    fun softKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? {
+    private fun resolveSoftKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? {
         val currentEntries = entries
         var boundary = currentEntries.lastIndex
         while (boundary > 0) {
