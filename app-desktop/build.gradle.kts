@@ -112,29 +112,16 @@ compose.desktop {
         mainClass = "no.grblcommander.desktop.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.Msi, TargetFormat.Dmg)
+            targetFormats(TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.Msi)
             packageName = "grbl-commander"
             packageVersion = releaseVersion
             description = "Desktop operator interface for GRBL-compatible CNC machines"
 
-            // Compose Desktop 1.9 requires macOS versions with a positive major.
-            // Apply the reversible major+1 mapping, independently of build host.
-            val parts = releaseVersion.split('.')
-            require(parts.size == 3) { "Expected MAJOR.MINOR.PATCH: $releaseVersion" }
-            val macVersion = listOf(
-                parts[0].toInt() + 1,
-                parts[1].toInt(),
-                parts[2].toInt(),
-            ).joinToString(".")
             windows {
                 // Add an entry in the Windows Start menu; no desktop shortcut.
                 menu = true
                 menuGroup = "GRBL Commander"
                 iconFile.set(windowsIconOutput)
-            }
-            macOS {
-                packageVersion = macVersion
-                packageBuildVersion = macVersion
             }
         }
     }

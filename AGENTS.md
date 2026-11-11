@@ -101,14 +101,14 @@ Architectural changes are allowed when justified, but must be documented and tes
 
 ## 5. Cross-platform requirements
 
-GRBL Commander is a cross-platform desktop application targeting Linux, Windows, and macOS.
+GRBL Commander is a cross-platform desktop application with verified Linux and Windows support. macOS is not a supported or regularly tested target.
 
-Linux is the primary development and deployment focus, but cross-platform compatibility is an architectural requirement.
+Linux is the primary development and deployment focus; cross-platform compatibility between Linux and Windows is an architectural requirement.
 
 - Keep core application logic platform-independent.
 - Isolate operating-system-specific behavior behind appropriate boundaries.
 - Avoid introducing Linux-only dependencies into shared application functionality.
-- Consider Windows and macOS compatibility when choosing libraries and APIs.
+- Consider Windows compatibility when choosing libraries and APIs; macOS compatibility is not a release requirement.
 - Document intentional platform-specific functionality and limitations.
 - Preserve Linux touchscreen, serial communication, and kiosk-style operation requirements.
 

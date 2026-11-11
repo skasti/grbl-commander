@@ -29,7 +29,7 @@ Build and test:
 gradle :app-desktop:build
 ```
 
-GitHub Actions builds and tests on Linux, Windows, and macOS. Each merged PR triggers a versioned GitHub Release with native Linux (DEB/RPM), Windows (MSI), and macOS (DMG) installers. Headless Compose component tests cover navigation and overlay input isolation. Physical-machine integration tests are not included.
+GitHub Actions builds and tests on Linux and Windows, the officially supported desktop platforms. Each merged PR triggers a versioned GitHub Release with native Linux (DEB/RPM) and Windows (MSI) installers. macOS is neither tested nor packaged and is not an officially supported target; the shared Kotlin/JVM and Compose codebase may still run there without a compatibility guarantee. Headless Compose component tests cover navigation and overlay input isolation. Physical-machine integration tests are not included.
 
 Versions start at v0.1.0. PRs labeled `major` or `minor` choose the corresponding semantic-version bump; other PRs bump patch. See [release process](docs/releases.md) for details, including the required PR label validation check.
 
