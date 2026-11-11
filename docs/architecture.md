@@ -243,7 +243,7 @@ Softkeys use shared components and a common action model. Their labels, enabled 
 
 Global functions retain consistent positions across modes.
 
-**Current implementation:** The desktop shell renders a header with Program, Manual and MDI UI-mode selection, a central workspace, eight bottom softkey slots and seven right softkey slots. Each window retains a `ScreenStack` for each UI mode, hosted together by `ScreenStackHost`. Program includes the branded welcome screen and a runnable in-memory editor/file-explorer example. Manual has a nested details screen with local notes; MDI has an unsent text buffer. Mode changes do not cancel overlays, discard drafts, or alter controller execution state. The window icon and header show the supplied app logo. Softkey slots are noninteractive visual placeholders; controller communication, DRO, real mode operations and machine status reporting are not implemented. The header explicitly displays an unconnected state. The shared slot layout is described in [UI layout](ui-layout.md).
+**Current implementation:** The desktop shell renders a header with Program, Manual and MDI UI-mode selection, a central workspace, eight bottom softkey slots and seven right softkey slots. Each window retains a `ScreenStack` for each UI mode, hosted together by `ScreenStackHost`. Program includes the branded welcome screen and a runnable in-memory editor/file-explorer example. Manual has a nested details screen with local notes; MDI has an unsent text buffer. Mode changes do not cancel overlays, discard drafts, or alter controller execution state. The window icon and header show the supplied app logo. Softkey slots render screen-owned labels/icons, reactive enabled/active state, and safe in-memory navigation actions. Pointer and keyboard input share guarded slot activation. Controller communication, DRO, real mode operations and machine status reporting are not implemented. The header explicitly displays an unconnected state. The shared slot layout is described in [UI layout](ui-layout.md).
 
 ### Screen navigation contract
 
@@ -287,8 +287,26 @@ inheritance. Screens own stable typed bottom/right maps of immutable `SoftKeyDef
 or `SoftKeyModifier` overrides in `ui.softkeys`. Definitions carry bound instance
 callbacks and reactive enabled/active predicates; `Blank` is empty and
 non-actionable. Modifiers transform definitions without a central action registry.
-Shell rendering/activation integration is in progress. Cross-screen softkey
-inheritance and modifier composition remain planned in issue #4.
+`ScreenStack.softKeyBinding(slot)` selects a complete definition from its current
+top screen only; undefined and modifier-only slots render blank. `AppShell`
+renders all fixed slots through one shared tile component. It evaluates predicates
+in composition so Compose snapshot changes update presentation without rebuilding
+maps. `ShellState` contains only header information, not softkey state.
+
+`activateSoftKey` reads the currently selected persistent stack and slot, checks
+action availability and enabled state, and invokes the bound callback on the UI
+thread. Pointer activation also verifies the displayed binding's stack, navigation
+entry and definition identity; pending gestures are disposed when that identity
+changes. Pop/reopen creates a different entry lifetime. The shell previews F1–F8
+and Shift+F1–F7 (right bank) before workspace input, using the same activation
+path. `active` affects presentation only. No central action registry, navigator
+or mutable softkey store is involved.
+
+Cross-screen softkey inheritance, independent per-bank inheritance flags/boundaries,
+and bottom-to-top modifier composition remain planned in issue #4. Its resolver
+belongs at the stack binding-selection boundary. A modifier without an inherited
+definition must be a no-op. Definitions and modifiers retain original screen-bound
+callbacks and reactive predicates unless explicitly replaced.
 The current mode examples are local UI fixtures; real program/file services
 and machine operations are not implemented. Detailed lifetime, root, rendering
 and focus behavior are specified in [UI layout](ui-layout.md).

@@ -8,9 +8,9 @@ While it is not necessarily easy to use or intuitive for users who are not famil
 
 ## Desktop shell
 
-The desktop application uses Kotlin/JVM and Compose Multiplatform Desktop. The persistent `AppShell` owns a header with Program, Manual and MDI UI-mode buttons, a workspace, and bottom/right softkey placeholders. Each window owns a persistent `ScreenStack` for each UI mode. `ScreenStackHost` hosts all these stacks, retaining inactive compositions and overlays (including ordinary Compose `remember` state), while only the active stack is visible and interactive. Switching modes never pops screens or delivers pending typed results.
+The desktop application uses Kotlin/JVM and Compose Multiplatform Desktop. The persistent `AppShell` owns a header with Program, Manual and MDI UI-mode buttons, a workspace, and fixed bottom/right screen-owned softkeys. Each window owns a persistent `ScreenStack` for each UI mode. `ScreenStackHost` hosts all these stacks, retaining inactive compositions and overlays (including ordinary Compose `remember` state), while only the active stack is visible and interactive. Switching modes never pops screens or delivers pending typed results.
 
-Program starts at the branded welcome screen, which opens an in-memory editor. The editor opens a typed `FileExplorer` overlay using `FileExplorer("/programs").open(this@EditorScreen) { result -> ... }`. Open the explorer, switch to Manual, navigate into its details screen, then return to Program: the explorer and unfinished editor are still present. Manual has a local notes screen; MDI has an unsent text buffer. These are UI fixtures, not machine functions. The application does not connect to a controller, access actual program files or execute commands.
+Program starts at the branded welcome screen, which opens an in-memory editor. The editor opens a typed `FileExplorer` overlay using `FileExplorer("/programs").open(this@EditorScreen) { result -> ... }`. Use F1 to open the editor and its file explorer. Selecting a fixture enables F1 Select and F2 Clear selection; F8 cancels. Right key R7 Info (Shift+F7) toggles its active state. Mouse/touch and keyboard use the same guarded activation path. Only the top screen supplies bindings; cross-screen inheritance remains planned in #4. Open the explorer, switch to Manual, navigate into its details screen, then return to Program: the explorer and unfinished editor are still present. Manual has a local notes screen; MDI has an unsent text buffer. These are UI fixtures, not machine functions. The application does not connect to a controller, access actual program files or execute commands.
 
 ### Requirements
 
@@ -34,4 +34,3 @@ GitHub Actions builds and tests on Linux and Windows, the officially supported d
 Versions start at v0.1.0. PRs labeled `major` or `minor` choose the corresponding semantic-version bump; other PRs bump patch. See [release process](docs/releases.md) for details, including the required PR label validation check.
 
 For implementation constraints, see [AGENTS.md](AGENTS.md), [architecture](docs/architecture.md), and the [UI layout contract](docs/ui-layout.md).
-

@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import no.grblcommander.desktop.ui.softkeys.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -28,6 +29,20 @@ class EditorScreen : Screen<Unit>(Unit) {
     var selectedFile by mutableStateOf<String?>(null)
         private set
 
+    override val bottomKeys = mapOf(
+        BottomSoftKeySlot.F1 to SoftKeyDefinition("Open file", action = ::openFile),
+        BottomSoftKeySlot.F8 to SoftKeyDefinition("Back", action = { finish(Unit) }),
+    )
+
+    private fun openFile() {
+        FileExplorer("/programs").open(this) { result ->
+            when (result) {
+                is FileExplorerResult.Selected -> loadExampleFile(result.filename)
+                FileExplorerResult.Cancelled -> Unit
+            }
+        }
+    }
+
     private fun loadExampleFile(filename: String) {
         val file = exampleFiles.singleOrNull { it.name == filename } ?: return
         selectedFile = file.name
@@ -40,14 +55,7 @@ class EditorScreen : Screen<Unit>(Unit) {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Navigation example · in-memory files only")
                 Text(selectedFile ?: "Unsaved draft")
-                Button(onClick = {
-                    FileExplorer("/programs").open(this@EditorScreen) { result ->
-                        when (result) {
-                            is FileExplorerResult.Selected -> loadExampleFile(result.filename)
-                            FileExplorerResult.Cancelled -> Unit
-                        }
-                    }
-                }) { Text("Open example file") }
+                Button(onClick = ::openFile) { Text("Open example file") }
                 OutlinedTextField(
                     value = draft,
                     onValueChange = { draft = it },

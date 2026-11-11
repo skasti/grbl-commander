@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
+import no.grblcommander.desktop.ui.softkeys.BottomSoftKeySlot
+import no.grblcommander.desktop.ui.softkeys.SoftKeyDefinition
 import no.grblcommander.desktop.ui.navigation.Screen
 import no.grblcommander.desktop.ui.navigation.EditorScreen
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +23,13 @@ import androidx.compose.ui.unit.dp
  * This screen never claims controller connectivity or implies machine operation.
  */
 class WelcomeScreen : Screen<Unit>(Unit) {
+    private fun openEditor() { EditorScreen().open(this) }
+
+    override val bottomKeys = mapOf(
+        BottomSoftKeySlot.F1 to
+            SoftKeyDefinition("Open editor", action = ::openEditor),
+    )
+
     @Composable
     override fun Content() {
         Box(Modifier.fillMaxSize()) {
@@ -31,10 +40,9 @@ class WelcomeScreen : Screen<Unit>(Unit) {
                 contentScale = ContentScale.Fit,
             )
             Button(
-                onClick = { EditorScreen().open(this@WelcomeScreen) },
+                onClick = ::openEditor,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
             ) { Text("Open navigation example") }
         }
     }
 }
-

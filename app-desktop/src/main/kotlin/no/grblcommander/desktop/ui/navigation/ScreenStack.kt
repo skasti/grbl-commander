@@ -1,5 +1,6 @@
 package no.grblcommander.desktop.ui.navigation
 
+import no.grblcommander.desktop.ui.softkeys.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -27,6 +28,17 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
     val screens: List<Screen<*>> get() = entries.map { it.screen }
     val top: Screen<*> get() = entries.last().screen
     val size: Int get() = entries.size
+
+    /** Top-screen definitions only. Issue #4 supplies cross-screen resolution here. */
+    fun softKeyBinding(slot: SoftKeySlot): SoftKeyBinding? {
+        val entry = entries.last()
+        val override = when (slot) {
+            is BottomSoftKeySlot -> entry.screen.bottomKeys[slot]
+            is RightSoftKeySlot -> entry.screen.rightKeys[slot]
+        }
+        val definition = override as? SoftKeyDefinition ?: return null
+        return SoftKeyBinding(this, entry, definition)
+    }
 
     /** Direct stack navigation always pushes above the current top screen. */
     fun <R> push(screen: Screen<R>) {
