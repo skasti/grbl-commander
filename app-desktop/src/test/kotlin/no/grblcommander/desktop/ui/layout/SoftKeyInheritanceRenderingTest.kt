@@ -126,7 +126,7 @@ class SoftKeyInheritanceRenderingTest {
         onNodeWithTag("softkey-F1").assertIsEnabled()
         onNodeWithTag("workspace").performKeyInput { pressKey(Key.F8) }
         onNodeWithText("Editor unavailable").assertDoesNotExist()
-        onNodeWithText("Open file").assertExists()
+        onAllNodesWithText("Open file").assertCountEquals(2)
         onNodeWithTag("softkey-R1").assertIsEnabled()
         onNodeWithTag("softkey-R2").assertIsEnabled()
         onNodeWithTag("softkey-R7").assertIsNotEnabled()
