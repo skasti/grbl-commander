@@ -20,7 +20,7 @@ The architecture prioritizes:
 - Extensibility without introducing unnecessary abstraction.
 - Testability without requiring physical CNC hardware.
 
-GRBL Commander supports Linux, Windows, and macOS from the outset. Linux is the primary development, integration, and deployment focus, particularly for dedicated touchscreen CNC computers. Cross-platform compatibility is an architectural requirement rather than a future porting goal.
+GRBL Commander supports Linux and Windows as its verified desktop targets. Linux is the primary development, integration, and deployment focus, particularly for dedicated touchscreen CNC computers. Cross-platform compatibility across these supported targets is an architectural requirement. macOS is not tested or distributed as an officially supported platform.
 
 ## 2. Architectural Style
 
@@ -515,7 +515,7 @@ Software validation and toolpath previews cannot guarantee collision-free or saf
 
 ## 10. Platform Strategy
 
-GRBL Commander is a **cross-platform desktop application** supporting Linux, Windows, and macOS from a shared codebase. Linux is the priority for CNC-machine integration, deployment, testing, and operator experience, but the other desktop platforms are supported targets rather than hypothetical future ports.
+GRBL Commander is a **cross-platform desktop application** supporting Linux and Windows from a shared codebase. Linux is the priority for CNC-machine integration, deployment, testing, and operator experience. Windows is a supported target; macOS is not part of the verified platform matrix.
 
 ### 10.1 Shared Runtime and Codebase
 
@@ -561,21 +561,21 @@ Linux receives particular attention for:
 
 Linux-specific improvements must remain isolated from shared machine-control and UI logic whenever possible.
 
-### 10.4 Windows and macOS
+### 10.4 Windows and Unverified Platforms
 
-Windows and macOS use the same application codebase and feature model. Differences in serial-port discovery, permissions, native UI behavior, and packaging are handled by platform integrations.
+Windows uses the same application codebase and feature model as Linux. Differences in serial-port discovery, permissions, native UI behavior, and packaging are handled by platform integrations. macOS is not a verified, packaged, or officially supported target, although the shared Kotlin/JVM and Compose implementation may run there.
 
-Features should not be marked as generally supported until their relevant platform behavior has been verified. Linux-specific capabilities must have an explicit alternative or a clearly documented limitation on other platforms.
+Features should not be marked as generally supported until their relevant behavior has been verified on Linux and Windows. Linux-specific capabilities must have an explicit Windows alternative or a clearly documented limitation.
 
 ### 10.5 Build, Testing, and Distribution
 
-Continuous integration should run shared tests and platform-relevant smoke tests on Linux, Windows, and macOS runners. Desktop packaging should produce native distribution artifacts for each supported operating system.
+Continuous integration runs shared tests and platform-relevant smoke tests on Linux and Windows runners. Desktop packaging produces native distribution artifacts for these supported operating systems; macOS runners and DMG packaging are not required.
 
 Linux is the primary environment for physical CNC-machine integration testing. Automated cross-platform tests do not replace verification with actual controller hardware.
 
 Cross-platform compatibility is part of the definition of done for changes affecting shared behavior. Platform-specific exceptions must be intentional and documented.
 
-Native release packaging is driven by GitHub Actions after a pull request is merged into `main`. Git tags determine published versions, and Gradle receives the resolved version for every platform package. Linux releases include DEB and RPM packages, Windows releases include MSI, and macOS releases include DMG. Packaging runs on native CI hosts; releases are only published once all platform artifacts have been built. Version selection and operator-facing distribution limitations are described in [releases.md](releases.md).
+Native release packaging is driven by GitHub Actions after a pull request is merged into `main`. Git tags determine published versions, and Gradle receives the resolved version for every platform package. Linux releases include DEB and RPM packages and Windows releases include MSI. Packaging runs on native CI hosts; releases are only published once all required Linux and Windows artifacts have been built. Version selection and operator-facing distribution limitations are described in [releases.md](releases.md).
 
 ## 11. Technology
 
@@ -603,7 +603,7 @@ The domain and application layers should avoid direct dependencies on Compose, t
 The current Gradle build contains an `app-desktop` module for the Compose desktop shell. The `core` and `infrastructure` modules in the example below describe the intended organization and are not implemented.
 
 
-Start with a small number of Gradle modules. Use packages to establish component boundaries. The same JVM modules are shared by Linux, Windows, and macOS; platform-specific integrations can remain isolated within infrastructure.
+Start with a small number of Gradle modules. Use packages to establish component boundaries. The same JVM modules are shared by Linux and Windows; platform-specific integrations can remain isolated within infrastructure.
 
 Suggested initial structure:
 
@@ -660,7 +660,7 @@ The test strategy includes:
 - G-code analysis tests with representative programs and macros.
 - UI tests using deterministic machine-state snapshots.
 - Integration tests with supported physical controller configurations.
-- Cross-platform CI on Linux, Windows, and macOS for shared functionality and relevant desktop integrations.
+- Cross-platform CI on Linux and Windows for shared functionality and relevant desktop integrations.
 - Platform-native packaging smoke tests.
 
 The simulated controller should support configurable delays, missing responses, errors, alarms, disconnections, and tool-change pauses.
@@ -725,7 +725,7 @@ The following rules guide architectural decisions:
 8. **Make uncertainty visible.** Unknown machine state, unresolved G-code, and incomplete operation status must be represented explicitly.
 9. **Prefer simple boundaries.** Add abstraction where it protects meaningful responsibilities, not merely to anticipate hypothetical extensions.
 10. **Keep the architecture testable.** Machine-independent behavior should be verifiable without connecting to physical hardware.
-11. **Cross-platform by design.** Shared functionality must work on Linux, Windows, and macOS; prioritize Linux integration without coupling core features to Linux-specific APIs.
+11. **Cross-platform by design.** Shared functionality must work on Linux and Windows; prioritize Linux integration without coupling core features to Linux-specific APIs.
 
 ## 16. References
 

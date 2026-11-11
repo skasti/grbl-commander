@@ -5,14 +5,14 @@ import argparse
 import shutil
 from pathlib import Path
 
-REQUIRED_FORMATS = frozenset({".deb", ".rpm", ".msi", ".dmg"})
+REQUIRED_FORMATS = frozenset({".deb", ".rpm", ".msi"})
 
 
 def stage_release_assets(source: Path, destination: Path) -> list[Path]:
     """Copy one or more native packages per format from nested artifacts into one directory.
 
     Linux's multi-path upload keeps "deb/" and "rpm/" prefixes, while Windows
-    and macOS uploads have their installers at the artifact root.
+    uploads have the MSI installer at the artifact root.
     """
     if not source.is_dir():
         raise ValueError(f"Artifact directory not found: {source}")

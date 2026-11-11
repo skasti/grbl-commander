@@ -53,10 +53,6 @@ jobs:
             name: windows
             gradle-tasks: ":app-desktop:packageMsi"
             paths: app-desktop/build/compose/binaries/main/msi/*.msi
-          - os: macos-latest
-            name: macos
-            gradle-tasks: ":app-desktop:packageDmg"
-            paths: app-desktop/build/compose/binaries/main/dmg/*.dmg
     steps:
       - uses: actions/checkout@v7
         with:
