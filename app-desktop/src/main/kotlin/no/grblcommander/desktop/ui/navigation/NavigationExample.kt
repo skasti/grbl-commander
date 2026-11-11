@@ -33,6 +33,11 @@ class EditorScreen : Screen<Unit>(Unit) {
         BottomSoftKeySlot.F1 to SoftKeyDefinition("Open file", action = ::openFile),
         BottomSoftKeySlot.F8 to SoftKeyDefinition("Back", action = { finish(Unit) }),
     )
+    // In-memory editor actions also demonstrate right-bank inheritance.
+    override val rightKeys = mapOf(
+        RightSoftKeySlot.R1 to SoftKeyDefinition("Open file", action = ::openFile),
+        RightSoftKeySlot.R2 to SoftKeyDefinition("Back", action = { finish(Unit) }),
+    )
 
     private fun openFile() {
         FileExplorer("/programs").open(this) { result ->
