@@ -94,6 +94,7 @@ class ScreenStackHostTest {
         runOnIdle { assertSame(editor, stack.top) }
         onNodeWithText("Open example file").performTouchInput { click() }
         onNodeWithText("example-b.nc").performTouchInput { click() }
+        onNodeWithText("Select file").performTouchInput { click() }
         onNodeWithText("example-b.nc").assertExists()
         runOnIdle {
             assertSame(editor, stack.top)
@@ -125,6 +126,7 @@ class ScreenStackHostTest {
         }
         onAllNodesWithText("Open example file")[1].performTouchInput { click() }
         onNodeWithText("example-b.nc").performTouchInput { click() }
+        onNodeWithText("Select file").performTouchInput { click() }
         runOnIdle {
             assertSame(left, leftStack.top)
             assertSame(right, rightStack.top)

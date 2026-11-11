@@ -42,6 +42,7 @@ fun CommanderApp() {
                 title = activeMode.label,
                 context = "In-memory UI demonstration · no machine controls",
             ),
+            currentStack = { stacks.getValue(activeMode) },
             headerControls = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     OperatorMode.entries.forEach { mode ->

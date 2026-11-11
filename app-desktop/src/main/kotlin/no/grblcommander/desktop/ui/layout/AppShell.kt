@@ -1,5 +1,15 @@
 package no.grblcommander.desktop.ui.layout
 
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Icon
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.runtime.rememberUpdatedState
+import no.grblcommander.desktop.ui.navigation.ScreenStack
+import no.grblcommander.desktop.ui.softkeys.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,10 +56,14 @@ internal object ShellColors {
 @Composable
 fun AppShell(
     state: ShellState,
+    currentStack: () -> ScreenStack,
     headerControls: @Composable () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().background(ShellColors.frame)) {
+    val liveStack = rememberUpdatedState(currentStack)
+    val stack = currentStack()
+    Column(Modifier.fillMaxSize().background(ShellColors.frame)
+        .onPreviewKeyEvent { handleSoftKeyEvent(it, liveStack.value) }) {
         ShellHeader(state, Modifier.fillMaxWidth().height(78.dp), headerControls)
 
         Row(Modifier.fillMaxSize()) {
@@ -59,9 +74,9 @@ fun AppShell(
                 ) {
                     content()
                 }
-                BottomSoftkeys(state.bottomKeys, Modifier.fillMaxWidth().height(94.dp))
+                BottomSoftkeys(stack, { liveStack.value() }, Modifier.fillMaxWidth().height(94.dp))
             }
-            RightSoftkeys(state.rightKeys, Modifier.width(142.dp).fillMaxHeight())
+            RightSoftkeys(stack, { liveStack.value() }, Modifier.width(142.dp).fillMaxHeight())
         }
     }
 }
@@ -116,48 +131,72 @@ private fun ShellHeader(
 }
 
 @Composable
-private fun BottomSoftkeys(keys: List<SoftkeySlot>, modifier: Modifier = Modifier) {
+private fun BottomSoftkeys(stack: ScreenStack, currentStack: () -> ScreenStack, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier.background(ShellColors.bottom).padding(8.dp),
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        keys.forEach { key ->
-            SoftkeyTile(key, Modifier.weight(1f).fillMaxHeight())
+        BottomSoftKeySlot.entries.forEach { slot ->
+            SoftkeyTile(slot, stack, currentStack, Modifier.weight(1f).fillMaxHeight())
         }
     }
 }
 
 @Composable
-private fun RightSoftkeys(keys: List<SoftkeySlot>, modifier: Modifier = Modifier) {
+private fun RightSoftkeys(stack: ScreenStack, currentStack: () -> ScreenStack, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.background(ShellColors.right).padding(9.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        keys.forEach { key ->
-            SoftkeyTile(key, Modifier.weight(1f).fillMaxWidth())
+        RightSoftKeySlot.entries.forEach { slot ->
+            SoftkeyTile(slot, stack, currentStack, Modifier.weight(1f).fillMaxWidth())
         }
     }
 }
 
 @Composable
-private fun SoftkeyTile(slot: SoftkeySlot, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .border(1.dp, ShellColors.outline, RoundedCornerShape(6.dp))
-            .background(ShellColors.key, RoundedCornerShape(6.dp))
-            .padding(7.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(slot.shortcut, color = ShellColors.muted, fontSize = 10.sp)
-        Spacer(Modifier.height(7.dp))
-        Text(
-            slot.label,
-            color = ShellColors.muted,
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+internal fun SoftkeyTile(
+    slot: SoftKeySlot,
+    stack: ScreenStack,
+    currentStack: () -> ScreenStack,
+    modifier: Modifier = Modifier,
+) {
+    val definition = stack.softKeyDefinition(slot) ?: SoftKeyDefinition.Blank
+    // Recompose/dispose clickable when the visible screen's attachment lifetime
+    // or effective definition changes. Ordinary enabled/active state does not
+    // change these keys and is observed directly by Compose.
+    key(stack, stack.entries.last(), definition) {
+        // Snapshot reads occur in composition, including predicates retained by modifiers.
+        val enabled = definition.enabled() && definition.action != null
+        val active = definition.active()
+        val foreground = if (enabled) ShellColors.text else ShellColors.muted
+        Column(
+            modifier = modifier
+                .testTag("softkey-${slot.shortcut}")
+                .semantics { selected = active }
+                .border(1.dp, if (active) ShellColors.accent else ShellColors.outline, RoundedCornerShape(6.dp))
+                .background(if (active) ShellColors.header else ShellColors.key, RoundedCornerShape(6.dp))
+                .clickable(enabled = enabled, role = Role.Button) {
+                    activateSoftKey(currentStack, slot)
+                }
+                .padding(7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            // Undefined and explicit Blank slots have no text or icon, including hints.
+            if (definition.label.isNotEmpty() || definition.icon != null) {
+                Text(slot.shortcut, color = ShellColors.muted, fontSize = 10.sp)
+                Spacer(Modifier.height(7.dp))
+                definition.icon?.let { Icon(it, contentDescription = null, tint = foreground, modifier = Modifier.height(20.dp)) }
+                Text(
+                    definition.label,
+                    color = foreground,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }

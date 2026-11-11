@@ -243,7 +243,7 @@ Softkeys use shared components and a common action model. Their labels, enabled 
 
 Global functions retain consistent positions across modes.
 
-**Current implementation:** The desktop shell renders a header with Program, Manual and MDI UI-mode selection, a central workspace, eight bottom softkey slots and seven right softkey slots. Each window retains a `ScreenStack` for each UI mode, hosted together by `ScreenStackHost`. Program includes the branded welcome screen and a runnable in-memory editor/file-explorer example. Manual has a nested details screen with local notes; MDI has an unsent text buffer. Mode changes do not cancel overlays, discard drafts, or alter controller execution state. The window icon and header show the supplied app logo. Softkey slots are noninteractive visual placeholders; controller communication, DRO, real mode operations and machine status reporting are not implemented. The header explicitly displays an unconnected state. The shared slot layout is described in [UI layout](ui-layout.md).
+**Current implementation:** The desktop shell renders a header with Program, Manual and MDI UI-mode selection, a central workspace, eight bottom softkey slots and seven right softkey slots. Each window retains a `ScreenStack` for each UI mode, hosted together by `ScreenStackHost`. Program includes the branded welcome screen and a runnable in-memory editor/file-explorer example. Manual has a nested details screen with local notes; MDI has an unsent text buffer. Mode changes do not cancel overlays, discard drafts, or alter controller execution state. The window icon and header show the supplied app logo. Softkey slots render screen-owned labels/icons, reactive enabled/active state, and safe in-memory navigation actions. Pointer and keyboard input share guarded slot activation. Controller communication, DRO, real mode operations and machine status reporting are not implemented. The header explicitly displays an unconnected state. The shared slot layout is described in [UI layout](ui-layout.md).
 
 ### Screen navigation contract
 
@@ -259,7 +259,7 @@ and `open(parent, onResult)` / protected `finish(result)` methods. A plain
 screen uses `Screen<Unit>(Unit)` without a dedicated result class. The
 `FileExplorer` screen uses `FileExplorerResult.Selected(filename)` and
 `Cancelled`. `ScreenStack` owns instance identity, observable stack changes,
-binding, root protection, guarded completion and at-most-once callback delivery.
+screen attachment lifetimes, root protection, guarded completion and at-most-once callback delivery.
 Ordinary `pop()` and `dismiss()` deliver the screen's cancellation result;
 completion and cancellation restore the underlying screen before the callback
 runs. A covered screen cannot open or finish another screen. Opening with the
@@ -283,7 +283,41 @@ Header and softkey regions remain owned by `AppShell` outside workspace input
 boundaries. Navigation is observable through Compose snapshot state and confined
 to the UI thread; it does not create transports or modify controller execution
 state. Visual overlay layout and input isolation are independent of softkey
-inheritance. Screen-owned softkey definitions and inheritance remain planned.
+inheritance. Screens own stable typed bottom/right maps of immutable `SoftKeyDefinition`
+or `SoftKeyModifier` overrides in `ui.softkeys`. Definitions carry bound instance
+callbacks and reactive enabled/active predicates; `Blank` is empty and
+non-actionable. Modifiers transform definitions without a central action registry.
+`ScreenStack.softKeyDefinition(slot)` selects a complete definition from its current
+top screen only; undefined and modifier-only slots render blank. `AppShell`
+renders all fixed slots through one shared tile component. It evaluates predicates
+in composition so Compose snapshot changes update presentation without rebuilding
+maps. A screen ordinarily keeps its definitions stable and lets predicates read
+observable state. For structural updates, a screen exposes a `mutableStateMapOf`
+or a map-valued getter backed by `mutableStateOf`; `ScreenStack.softKeyDefinition`
+reads it during composition and does not retain a separate effective-key store.
+`ShellState` contains only header information, not softkey state.
+
+`activateSoftKey` reads the currently selected persistent stack and slot,
+checks the current definition's action and `enabled` predicate, and invokes
+the bound callback on the UI thread. It does not retain action callbacks or
+binding identity. It is valid for an action itself to navigate.
+For pointer activation, `SoftkeyTile` uses Compose `key(stack, entry, definition)`
+to dispose the clickable gesture when the active stack, the top navigation
+attachment, or the effective definition changes. The `entry` is the existing
+navigation entry, not a separate softkey lifecycle. Ordinary predicate-result
+changes recompose the presentation without changing the composition key;
+activation always evaluates the latest `enabled` result. The shell previews
+F1–F8 and Shift+F1–F7 (right bank) before workspace input, using the same
+activation path. Mapped key-down events activate and key-up events are consumed;
+repeated key-down events also activate (actions must guard against unsafe
+repetition where applicable). `active` affects presentation only. No central
+action registry, navigator or mutable softkey store is involved.
+
+Cross-screen softkey inheritance, independent per-bank inheritance flags/boundaries,
+and bottom-to-top modifier composition remain planned in issue #4. Its resolver
+belongs at the stack binding-selection boundary. A modifier without an inherited
+definition must be a no-op. Definitions and modifiers retain original screen-bound
+callbacks and reactive predicates unless explicitly replaced.
 The current mode examples are local UI fixtures; real program/file services
 and machine operations are not implemented. Detailed lifetime, root, rendering
 and focus behavior are specified in [UI layout](ui-layout.md).
@@ -735,4 +769,3 @@ The following rules guide architectural decisions:
 - [Existing grblHAL macro examples](https://github.com/skasti/grblhal-macros)
 - [Compose Multiplatform](https://www.jetbrains.com/compose-multiplatform/)
 - [jSerialComm](https://github.com/Fazecast/jSerialComm)
-

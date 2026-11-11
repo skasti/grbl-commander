@@ -15,7 +15,7 @@ The shell is composed of four regions, matching the static HTML/CSS and screensh
 
 The header spans the entire screen width. The right-side softkeys span the workspace and bottom-softkey row. The main workspace and bottom keys share the remaining width. The initial default sizes are 78 dp for the header, 94 dp for the bottom keys and 142 dp for the right column; they may be adjusted for screen sizes and touch targets.
 
-`AppShell` owns the persistent regions, accepts a Compose content slot for the workspace, and exposes an optional header-controls slot for UI-mode selection. `ShellState` contains display-only header information and softkey labels. The Program, Manual and MDI buttons change presentation context only. All softkeys are noninteractive placeholders, not machine commands.
+`AppShell` owns the persistent regions, accepts a Compose content slot for the workspace, and exposes an optional header-controls slot for UI-mode selection. `ShellState` contains display-only header information. Screen instances own softkey bindings; the shell reads them from the selected persistent stack. The Program, Manual and MDI buttons change presentation context only. Softkeys invoke safe, in-memory UI actions; machine commands are not implemented.
 
 The application icon and header logo use the classpath resource `images/grbl-commander-icon.png` (384 × 256), while the workspace uses `images/grbl-commander-splash.jpg` (1024 × 768). The icon is an optimized RGBA PNG derived from the supplied transparent artwork, preserving transparent corners for the window icon and header. The splash image remains an optimized JPEG derived from the supplied artwork. Images preserve their original proportions with `ContentScale.Fit` rather than stretching or cropping. The operating system displays the application icon according to its window-manager conventions.
 
@@ -91,8 +91,66 @@ changes. Popping an overlay disposes only that overlay; closing the window
 disposes its stacks and compositions. State is not persisted across restarts.
 
 Visual overlay/input behavior does not depend on softkey inheritance.
-Screen-owned softkey definitions, inheritance and global shortcut dispatch
-remain planned. The current shell softkeys remain noninteractive.
+Softkey selection uses only the active stack's top screen. Workspace overlay
+input boundaries do not block shell shortcuts. Cross-screen softkey inheritance
+and modifier resolution remain planned in issue #4.
+
+### Screen-owned softkey contract
+
+`Screen<R>` owns stable `bottomKeys` and `rightKeys` maps keyed by
+`BottomSoftKeySlot` (F1–F8) and `RightSoftKeySlot` (R1–R7). Values implement
+`SoftKeyOverride`: immutable `SoftKeyDefinition` values hold a label, optional
+Compose `ImageVector`, nullable bound action, and enabled/active predicates
+(default true/false). `SoftKeyDefinition.Blank` has no label, icon or action
+and is disabled. There is no visibility flag. Disabled labelled definitions
+retain their content. `SoftKeyModifier` transforms a definition, typically with
+`copy`, preserving callbacks and predicates unless explicitly replaced.
+Screens should create definitions once and let predicates read instance state.
+Ordinary predicate changes recompose the tiles without replacing their bindings
+or reconstructing their maps. When a definition/override genuinely changes,
+use a `mutableStateMapOf` for individual slot updates or return a map from a
+`mutableStateOf(mapOf(...))`-backed property. Ordinary mutable maps or non-state
+property changes do not schedule Compose recomposition. Modifiers should also
+be stable screen-owned instances; replace an observable override when their
+composition changes.
+`ScreenStack.softKeyDefinition(slot)` selects complete definitions from the current
+top screen. Undefined slots and modifier-only overrides render as blank because
+cross-screen composition belongs to issue #4. No lower screen actions are exposed.
+`AppShell` uses the same `SoftkeyTile` for both banks, preserving all eight bottom
+and seven right positions and their dimensions. Blank tiles contain no text or
+icon, including shortcut hints. Disabled labelled tiles retain label, icon and
+hint; active tiles use an accent outline/background and selected semantics.
+Compose evaluates enabled/active predicates during composition, observing state
+reads even when a modifier has retained the predicates from another definition.
+
+Pointer and keyboard input both call `activateSoftKey(currentStack, slot)`.
+It resolves the currently active stack's effective definition at activation
+time, then checks its action and latest `enabled` state. It never stores a
+callback or compares a captured binding identity, and a callback is free to
+navigate during its own execution. `active` does not authorize an action.
+For pointer gestures `SoftkeyTile` uses Compose's `key(stack, entry, definition)`:
+the selected stack, existing top navigation entry and effective definition
+determine the clickable composition's lifetime. On a visible navigation,
+mode or definition change Compose disposes the old gesture so releasing it
+does not click the new action. Reopening the same screen produces a fresh
+navigation entry. The effective definition uses its ordinary data-class
+equality, so a modifier-produced equivalent `copy()` does not churn the
+gesture key. Predicate-result changes only update the rendered presentation.
+No independent softkey lifecycle or identity model is kept. All navigation
+and activation run on the UI thread.
+
+F1–F8 activate the bottom bank. Shift+F1–F7 activate R1–R7; Shift+F8 and shortcuts
+with Ctrl, Alt or Meta are unmapped. The shell handles mapped key-down events and
+consumes their key-up events, even for blank/disabled slots, before workspace
+children can process them. Every key-down, including OS key-repeat, triggers
+activation; repeated actions require appropriate preconditions in their owners.
+Future physical-panel input can call the same slot activation function.
+Hardware-panel integration is not implemented.
+
+Issue #4 will resolve each bank independently across retained screen entries,
+using separate inheritance flags (default false), definitions that replace and
+modifiers that transform existing definitions bottom-to-top. Modifiers on missing
+slots will do nothing. That traversal/composition is not implemented here.
 
 ### Screen-owned typed results
 
@@ -133,9 +191,13 @@ the same `Cancelled` result.
 In **Program** mode, choose **Open navigation example** on the welcome screen, edit the draft, then
 choose **Open example file**. Each invocation creates a `FileExplorer` screen
 instance. **Cancel** or `pop()` restores the same editor and leaves its draft
-unchanged. Selecting a fixture delivers `Selected(filename)`; the editor
-looks up the in-memory fixture and updates its filename and draft. **Back to
-welcome** completes the editor's `Unit` result. The example has no real local
+unchanged. Clicking a fixture selects it without closing the explorer. **Select file** or
+**F1 Select** delivers `Selected(filename)`; the editor looks up the in-memory fixture and updates its filename and draft. **Back to
+welcome** completes the editor's `Unit` result. The welcome screen's F1 opens the editor; the editor's F1 opens a file explorer
+and F8 returns to welcome. Explorer F1 Select and F2 Clear selection enable only
+when a fixture is selected; F8 cancels. R7 Info (Shift+F7) toggles its active
+presentation and fixture information. These are stable per-instance definitions
+with bound callbacks and snapshot-state predicates. The example has no real local
 or controller filesystem access and cannot execute G-code.
 
 While the explorer is open, use the header to select **Manual**, open **Manual
@@ -148,9 +210,8 @@ expose motion operations.
 
 ## Architectural requirements
 
-As the UI grows, modes own their workspace content and contextual actions, not the global layout. Shared softkey components must support labels, icons, disabled state and typed actions when those capabilities are implemented. The action dispatch layer must remain separate from GRBL transports and physical execution.
+As the UI grows, modes own their workspace content and contextual actions, not the global layout. Shared softkey components support labels, icons, disabled/active state and typed slot activation with screen-owned callbacks. The action dispatch layer must remain separate from GRBL transports and physical execution.
 
 Machine position/DRO, functional mode-specific pages, live connection state, programmable actions, and physical CNC operations are planned and are not part of the desktop demonstration.
 
 See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the repository [AGENTS.md](../AGENTS.md).
-
