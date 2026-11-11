@@ -59,11 +59,14 @@ class SoftKeyInheritanceRenderingTest {
                 }
             }
         }
+        try {
         onNodeWithText("Overlay Original").assertExists()
         onNodeWithTag("softkey-F1").assertIsNotEnabled().assertIsNotSelected()
         onNodeWithTag("softkey-F2").assertIsNotEnabled()
         onNodeWithText("F2").assertDoesNotExist()
+        } catch (e: Throwable) { throw IllegalStateException("initial softkey rendering", e) }
 
+        try {
         runOnIdle { allowed.value = true; highlighted.value = true }
         onNodeWithTag("softkey-F1").assertIsEnabled().assertIsSelected().performTouchInput { click() }
         runOnIdle {
@@ -73,6 +76,8 @@ class SoftKeyInheritanceRenderingTest {
             )
         }
         onNodeWithText("Overlay Replacement").assertExists()
+        } catch (e: Throwable) { throw IllegalStateException("predicate and structural reactivity", e) }
+        try {
         onNodeWithTag("softkey-F1").performTouchInput { down(center) }
         runOnIdle {
             baseKeys[BottomSoftKeySlot.F1] = SoftKeyDefinition(
@@ -85,6 +90,8 @@ class SoftKeyInheritanceRenderingTest {
             assertEquals(0, replacementCalls)
             assertEquals(0, latestCalls)
         }
+        } catch (e: Throwable) { throw IllegalStateException("pending touch cancel", e) }
+        try {
         onNodeWithTag("workspace").performKeyInput { pressKey(Key.F1) }
         runOnIdle { assertEquals(1, latestCalls); selected = manual }
 
@@ -96,12 +103,15 @@ class SoftKeyInheritanceRenderingTest {
             selected = program
         }
         onNodeWithText("Overlay Latest").assertExists()
+        } catch (e: Throwable) { throw IllegalStateException("keyboard and mode switch", e) }
+        try {
         runOnIdle { assertSame(overlay, program.pop()) }
         onNodeWithText("Latest").assertExists()
         onNodeWithText("Overlay Latest").assertDoesNotExist()
         onNodeWithTag("softkey-F2").assertIsEnabled()
         onNodeWithTag("softkey-F2").performTouchInput { click() }
         runOnIdle { assertEquals(2, originalCalls) }
+        } catch (e: Throwable) { throw IllegalStateException("pop restores root", e) }
     }
 
     @Test fun editorExplorerShowsIndependentBanksAndRestoresOnClose() = runComposeUiTest {
