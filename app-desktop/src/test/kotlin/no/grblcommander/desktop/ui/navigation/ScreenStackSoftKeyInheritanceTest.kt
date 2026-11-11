@@ -191,16 +191,16 @@ class ScreenStackSoftKeyInheritanceTest {
         ))
         val stack = ScreenStack(root)
         stack.push(overlay)
-        val first = assertNotNull(stack.softKeyDefinition(BottomSoftKeySlot.F1))
+        val first = assertNotNull(stack.effectiveBottomKeys[BottomSoftKeySlot.F1])
         assertEquals(1, modifierCalls)
         allowed.value = true
         highlighted.value = true
         assertTrue(first.enabled())
         assertTrue(first.active())
-        assertSame(first, stack.softKeyDefinition(BottomSoftKeySlot.F1))
+        assertSame(first, stack.effectiveBottomKeys[BottomSoftKeySlot.F1])
         assertEquals(1, modifierCalls)
         stack.pop()
-        assertSame(original, stack.softKeyDefinition(BottomSoftKeySlot.F1))
+        assertSame(original, stack.effectiveBottomKeys[BottomSoftKeySlot.F1])
     }
 
     @Test fun modeSwitchAndPopNeverActivateDetachedOrInactiveScreens() {
