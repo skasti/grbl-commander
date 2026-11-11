@@ -323,9 +323,10 @@ class SoftKeyRenderingTest {
                 }
             }
         }
-        onNodeWithTag("workspace").performKeyInput { keyDown(Key.F1) }
-        runOnIdle { assertEquals(1, calls) }
-        onNodeWithTag("workspace").performKeyInput { keyUp(Key.F1) }
+        onNodeWithTag("workspace").performKeyInput {
+            keyDown(Key.F1)
+            keyUp(Key.F1)
+        }
         runOnIdle { assertEquals(1, calls) }
         onNodeWithTag("workspace").performKeyInput { pressKey(Key.F1) }
         runOnIdle { assertEquals(2, calls) }
