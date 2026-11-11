@@ -39,7 +39,16 @@ class FileExplorer(val initialDirectory: String = "/programs") :
         ),
         BottomSoftKeySlot.F8 to SoftKeyDefinition("Cancel", action = { cancel() }),
     )
+    override val inheritRightKeys = true
+
+    // Do not expose editor navigation actions while the explorer covers it.
+    private val editorActionUnavailable: () -> Boolean = { false }
+
     override val rightKeys = mapOf(
+        RightSoftKeySlot.R1 to SoftKeyModifier {
+            it.copy(label = "Editor unavailable", enabled = editorActionUnavailable)
+        },
+        RightSoftKeySlot.R2 to SoftKeyDefinition.Blank,
         RightSoftKeySlot.R7 to SoftKeyDefinition(
             "Info", action = { showInfo = !showInfo }, active = { showInfo },
         ),
