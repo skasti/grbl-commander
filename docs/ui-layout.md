@@ -124,8 +124,10 @@ blank. A screen may inherit only one bank; a fullscreen screen and an overlay
 follow the same rules.
 
 `ScreenStack.softKeyDefinition(slot)` resolves one slot on demand, and
-`effectiveBottomKeys`/`effectiveRightKeys` expose computed read-only maps
-for each bank. Neither the stack nor shell keeps a separate mutable copy.
+`effectiveBottomKeys`/`effectiveRightKeys` expose read-only `derivedStateOf`
+maps for each bank. These memoize structural composition until navigation or
+observable overrides change; predicate updates alone leave the composed
+definitions intact. Neither the stack nor shell keeps a separate mutable copy.
 Screen-owned callbacks and predicate closures remain attached to their
 original screen unless a modifier explicitly replaces them. Pushing,
 popping and mode selection select the current effective bindings without
