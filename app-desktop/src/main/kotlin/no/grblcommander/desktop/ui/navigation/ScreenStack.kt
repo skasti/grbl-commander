@@ -29,15 +29,14 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
     val top: Screen<*> get() = entries.last().screen
     val size: Int get() = entries.size
 
-    /** Top-screen definitions only. Issue #4 supplies cross-screen resolution here. */
-    fun softKeyBinding(slot: SoftKeySlot): SoftKeyBinding? {
-        val entry = entries.last()
+    /** Top-screen definitions only. Issue #4 will resolve inheritance here. */
+    fun softKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? {
+        val screen = top
         val override = when (slot) {
-            is BottomSoftKeySlot -> entry.screen.bottomKeys[slot]
-            is RightSoftKeySlot -> entry.screen.rightKeys[slot]
+            is BottomSoftKeySlot -> screen.bottomKeys[slot]
+            is RightSoftKeySlot -> screen.rightKeys[slot]
         }
-        val definition = override as? SoftKeyDefinition ?: return null
-        return SoftKeyBinding(this, entry, definition)
+        return override as? SoftKeyDefinition
     }
 
     /** Direct stack navigation always pushes above the current top screen. */

@@ -12,68 +12,13 @@ import androidx.compose.ui.input.key.type
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 
 /**
- * Identity of a displayed logical binding and its effective presentation.
- *
- * [entry] and [sourceDefinition] identify the original callback's owner and
- * definition, even when another screen eventually modifies that definition.
- * [modifiers] records the navigation lifetime and instance of each applied
- * modifier. A copy() of the effective definition is not a new logical binding
- * if its fields are equal, but replacing a source, a modifier, or any effective
- * field (including action/predicates) invalidates pending activation.
- *
- * Issue #4 will populate modifier provenance during cross-screen resolution.
- */
-class SoftKeyBinding internal constructor(
-    internal val stack: ScreenStack,
-    internal val entry: ScreenStack.Entry,
-    val definition: SoftKeyDefinition,
-    internal val sourceDefinition: SoftKeyDefinition = definition,
-    internal val modifiers: List<Pair<ScreenStack.Entry, SoftKeyModifier>> = emptyList(),
-) {
-    override fun equals(other: Any?): Boolean = other is SoftKeyBinding && matches(other)
-
-    override fun hashCode(): Int {
-        var result = 31 * (31 * System.identityHashCode(stack) +
-            System.identityHashCode(entry)) + System.identityHashCode(sourceDefinition)
-        for ((owner, modifier) in modifiers) {
-            result = 31 * result + System.identityHashCode(owner)
-            result = 31 * result + System.identityHashCode(modifier)
-        }
-        return 31 * result + definition.hashCode()
-    }
-
-    internal fun matches(other: SoftKeyBinding): Boolean =
-        stack === other.stack &&
-            entry === other.entry &&
-            sourceDefinition === other.sourceDefinition &&
-            modifiers.size == other.modifiers.size &&
-            modifiers.indices.all { index ->
-                val (owner, modifier) = modifiers[index]
-                val (otherOwner, otherModifier) = other.modifiers[index]
-                owner === otherOwner && modifier === otherModifier
-            } &&
-            definition == other.definition
-}
-
-/**
  * One UI-thread activation path for pointer, keyboard and future panel input.
- * Never invoke a captured action directly. Read the active stack and slot again.
+ * Resolve against the currently selected stack; never capture an action for later use.
  */
-fun activateSoftKey(
-    currentStack: () -> ScreenStack,
-    slot: SoftKeySlot,
-    expected: SoftKeyBinding? = null,
-): Boolean {
-    val stack = currentStack()
-    val binding = stack.softKeyBinding(slot) ?: return false
-    if (expected != null && !expected.matches(binding)) return false
-    val definition = binding.definition
+fun activateSoftKey(currentStack: () -> ScreenStack, slot: SoftKeySlot): Boolean {
+    val definition = currentStack().softKeyDefinition(slot) ?: return false
     val action = definition.action ?: return false
     if (!definition.enabled()) return false
-    // Also reject synchronous navigation/binding changes made by a predicate.
-    if (currentStack() !== stack) return false
-    val latest = stack.softKeyBinding(slot) ?: return false
-    if (!binding.matches(latest)) return false
     action()
     return true
 }
@@ -85,7 +30,11 @@ fun softKeySlot(key: Key, shift: Boolean = false): SoftKeySlot? {
     return if (shift) RightSoftKeySlot.entries.getOrNull(index) else BottomSoftKeySlot.entries[index]
 }
 
-/** Consume both phases of mapped shortcuts, executing only on key down. */
+/**
+ * Consume mapped key-up as well as key-down, executing only on key-down.
+ * Each key-down (including OS-generated repeat) is an activation; actions that
+ * must not repeat must enforce that in their own application-level preconditions.
+ */
 fun handleSoftKeyEvent(event: KeyEvent, currentStack: () -> ScreenStack): Boolean {
     if (event.isAltPressed || event.isCtrlPressed || event.isMetaPressed) return false
     val slot = softKeySlot(event.key, event.isShiftPressed) ?: return false

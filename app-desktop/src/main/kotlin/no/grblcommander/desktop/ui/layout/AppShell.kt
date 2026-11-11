@@ -137,7 +137,7 @@ private fun BottomSoftkeys(stack: ScreenStack, currentStack: () -> ScreenStack, 
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         BottomSoftKeySlot.entries.forEach { slot ->
-            SoftkeyTile(slot, stack.softKeyBinding(slot), currentStack, Modifier.weight(1f).fillMaxHeight())
+            SoftkeyTile(slot, stack, currentStack, Modifier.weight(1f).fillMaxHeight())
         }
     }
 }
@@ -149,7 +149,7 @@ private fun RightSoftkeys(stack: ScreenStack, currentStack: () -> ScreenStack, m
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         RightSoftKeySlot.entries.forEach { slot ->
-            SoftkeyTile(slot, stack.softKeyBinding(slot), currentStack, Modifier.weight(1f).fillMaxWidth())
+            SoftkeyTile(slot, stack, currentStack, Modifier.weight(1f).fillMaxWidth())
         }
     }
 }
@@ -157,14 +157,15 @@ private fun RightSoftkeys(stack: ScreenStack, currentStack: () -> ScreenStack, m
 @Composable
 internal fun SoftkeyTile(
     slot: SoftKeySlot,
-    binding: SoftKeyBinding?,
+    stack: ScreenStack,
     currentStack: () -> ScreenStack,
     modifier: Modifier = Modifier,
 ) {
-    // A replacement/removed binding disposes pending pointer gestures and focus.
-    // Ordinary predicate changes keep the same binding identity and composition.
-    key(binding) {
-        val definition = binding?.definition ?: SoftKeyDefinition.Blank
+    val definition = stack.softKeyDefinition(slot) ?: SoftKeyDefinition.Blank
+    // Recompose/dispose clickable when the visible screen's attachment lifetime
+    // or effective definition changes. Ordinary enabled/active state does not
+    // change these keys and is observed directly by Compose.
+    key(stack, stack.entries.last(), definition) {
         // Snapshot reads occur in composition, including predicates retained by modifiers.
         val enabled = definition.enabled() && definition.action != null
         val active = definition.active()
@@ -176,7 +177,7 @@ internal fun SoftkeyTile(
                 .border(1.dp, if (active) ShellColors.accent else ShellColors.outline, RoundedCornerShape(6.dp))
                 .background(if (active) ShellColors.header else ShellColors.key, RoundedCornerShape(6.dp))
                 .clickable(enabled = enabled, role = Role.Button) {
-                    activateSoftKey(currentStack, slot, binding)
+                    activateSoftKey(currentStack, slot)
                 }
                 .padding(7.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

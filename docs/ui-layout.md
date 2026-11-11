@@ -113,7 +113,7 @@ use a `mutableStateMapOf` for individual slot updates or return a map from a
 property changes do not schedule Compose recomposition. Modifiers should also
 be stable screen-owned instances; replace an observable override when their
 composition changes.
-`ScreenStack.softKeyBinding(slot)` selects complete definitions from the current
+`ScreenStack.softKeyDefinition(slot)` selects complete definitions from the current
 top screen. Undefined slots and modifier-only overrides render as blank because
 cross-screen composition belongs to issue #4. No lower screen actions are exposed.
 `AppShell` uses the same `SoftkeyTile` for both banks, preserving all eight bottom
@@ -123,27 +123,29 @@ hint; active tiles use an accent outline/background and selected semantics.
 Compose evaluates enabled/active predicates during composition, observing state
 reads even when a modifier has retained the predicates from another definition.
 
-Pointer and keyboard input both call `activateSoftKey(currentStack, slot, ...)`.
-The function re-reads the selected stack and current binding, checks action and
-enabled state, and verifies binding identity again before invocation. Pointer
-callbacks carry the displayed binding's stack, originating entry, original
-definition identity and modifier provenance. The effective definition is compared
-by fields rather than reference: equivalent `copy()` results keep logical
-identity, while changed labels, actions, predicates, source overrides or modifier
-composition invalidate pending gestures. A modifier's provenance includes the
-navigation entry where it is declared so reattaching a screen does not revive
-an old binding. Replacement, removal and pop/reopen invalidate pending callbacks.
-Binding changes also dispose pending tile gestures. Observable predicate-result
-changes only recompose presentation; they do not replace binding identity.
-`enabled` is checked at invocation even if the tile was previously enabled,
-and `active` does not authorize an action. All navigation and
-activation run on the UI thread.
+Pointer and keyboard input both call `activateSoftKey(currentStack, slot)`.
+It resolves the currently active stack's effective definition at activation
+time, then checks its action and latest `enabled` state. It never stores a
+callback or compares a captured binding identity, and a callback is free to
+navigate during its own execution. `active` does not authorize an action.
+For pointer gestures `SoftkeyTile` uses Compose's `key(stack, entry, definition)`:
+the selected stack, existing top navigation entry and effective definition
+determine the clickable composition's lifetime. On a visible navigation,
+mode or definition change Compose disposes the old gesture so releasing it
+does not click the new action. Reopening the same screen produces a fresh
+navigation entry. The effective definition uses its ordinary data-class
+equality, so a modifier-produced equivalent `copy()` does not churn the
+gesture key. Predicate-result changes only update the rendered presentation.
+No independent softkey lifecycle or identity model is kept. All navigation
+and activation run on the UI thread.
 
 F1–F8 activate the bottom bank. Shift+F1–F7 activate R1–R7; Shift+F8 and shortcuts
 with Ctrl, Alt or Meta are unmapped. The shell handles mapped key-down events and
 consumes their key-up events, even for blank/disabled slots, before workspace
-children can process them. Future physical-panel input can call the same slot
-activation function. Hardware-panel integration is not implemented.
+children can process them. Every key-down, including OS key-repeat, triggers
+activation; repeated actions require appropriate preconditions in their owners.
+Future physical-panel input can call the same slot activation function.
+Hardware-panel integration is not implemented.
 
 Issue #4 will resolve each bank independently across retained screen entries,
 using separate inheritance flags (default false), definitions that replace and
