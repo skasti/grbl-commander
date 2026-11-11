@@ -123,8 +123,9 @@ inherited action with a blank, non-actionable key. Undefined slots are also
 blank. A screen may inherit only one bank; a fullscreen screen and an overlay
 follow the same rules.
 
-`ScreenStack.softKeyDefinition(slot)` resolves one slot on demand, and
-`effectiveBottomKeys`/`effectiveRightKeys` expose read-only `derivedStateOf`
+`ScreenStack.softKeyDefinition(slot)` resolves the current binding directly
+when an action is activated. `AppShell` renders from
+`effectiveBottomKeys`/`effectiveRightKeys`, which are read-only `derivedStateOf`
 maps for each bank. These memoize structural composition until navigation or
 observable overrides change; predicate updates alone leave the composed
 definitions intact. Neither the stack nor shell keeps a separate mutable copy.
