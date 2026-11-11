@@ -295,8 +295,8 @@ For each bank, traversal starts at the top and stops at the first screen not
 inheriting that bank, or at the root. Overrides compose bottom-to-top within
 that boundary: complete definitions (including `Blank`) replace bindings;
 modifiers transform a current definition, but are ignored for missing slots.
-`effectiveBottomKeys` and `effectiveRightKeys` are computed read-only
-views, not stores. Undefined slots render blank. `AppShell`
+`effectiveBottomKeys` and `effectiveRightKeys` are read-only
+`derivedStateOf` views, recalculated only for structural state changes. Undefined slots render blank. `AppShell`
 renders all fixed slots through one shared tile component. It evaluates predicates
 in composition so Compose snapshot changes update presentation without rebuilding
 maps. A screen ordinarily keeps its definitions stable and lets predicates read
