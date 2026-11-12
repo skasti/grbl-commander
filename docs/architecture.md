@@ -299,12 +299,13 @@ modifiers transform a current definition, but are ignored for missing slots.
 `derivedStateOf` views for `AppShell` rendering, recalculated only for
 structural state changes. `softKeyDefinition(slot)` resolves directly for
 last-moment activation, including changes not observed by Compose. Undefined
-slots render blank. `AppShell` renders all fixed slots through one shared tile component. It evaluates predicates
-in composition so Compose snapshot changes update presentation without rebuilding
-maps. A screen ordinarily keeps its definitions stable and lets predicates read
-observable state. For structural updates, a screen exposes a `mutableStateMapOf`
-or a map-valued getter backed by `mutableStateOf`; `ScreenStack.softKeyDefinition`
-reads it during composition and does not retain a separate effective-key store.
+slots render blank. `AppShell` renders all fixed slots through one shared
+tile component. It evaluates predicates in composition so Compose snapshot changes
+update presentation without rebuilding definitions. A screen ordinarily keeps
+its definitions stable and lets predicates read observable state. For structural
+updates, a screen exposes a `mutableStateMapOf` or a map-valued getter backed
+by `mutableStateOf`; the bank derivations observe these changes without
+maintaining a separately mutable binding store.
 `ShellState` contains only header information, not softkey state.
 
 `activateSoftKey` reads the currently selected persistent stack and slot,
