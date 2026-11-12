@@ -2,9 +2,9 @@ package no.grblcommander.desktop.ui.layout
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
@@ -16,21 +16,19 @@ import kotlin.test.*
 
 @OptIn(ExperimentalTestApi::class)
 class SoftKeyInheritanceRenderingTest {
-    @Test fun inheritedBindingsObserveOwnerStateAndReplaceWithoutStaleClicks() = runComposeUiTest {
+    @Test fun inheritedBindingsRenderOwnerPredicatesAndStructuralUpdates() = runComposeUiTest {
         val allowed = mutableStateOf(false)
         val highlighted = mutableStateOf(false)
-        var originalCalls = 0
-        var replacementCalls = 0
-        var latestCalls = 0
-        val baseKeys = mutableStateMapOf<BottomSoftKeySlot, SoftKeyOverride>(
+        var calls = 0
+        val rootKeys = mutableStateMapOf<BottomSoftKeySlot, SoftKeyOverride>(
             BottomSoftKeySlot.F1 to SoftKeyDefinition(
-                "Original", action = { originalCalls++ }, enabled = { allowed.value },
-                active = { highlighted.value },
+                "Original", action = { calls++ },
+                enabled = { allowed.value }, active = { highlighted.value },
             ),
-            BottomSoftKeySlot.F2 to SoftKeyDefinition("Hidden", action = { originalCalls++ }),
+            BottomSoftKeySlot.F2 to SoftKeyDefinition("Covered", action = {}),
         )
         val root = object : Screen<Unit>(Unit) {
-            override val bottomKeys = baseKeys
+            override val bottomKeys = rootKeys
             @Composable override fun Content() {}
         }
         val overlay = object : Screen<Unit>(Unit) {
@@ -41,77 +39,122 @@ class SoftKeyInheritanceRenderingTest {
             )
             @Composable override fun Content() {}
         }
-        val program = ScreenStack(root)
-        program.push(overlay)
+        val stack = ScreenStack(root)
+        stack.push(overlay)
+        setContent {
+            MaterialTheme {
+                AppShell(ShellState.startup(), currentStack = { stack }) {
+                    ScreenStackHost(stack)
+                }
+            }
+        }
+        onNodeWithText("Overlay Original").assertExists()
+        onNodeWithTag("softkey-F1").assertIsNotEnabled().assertIsNotSelected()
+        onNodeWithTag("softkey-F2").assertIsNotEnabled()
+        onNodeWithText("F2").assertDoesNotExist()
+
+        runOnIdle { allowed.value = true; highlighted.value = true }
+        onNodeWithTag("softkey-F1").assertIsEnabled().assertIsSelected()
+        onNodeWithTag("softkey-F1").performTouchInput { click() }
+        runOnIdle { assertEquals(1, calls) }
+
+        runOnIdle {
+            rootKeys[BottomSoftKeySlot.F1] = SoftKeyDefinition("Changed", action = { calls++ })
+        }
+        onNodeWithText("Overlay Changed").assertExists()
+        onNodeWithText("Overlay Original").assertDoesNotExist()
+        onNodeWithTag("softkey-F1").performTouchInput { click() }
+        runOnIdle { assertEquals(2, calls) }
+    }
+
+    @Test fun inheritedDefinitionReplacementCancelsPendingTouch() = runComposeUiTest {
+        var previousCalls = 0
+        var currentCalls = 0
+        val rootKeys = mutableStateMapOf<BottomSoftKeySlot, SoftKeyOverride>(
+            BottomSoftKeySlot.F1 to SoftKeyDefinition("Previous", action = { previousCalls++ }),
+        )
+        val root = object : Screen<Unit>(Unit) {
+            override val bottomKeys = rootKeys
+            @Composable override fun Content() {}
+        }
+        val overlay = object : Screen<Unit>(Unit) {
+            override val inheritBottomKeys = true
+            override val bottomKeys = mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyModifier { it.copy(label = "Inherited " + it.label) },
+            )
+            @Composable override fun Content() {}
+        }
+        val stack = ScreenStack(root)
+        stack.push(overlay)
+        setContent {
+            MaterialTheme {
+                AppShell(ShellState.startup(), currentStack = { stack }) {
+                    ScreenStackHost(stack)
+                }
+            }
+        }
+        onNodeWithText("Inherited Previous").assertExists()
+        onNodeWithTag("softkey-F1").performTouchInput { down(center) }
+        runOnIdle {
+            rootKeys[BottomSoftKeySlot.F1] = SoftKeyDefinition("Current", action = { currentCalls++ })
+        }
+        onNodeWithText("Inherited Current").assertExists()
+        onNodeWithTag("softkey-F1").performTouchInput { up() }
+        runOnIdle {
+            assertEquals(0, previousCalls)
+            assertEquals(0, currentCalls)
+        }
+        onNodeWithTag("softkey-F1").performTouchInput { click() }
+        runOnIdle { assertEquals(1, currentCalls) }
+    }
+
+    @Test fun activeModeSelectionAndPopRestoreCurrentBindings() = runComposeUiTest {
+        var programCalls = 0
         var manualCalls = 0
+        val program = ScreenStack(object : Screen<Unit>(Unit) {
+            override val bottomKeys = mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyDefinition("Program", action = { programCalls++ }),
+            )
+            @Composable override fun Content() {}
+        })
+        val overlay = object : Screen<Unit>(Unit) {
+            override val inheritBottomKeys = true
+            override val bottomKeys = mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyModifier { it.copy(label = "Inherited program") },
+            )
+            @Composable override fun Content() {}
+        }
+        program.push(overlay)
         val manual = ScreenStack(object : Screen<Unit>(Unit) {
             override val bottomKeys = mapOf(
                 BottomSoftKeySlot.F1 to SoftKeyDefinition("Manual", action = { manualCalls++ }),
             )
             @Composable override fun Content() {}
         })
-        var selected by mutableStateOf(program)
-
+        var active by mutableStateOf(program)
         setContent {
             MaterialTheme {
-                AppShell(ShellState.startup(), currentStack = { selected }) {
-                    ScreenStackHost(listOf(program, manual), selected, Modifier.testTag("workspace"))
+                AppShell(ShellState.startup(), currentStack = { active }) {
+                    ScreenStackHost(listOf(program, manual), active, Modifier.testTag("workspace"))
                 }
             }
         }
-        try {
-        onNodeWithText("Overlay Original").assertExists()
-        onNodeWithTag("softkey-F1").assertIsNotEnabled().assertIsNotSelected()
-        onNodeWithTag("softkey-F2").assertIsNotEnabled()
-        onNodeWithText("F2").assertDoesNotExist()
-        } catch (e: Throwable) { throw IllegalStateException("initial softkey rendering", e) }
-
-        try {
-        runOnIdle { allowed.value = true; highlighted.value = true }
-        onNodeWithTag("softkey-F1").assertIsEnabled().assertIsSelected().performTouchInput { click() }
-        runOnIdle {
-            assertEquals(1, originalCalls)
-            baseKeys[BottomSoftKeySlot.F1] = SoftKeyDefinition(
-                "Replacement", action = { replacementCalls++ }, enabled = { allowed.value },
-            )
-        }
-        onNodeWithText("Overlay Replacement").assertExists()
-        } catch (e: Throwable) { throw IllegalStateException("predicate and structural reactivity", e) }
-        try {
-        onNodeWithTag("softkey-F1").performTouchInput { down(center) }
-        runOnIdle {
-            baseKeys[BottomSoftKeySlot.F1] = SoftKeyDefinition(
-                "Latest", action = { latestCalls++ }, enabled = { allowed.value },
-            )
-        }
-        onNodeWithText("Overlay Latest").assertExists()
-        onNodeWithTag("softkey-F1").performTouchInput { up() }
-        runOnIdle {
-            assertEquals(0, replacementCalls)
-            assertEquals(0, latestCalls)
-        }
-        } catch (e: Throwable) { throw IllegalStateException("pending touch cancel", e) }
-        try {
+        onNodeWithText("Inherited program").assertExists()
         onNodeWithTag("workspace").performKeyInput { pressKey(Key.F1) }
-        runOnIdle { assertEquals(1, latestCalls); selected = manual }
-
+        runOnIdle { assertEquals(1, programCalls); active = manual }
         onNodeWithText("Manual").assertExists()
         onNodeWithTag("softkey-F1").performTouchInput { click() }
         runOnIdle {
             assertEquals(1, manualCalls)
-            assertEquals(1, latestCalls)
-            selected = program
+            assertEquals(1, programCalls)
+            active = program
         }
-        onNodeWithText("Overlay Latest").assertExists()
-        } catch (e: Throwable) { throw IllegalStateException("keyboard and mode switch", e) }
-        try {
+        onNodeWithText("Inherited program").assertExists()
         runOnIdle { assertSame(overlay, program.pop()) }
-        onNodeWithText("Latest").assertExists()
-        onNodeWithText("Overlay Latest").assertDoesNotExist()
-        onNodeWithTag("softkey-F2").assertIsEnabled()
-        onNodeWithTag("softkey-F2").performTouchInput { click() }
-        runOnIdle { assertEquals(2, originalCalls) }
-        } catch (e: Throwable) { throw IllegalStateException("pop restores root", e) }
+        onNodeWithText("Program").assertExists()
+        onNodeWithText("Inherited program").assertDoesNotExist()
+        onNodeWithTag("softkey-F1").performTouchInput { click() }
+        runOnIdle { assertEquals(2, programCalls) }
     }
 
     @Test fun editorExplorerShowsIndependentBanksAndRestoresOnClose() = runComposeUiTest {
