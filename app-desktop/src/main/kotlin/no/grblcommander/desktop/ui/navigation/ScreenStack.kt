@@ -33,7 +33,8 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
     /**
      * Memoized, read-only derivations. Navigation and snapshot-backed key maps
      * invalidate the appropriate bank; ordinary enabled/active predicate changes
-     * leave the composed definitions intact.
+     * leave the composed definitions intact. Structural key changes must be
+     * snapshot-observable so rendering and activation use the same binding.
      */
     private val resolvedBottomKeys by derivedStateOf {
         val currentEntries = entries
@@ -56,50 +57,12 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
     val effectiveRightKeys: Map<RightSoftKeySlot, SoftKeyDefinition>
         get() = resolvedRightKeys
 
-    /**
-     * Resolve the latest binding at invocation time, including non-observable
-     * changes to a screen's definition. The shell uses the derived bank views
-     * for rendering, while activation deliberately reads the source directly.
-     */
+    /** Read the effective definition used by both rendering and activation. */
     fun softKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? =
         when (slot) {
             is BottomSoftKeySlot -> resolvedBottomKeys[slot]
             is RightSoftKeySlot -> resolvedRightKeys[slot]
         }
-
-    /**
-     * Each bank finds its own inheritance boundary, then applies overrides
-     * bottom-to-top. The derivations above observe structural Compose state
-     * without introducing a separately mutable binding store.
-     */
-    private fun resolveSoftKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? {
-        val currentEntries = entries
-        var boundary = currentEntries.lastIndex
-        while (boundary > 0) {
-            val screen = currentEntries[boundary].screen
-            val inherits = when (slot) {
-                is BottomSoftKeySlot -> screen.inheritBottomKeys
-                is RightSoftKeySlot -> screen.inheritRightKeys
-            }
-            if (!inherits) break
-            boundary--
-        }
-
-        var definition: SoftKeyDefinition? = null
-        for (index in boundary..currentEntries.lastIndex) {
-            val screen = currentEntries[index].screen
-            val override = when (slot) {
-                is BottomSoftKeySlot -> screen.bottomKeys[slot]
-                is RightSoftKeySlot -> screen.rightKeys[slot]
-            }
-            definition = when (override) {
-                is SoftKeyDefinition -> override
-                is SoftKeyModifier -> definition?.let(override.modify)
-                null -> definition
-            }
-        }
-        return definition
-    }
 
     /** Direct stack navigation always pushes above the current top screen. */
     fun <R> push(screen: Screen<R>) {
@@ -139,41 +102,5 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
         entries = entries.dropLast(1)
         screen.deliver(result)
         return true
-    }
-}
-
-private fun <K : SoftKeySlot> MutableMap<K, SoftKeyDefinition>.applyAllOverrides(overrides: List<Map<K, SoftKeyOverride>>): Map<K, SoftKeyDefinition> {
-    for (overrideMap in overrides) {
-        applyOverrides(overrideMap)
-    }
-    return this
-}
-
-private fun <K: SoftKeySlot>Map<K, SoftKeyOverride>.definitions(): MutableMap<K, SoftKeyDefinition> {
-    val result = mutableMapOf<K, SoftKeyDefinition>()
-    for ((slot, override) in this) {
-        val definition = when (override) {
-            is SoftKeyDefinition -> override
-            is SoftKeyModifier -> result[slot]?.let(override.modify)
-        }
-        if (definition != null) {
-            result[slot] = definition
-        }
-    }
-    return result
-}
-
-private fun <K : SoftKeySlot> MutableMap<K, SoftKeyDefinition>.applyOverrides(keyOverrides: Map<K, SoftKeyOverride>) {
-    for ((slot, override) in keyOverrides) {
-        val current = this[slot]
-        val newDefinition = when (override) {
-            is SoftKeyDefinition -> override
-            is SoftKeyModifier -> current?.let(override.modify)
-        }
-        if (newDefinition != null) {
-            this[slot] = newDefinition
-        } else {
-            this.remove(slot)
-        }
     }
 }

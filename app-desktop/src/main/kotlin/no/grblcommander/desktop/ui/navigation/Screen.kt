@@ -14,9 +14,10 @@ import no.grblcommander.desktop.ui.softkeys.SoftKeyOverride
  */
 abstract class Screen<R>(private val cancellationResult: R) : NavigationParent {
     /**
-     * Screen-owned overrides. Prefer stable maps and definitions with predicates
-     * reading Compose state. For structural changes, expose a snapshot-state map
-     * or a getter backed by mutableStateOf(mapOf(...)) so Compose observes them.
+     * Screen-owned overrides. Keep maps and definitions stable, with predicates
+     * reading Compose state. Structural changes must use a snapshot-state map or
+     * a getter backed by mutableStateOf(mapOf(...)) so Compose observes them and
+     * the displayed and activated definitions stay aligned.
      * The inheritance flags are independent; covered screens are not visible
      * to a bank unless each screen above them opts into that bank's inheritance.
      */

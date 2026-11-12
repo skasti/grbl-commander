@@ -11,8 +11,10 @@ class SoftKeyActivationTest {
     private class Fixture : Screen<Unit>(Unit) {
         var calls = 0
         val allowed = mutableStateOf(true)
-        var definition = SoftKeyDefinition("Run", action = { calls++ }, enabled = { allowed.value })
-        override val bottomKeys get() = mapOf(BottomSoftKeySlot.F1 to definition)
+        val definition = mutableStateOf(
+            SoftKeyDefinition("Run", action = { calls++ }, enabled = { allowed.value }),
+        )
+        override val bottomKeys get() = mapOf(BottomSoftKeySlot.F1 to definition.value)
         @Composable override fun Content() {}
     }
 
@@ -37,11 +39,11 @@ class SoftKeyActivationTest {
         assertEquals(1, screen.calls)
 
         var replacementCalls = 0
-        screen.definition = screen.definition.copy(action = { replacementCalls++ }, active = { true })
+        screen.definition.value = screen.definition.value.copy(action = { replacementCalls++ }, active = { true })
         assertTrue(activateSoftKey({ stack }, BottomSoftKeySlot.F1))
         assertEquals(1, screen.calls)
         assertEquals(1, replacementCalls)
-        screen.definition = screen.definition.copy(enabled = { false })
+        screen.definition.value = screen.definition.value.copy(enabled = { false })
         assertFalse(activateSoftKey({ stack }, BottomSoftKeySlot.F1))
     }
 
@@ -49,9 +51,9 @@ class SoftKeyActivationTest {
         val screen = Fixture()
         val stack = ScreenStack(screen)
         assertFalse(activateSoftKey({ stack }, BottomSoftKeySlot.F2))
-        screen.definition = SoftKeyDefinition.Blank
+        screen.definition.value = SoftKeyDefinition.Blank
         assertFalse(activateSoftKey({ stack }, BottomSoftKeySlot.F1))
-        screen.definition = SoftKeyDefinition("Label only")
+        screen.definition.value = SoftKeyDefinition("Label only")
         assertFalse(activateSoftKey({ stack }, BottomSoftKeySlot.F1))
         val modifier = object : Screen<Unit>(Unit) {
             override val bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyModifier { it.copy(label = "Changed") })

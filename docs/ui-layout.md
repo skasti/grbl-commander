@@ -110,9 +110,10 @@ Ordinary predicate changes recompose the tiles without replacing their bindings
 or reconstructing their maps. When a definition/override genuinely changes,
 use a `mutableStateMapOf` for individual slot updates or return a map from a
 `mutableStateOf(mapOf(...))`-backed property. Ordinary mutable maps or non-state
-property changes do not schedule Compose recomposition. Modifiers should also
-be stable screen-owned instances; replace an observable override when their
-composition changes.
+property changes do not schedule Compose recomposition and must not be used to
+change softkeys; otherwise the displayed definition can remain stale. Modifiers
+should also be stable screen-owned instances; replace an observable override
+when their composition changes.
 `Screen<R>` independently declares `inheritBottomKeys` and
 `inheritRightKeys`, both false by default. Each bank walks from the top
 down to the first screen that does not inherit that bank, or to the root.
@@ -123,12 +124,14 @@ inherited action with a blank, non-actionable key. Undefined slots are also
 blank. A screen may inherit only one bank; a fullscreen screen and an overlay
 follow the same rules.
 
-`ScreenStack.softKeyDefinition(slot)` resolves the current binding directly
-when an action is activated. `AppShell` renders from
-`effectiveBottomKeys`/`effectiveRightKeys`, which are read-only `derivedStateOf`
-maps for each bank. These memoize structural composition until navigation or
-observable overrides change; predicate updates alone leave the composed
-definitions intact. Neither the stack nor shell keeps a separate mutable copy.
+`ScreenStack.softKeyDefinition(slot)` reads the current effective binding when
+an action is activated. `AppShell` renders from `effectiveBottomKeys` and
+`effectiveRightKeys`, which are read-only `derivedStateOf` maps for each bank.
+These memoize structural composition until navigation or observable overrides
+change; predicate updates alone leave the composed definitions intact. Since
+rendering and activation use the same effective binding, structural softkey
+updates must be observable to Compose. Neither the stack nor shell keeps a
+separate mutable copy.
 Screen-owned callbacks and predicate closures remain attached to their
 original screen unless a modifier explicitly replaces them. Pushing,
 popping and mode selection select the current effective bindings without

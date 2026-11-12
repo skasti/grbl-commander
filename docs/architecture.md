@@ -295,17 +295,22 @@ For each bank, traversal starts at the top and stops at the first screen not
 inheriting that bank, or at the root. Overrides compose bottom-to-top within
 that boundary: complete definitions (including `Blank`) replace bindings;
 modifiers transform a current definition, but are ignored for missing slots.
+The `ui.softkeys` package exposes `definitions()`, `applyOverrides()`, and
+`applyAllOverrides()` map extensions for composing these screen-owned maps.
 `effectiveBottomKeys` and `effectiveRightKeys` are read-only
 `derivedStateOf` views for `AppShell` rendering, recalculated only for
-structural state changes. `softKeyDefinition(slot)` resolves directly for
-last-moment activation, including changes not observed by Compose. Undefined
-slots render blank. `AppShell` renders all fixed slots through one shared
-tile component. It evaluates predicates in composition so Compose snapshot changes
-update presentation without rebuilding definitions. A screen ordinarily keeps
-its definitions stable and lets predicates read observable state. For structural
-updates, a screen exposes a `mutableStateMapOf` or a map-valued getter backed
-by `mutableStateOf`; the bank derivations observe these changes without
-maintaining a separately mutable binding store.
+structural state changes. `softKeyDefinition(slot)` reads from these same
+effective bank views for activation, so the displayed and invoked definition
+come from the same observable binding. Structural changes to labels, icons,
+actions, or overrides must use a `mutableStateMapOf` or a map-valued getter backed
+by `mutableStateOf`. Ordinary mutable maps and non-state property assignments do
+not notify Compose and are unsupported for changing softkeys because the UI can
+remain stale. A screen ordinarily keeps its definitions stable and lets
+predicates read observable state. `AppShell` renders all fixed slots through one
+shared tile component. It evaluates predicates in composition so Compose
+snapshot changes update presentation without rebuilding definitions. The bank
+derivations observe structural changes without maintaining a separately mutable
+binding store.
 `ShellState` contains only header information, not softkey state.
 
 `activateSoftKey` reads the currently selected persistent stack and slot,
