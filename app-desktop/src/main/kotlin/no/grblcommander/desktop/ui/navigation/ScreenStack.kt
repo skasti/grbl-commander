@@ -36,14 +36,18 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
      * leave the composed definitions intact.
      */
     private val resolvedBottomKeys by derivedStateOf {
-        BottomSoftKeySlot.entries.mapNotNull { slot ->
-            resolveSoftKeyDefinition(slot)?.let { slot to it }
-        }.toMap()
+        val currentEntries = entries
+        val firstEntry = currentEntries.last { !it.screen.inheritBottomKeys }
+        val remainingEntries = currentEntries.subList(currentEntries.indexOf(firstEntry) + 1, currentEntries.size)
+
+        firstEntry.screen.bottomKeys.definitions().applyAllOverrides(remainingEntries.map { it.screen.bottomKeys })
     }
+
     private val resolvedRightKeys by derivedStateOf {
-        RightSoftKeySlot.entries.mapNotNull { slot ->
-            resolveSoftKeyDefinition(slot)?.let { slot to it }
-        }.toMap()
+        val currentEntries = entries
+        val firstEntry = currentEntries.last { !it.screen.inheritRightKeys }
+        val remainingEntries = currentEntries.subList(currentEntries.indexOf(firstEntry) + 1, currentEntries.size)
+        firstEntry.screen.rightKeys.definitions().applyAllOverrides(remainingEntries.map { it.screen.rightKeys })
     }
 
     val effectiveBottomKeys: Map<BottomSoftKeySlot, SoftKeyDefinition>
@@ -58,7 +62,10 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
      * for rendering, while activation deliberately reads the source directly.
      */
     fun softKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? =
-        resolveSoftKeyDefinition(slot)
+        when (slot) {
+            is BottomSoftKeySlot -> resolvedBottomKeys[slot]
+            is RightSoftKeySlot -> resolvedRightKeys[slot]
+        }
 
     /**
      * Each bank finds its own inheritance boundary, then applies overrides
@@ -132,5 +139,41 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
         entries = entries.dropLast(1)
         screen.deliver(result)
         return true
+    }
+}
+
+private fun <K : SoftKeySlot> MutableMap<K, SoftKeyDefinition>.applyAllOverrides(overrides: List<Map<K, SoftKeyOverride>>): Map<K, SoftKeyDefinition> {
+    for (overrideMap in overrides) {
+        applyOverrides(overrideMap)
+    }
+    return this
+}
+
+private fun <K: SoftKeySlot>Map<K, SoftKeyOverride>.definitions(): MutableMap<K, SoftKeyDefinition> {
+    val result = mutableMapOf<K, SoftKeyDefinition>()
+    for ((slot, override) in this) {
+        val definition = when (override) {
+            is SoftKeyDefinition -> override
+            is SoftKeyModifier -> result[slot]?.let(override.modify)
+        }
+        if (definition != null) {
+            result[slot] = definition
+        }
+    }
+    return result
+}
+
+private fun <K : SoftKeySlot> MutableMap<K, SoftKeyDefinition>.applyOverrides(keyOverrides: Map<K, SoftKeyOverride>) {
+    for ((slot, override) in keyOverrides) {
+        val current = this[slot]
+        val newDefinition = when (override) {
+            is SoftKeyDefinition -> override
+            is SoftKeyModifier -> current?.let(override.modify)
+        }
+        if (newDefinition != null) {
+            this[slot] = newDefinition
+        } else {
+            this.remove(slot)
+        }
     }
 }
