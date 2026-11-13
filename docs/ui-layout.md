@@ -90,10 +90,10 @@ compositions and ordinary non-saveable Compose `remember` state survive mode
 changes. Popping an overlay disposes only that overlay; closing the window
 disposes its stacks and compositions. State is not persisted across restarts.
 
-Visual overlay/input behavior does not depend on softkey inheritance.
-Softkey selection uses only the active stack's top screen. Workspace overlay
-input boundaries do not block shell shortcuts. Cross-screen softkey inheritance
-and modifier resolution remain planned in issue #4.
+Visual overlay/input behavior does not determine softkey inheritance. The active
+stack resolves each softkey bank from its retained screen instances; shell
+shortcuts and pointer input operate only on that active stack. Inactive stacks
+retain their own keys and screen state without receiving actions.
 
 ### Screen-owned softkey contract
 
@@ -110,12 +110,32 @@ Ordinary predicate changes recompose the tiles without replacing their bindings
 or reconstructing their maps. When a definition/override genuinely changes,
 use a `mutableStateMapOf` for individual slot updates or return a map from a
 `mutableStateOf(mapOf(...))`-backed property. Ordinary mutable maps or non-state
-property changes do not schedule Compose recomposition. Modifiers should also
-be stable screen-owned instances; replace an observable override when their
-composition changes.
-`ScreenStack.softKeyDefinition(slot)` selects complete definitions from the current
-top screen. Undefined slots and modifier-only overrides render as blank because
-cross-screen composition belongs to issue #4. No lower screen actions are exposed.
+property changes do not schedule Compose recomposition and must not be used to
+change softkeys; otherwise the displayed definition can remain stale. Modifiers
+should also be stable screen-owned instances; replace an observable override
+when their composition changes.
+`Screen<R>` independently declares `inheritBottomKeys` and
+`inheritRightKeys`, both false by default. Each bank walks from the top
+down to the first screen that does not inherit that bank, or to the root.
+From that boundary, definitions replace bindings and modifiers transform
+existing definitions in root-to-top order. A modifier with no existing
+definition is a no-op. An explicit `SoftKeyDefinition.Blank` replaces an
+inherited action with a blank, non-actionable key. Undefined slots are also
+blank. A screen may inherit only one bank; a fullscreen screen and an overlay
+follow the same rules.
+
+`ScreenStack.softKeyDefinition(slot)` reads the current effective binding when
+an action is activated. `AppShell` renders from `effectiveBottomKeys` and
+`effectiveRightKeys`, which are read-only `derivedStateOf` maps for each bank.
+These memoize structural composition until navigation or observable overrides
+change; predicate updates alone leave the composed definitions intact. Since
+rendering and activation use the same effective binding, structural softkey
+updates must be observable to Compose. Neither the stack nor shell keeps a
+separate mutable copy.
+Screen-owned callbacks and predicate closures remain attached to their
+original screen unless a modifier explicitly replaces them. Pushing,
+popping and mode selection select the current effective bindings without
+saving/restoring any callback state.
 `AppShell` uses the same `SoftkeyTile` for both banks, preserving all eight bottom
 and seven right positions and their dimensions. Blank tiles contain no text or
 icon, including shortcut hints. Disabled labelled tiles retain label, icon and
@@ -147,10 +167,12 @@ activation; repeated actions require appropriate preconditions in their owners.
 Future physical-panel input can call the same slot activation function.
 Hardware-panel integration is not implemented.
 
-Issue #4 will resolve each bank independently across retained screen entries,
-using separate inheritance flags (default false), definitions that replace and
-modifiers that transform existing definitions bottom-to-top. Modifiers on missing
-slots will do nothing. That traversal/composition is not implemented here.
+Inherited definitions remain reactive: Compose observes `enabled` and `active`
+predicates during tile composition and reads observable screen key maps when
+resolving slots. Changing an inherited observable override or navigating
+changes the effective definition; changes to predicate results do not require
+rebuilding definitions. An inactive mode's stack can be inspected but cannot
+receive events through the shell's current-stack activation path.
 
 ### Screen-owned typed results
 
@@ -195,8 +217,13 @@ unchanged. Clicking a fixture selects it without closing the explorer. **Select 
 **F1 Select** delivers `Selected(filename)`; the editor looks up the in-memory fixture and updates its filename and draft. **Back to
 welcome** completes the editor's `Unit` result. The welcome screen's F1 opens the editor; the editor's F1 opens a file explorer
 and F8 returns to welcome. Explorer F1 Select and F2 Clear selection enable only
-when a fixture is selected; F8 cancels. R7 Info (Shift+F7) toggles its active
-presentation and fixture information. These are stable per-instance definitions
+when a fixture is selected; F8 cancels. Explorer replaces the entire bottom bank
+but inherits the editor's right bank. In the in-memory example, the editor also
+offers Open file (R1) and Back (R2). While the explorer is open, its R1 modifier
+relabels and disables the inherited editor Open file action, R2 explicitly
+blanks the inherited Back action, and R7 Info (Shift+F7) toggles its active
+presentation and fixture information. Closing the explorer restores the
+editor's definitions automatically. These are stable per-instance definitions
 with bound callbacks and snapshot-state predicates. The example has no real local
 or controller filesystem access and cannot execute G-code.
 

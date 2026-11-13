@@ -161,7 +161,10 @@ internal fun SoftkeyTile(
     currentStack: () -> ScreenStack,
     modifier: Modifier = Modifier,
 ) {
-    val definition = stack.softKeyDefinition(slot) ?: SoftKeyDefinition.Blank
+    val definition = when (slot) {
+        is BottomSoftKeySlot -> stack.effectiveBottomKeys[slot]
+        is RightSoftKeySlot -> stack.effectiveRightKeys[slot]
+    } ?: SoftKeyDefinition.Blank
     // Recompose/dispose clickable when the visible screen's attachment lifetime
     // or effective definition changes. Ordinary enabled/active state does not
     // change these keys and is observed directly by Compose.

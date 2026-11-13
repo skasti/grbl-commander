@@ -1,6 +1,7 @@
 package no.grblcommander.desktop.ui.navigation
 
 import no.grblcommander.desktop.ui.softkeys.*
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -29,15 +30,39 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
     val top: Screen<*> get() = entries.last().screen
     val size: Int get() = entries.size
 
-    /** Top-screen definitions only. Issue #4 will resolve inheritance here. */
-    fun softKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? {
-        val screen = top
-        val override = when (slot) {
-            is BottomSoftKeySlot -> screen.bottomKeys[slot]
-            is RightSoftKeySlot -> screen.rightKeys[slot]
-        }
-        return override as? SoftKeyDefinition
+    /**
+     * Memoized, read-only derivations. Navigation and snapshot-backed key maps
+     * invalidate the appropriate bank; ordinary enabled/active predicate changes
+     * leave the composed definitions intact. Structural key changes must be
+     * snapshot-observable so rendering and activation use the same binding.
+     */
+    private val resolvedBottomKeys by derivedStateOf {
+        val currentEntries = entries
+        val firstEntry = currentEntries.lastOrNull { !it.screen.inheritBottomKeys } ?: currentEntries.first()
+        val remainingEntries = currentEntries.subList(currentEntries.indexOf(firstEntry) + 1, currentEntries.size)
+
+        firstEntry.screen.bottomKeys.definitions().applyAllOverrides(remainingEntries.map { it.screen.bottomKeys })
     }
+
+    private val resolvedRightKeys by derivedStateOf {
+        val currentEntries = entries
+        val firstEntry = currentEntries.lastOrNull { !it.screen.inheritRightKeys } ?: currentEntries.first()
+        val remainingEntries = currentEntries.subList(currentEntries.indexOf(firstEntry) + 1, currentEntries.size)
+        firstEntry.screen.rightKeys.definitions().applyAllOverrides(remainingEntries.map { it.screen.rightKeys })
+    }
+
+    val effectiveBottomKeys: Map<BottomSoftKeySlot, SoftKeyDefinition>
+        get() = resolvedBottomKeys
+
+    val effectiveRightKeys: Map<RightSoftKeySlot, SoftKeyDefinition>
+        get() = resolvedRightKeys
+
+    /** Read the effective definition used by both rendering and activation. */
+    fun softKeyDefinition(slot: SoftKeySlot): SoftKeyDefinition? =
+        when (slot) {
+            is BottomSoftKeySlot -> resolvedBottomKeys[slot]
+            is RightSoftKeySlot -> resolvedRightKeys[slot]
+        }
 
     /** Direct stack navigation always pushes above the current top screen. */
     fun <R> push(screen: Screen<R>) {
