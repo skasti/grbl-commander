@@ -1,6 +1,5 @@
 package no.grblcommander.desktop.ui.navigation
 
-import no.grblcommander.desktop.ui.softkeys.*
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf

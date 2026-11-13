@@ -1,4 +1,6 @@
-package no.grblcommander.desktop.ui.softkeys
+package no.grblcommander.desktop.ui.navigation
+
+import kotlin.collections.iterator
 
 /**
  * Create a definition map from complete definitions in this override map.

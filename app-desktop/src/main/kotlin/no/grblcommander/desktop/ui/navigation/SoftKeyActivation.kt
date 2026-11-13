@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.softkeys
+package no.grblcommander.desktop.ui.navigation
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -9,7 +9,6 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
-import no.grblcommander.desktop.ui.navigation.ScreenStack
 
 /**
  * One UI-thread activation path for pointer, keyboard and future panel input.

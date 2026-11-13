@@ -21,6 +21,9 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
+import no.grblcommander.desktop.ui.screens.EditorScreen
+import no.grblcommander.desktop.ui.screens.ManualDetailsScreen
+import no.grblcommander.desktop.ui.screens.ManualModeScreen
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -79,10 +82,10 @@ class ScreenStackMultiHostTest {
         val manualStack = ScreenStack(manual)
         var activeStack by mutableStateOf(programStack)
         val stacks = listOf(programStack, manualStack)
-        val outerResults = mutableListOf<FileExplorerResult>()
-        val innerResults = mutableListOf<FileExplorerResult>()
-        val outer = FileExplorer()
-        val inner = FileExplorer()
+        val outerResults = mutableListOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>()
+        val innerResults = mutableListOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>()
+        val outer = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
+        val inner = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
         setContent { ScreenStackHost(stacks, activeStack) }
         runOnIdle {
             editor.draft = "Unfinished work"
@@ -110,8 +113,8 @@ class ScreenStackMultiHostTest {
         }
         onNodeWithText("Unfinished work").assertExists()
         runOnIdle {
-            assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Cancelled), innerResults)
-            assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Selected("example-a.nc")), outerResults)
+            assertEquals(listOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>(_root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Cancelled), innerResults)
+            assertEquals(listOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>(_root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Selected("example-a.nc")), outerResults)
             assertFalse(inner.cancel())
             assertFalse(outer.cancel())
             assertSame(editor, programStack.top)
@@ -177,7 +180,7 @@ class ScreenStackMultiHostTest {
     fun twoWindowHostsKeepDifferentModesAndNavigationBindings() = runComposeUiTest {
         fun root(label: String) = object : Screen<Unit>(Unit) {
             @Composable override fun Content() {
-                Button(onClick = { FileExplorer().open(this) }) { Text("Open $label") }
+                Button(onClick = { _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer().open(this) }) { Text("Open $label") }
             }
         }
         val firstRoot = root("first")
@@ -196,7 +199,7 @@ class ScreenStackMultiHostTest {
         }
         onNodeWithText("Open first").performTouchInput { click() }
         runOnIdle {
-            assertTrue(firstActive.top is FileExplorer)
+            assertTrue(firstActive.top is no.grblcommander.desktop.ui.screens.FileExplorer)
             assertSame(secondRoot, secondActive.top)
         }
         runOnIdle { firstActive = firstManualStack }
@@ -204,7 +207,7 @@ class ScreenStackMultiHostTest {
         onNodeWithText("Open second").performTouchInput { click() }
         runOnIdle {
             assertSame(secondProgramStack, secondActive)
-            assertTrue(secondActive.top is FileExplorer)
+            assertTrue(secondActive.top is no.grblcommander.desktop.ui.screens.FileExplorer)
             assertSame(firstRoot, firstProgramStack.screens.first())
             assertEquals(2, firstProgramStack.size)
         }
@@ -212,9 +215,9 @@ class ScreenStackMultiHostTest {
         onAllNodesWithText("Choose an example file").assertCountEquals(2)
         // Each host still owns its own top screen and result delivery.
         runOnIdle {
-            assertTrue((firstActive.top as FileExplorer).cancel())
+            assertTrue((firstActive.top as no.grblcommander.desktop.ui.screens.FileExplorer).cancel())
             assertSame(firstRoot, firstActive.top)
-            assertTrue(secondActive.top is FileExplorer)
+            assertTrue(secondActive.top is no.grblcommander.desktop.ui.screens.FileExplorer)
         }
     }
 
@@ -246,7 +249,7 @@ class ScreenStackMultiHostTest {
 
         // Direct-stack opening is allowed; it must neither redirect navigation
         // into Manual nor activate or focus the inactive Program host.
-        val explorer = FileExplorer()
+        val explorer = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
         runOnIdle { explorer.open(programStack) }
         onNodeWithTag("manual-input").assertExists()
         onNodeWithText("Choose an example file").assertDoesNotExist()

@@ -5,6 +5,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.input.key.Key
 import no.grblcommander.desktop.ui.navigation.Screen
 import no.grblcommander.desktop.ui.navigation.ScreenStack
+import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
+import no.grblcommander.desktop.ui.navigation.SoftKeyModifier
+import no.grblcommander.desktop.ui.navigation.activateSoftKey
+import no.grblcommander.desktop.ui.navigation.softKeySlot
 import kotlin.test.*
 
 class SoftKeyActivationTest {

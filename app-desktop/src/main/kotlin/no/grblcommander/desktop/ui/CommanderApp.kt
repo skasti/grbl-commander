@@ -14,10 +14,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
-import no.grblcommander.desktop.ui.navigation.ManualModeScreen
-import no.grblcommander.desktop.ui.navigation.MdiModeScreen
+import no.grblcommander.desktop.ui.screens.ManualModeScreen
+import no.grblcommander.desktop.ui.screens.MdiModeScreen
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
+import no.grblcommander.desktop.ui.screens.WelcomeScreen
 
 /** Stable UI context identities, separate from GRBL controller execution states. */
 private enum class OperatorMode(val label: String) {

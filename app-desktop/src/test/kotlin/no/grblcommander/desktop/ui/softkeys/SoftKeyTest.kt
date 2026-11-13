@@ -3,6 +3,10 @@ package no.grblcommander.desktop.ui.softkeys
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
+import no.grblcommander.desktop.ui.navigation.SoftKeyModifier
 import kotlin.test.*
 
 class SoftKeyTest {
@@ -25,7 +29,8 @@ class SoftKeyTest {
         var originalCalls = 0
         var replacementCalls = 0
         val icon = ImageVector.Builder("fixture", 16.dp, 16.dp, 16f, 16f).build()
-        val original = SoftKeyDefinition("Select", icon, { originalCalls++ },
+        val original = SoftKeyDefinition(
+            "Select", icon, { originalCalls++ },
             enabled = { selected.value }, active = { selected.value })
         val modified = SoftKeyModifier { it.copy(label = "Choose") }.modify(original)
         assertEquals("Select", original.label)

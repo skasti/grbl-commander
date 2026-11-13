@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.softkeys
+package no.grblcommander.desktop.ui.navigation
 
 import androidx.compose.ui.graphics.vector.ImageVector
 

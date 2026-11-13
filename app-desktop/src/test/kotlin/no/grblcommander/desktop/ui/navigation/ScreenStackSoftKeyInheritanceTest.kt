@@ -2,7 +2,7 @@ package no.grblcommander.desktop.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
-import no.grblcommander.desktop.ui.softkeys.*
+import no.grblcommander.desktop.ui.screens.EditorScreen
 import kotlin.test.*
 
 class ScreenStackSoftKeyInheritanceTest {
@@ -176,7 +176,7 @@ class ScreenStackSoftKeyInheritanceTest {
         val stack = ScreenStack(editor)
         val openFile = assertNotNull(stack.softKeyDefinition(RightSoftKeySlot.R1))
         val back = assertNotNull(stack.softKeyDefinition(RightSoftKeySlot.R2))
-        val explorer = FileExplorer()
+        val explorer = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
         explorer.open(editor)
         assertFalse(explorer.inheritBottomKeys)
         assertTrue(explorer.inheritRightKeys)
