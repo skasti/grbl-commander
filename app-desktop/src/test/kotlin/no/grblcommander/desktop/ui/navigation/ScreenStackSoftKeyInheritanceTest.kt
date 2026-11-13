@@ -30,6 +30,28 @@ class ScreenStackSoftKeyInheritanceTest {
         assertNull(stack.softKeyDefinition(BottomSoftKeySlot.F8))
     }
 
+    @Test fun inheritingRootIsFallbackForBothBanks() {
+        val root = Fixture(
+            inheritBottomKeys = true,
+            inheritRightKeys = true,
+            bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyDefinition("Root bottom")),
+            rightKeys = mapOf(RightSoftKeySlot.R1 to SoftKeyDefinition("Root right")),
+        )
+        val stack = ScreenStack(root)
+        assertEquals("Root bottom", stack.softKeyDefinition(BottomSoftKeySlot.F1)?.label)
+        assertEquals("Root right", stack.softKeyDefinition(RightSoftKeySlot.R1)?.label)
+
+        stack.push(Fixture(inheritBottomKeys = true, inheritRightKeys = true))
+        stack.push(Fixture(
+            inheritBottomKeys = true,
+            inheritRightKeys = true,
+            bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyModifier { it.copy(label = "Inherited bottom") }),
+            rightKeys = mapOf(RightSoftKeySlot.R1 to SoftKeyModifier { it.copy(label = "Inherited right") }),
+        ))
+        assertEquals("Inherited bottom", stack.softKeyDefinition(BottomSoftKeySlot.F1)?.label)
+        assertEquals("Inherited right", stack.softKeyDefinition(RightSoftKeySlot.R1)?.label)
+    }
+
     @Test fun threeLevelsFindDifferentBoundariesForEachBank() {
         val root = Fixture(
             bottomKeys = mapOf(
