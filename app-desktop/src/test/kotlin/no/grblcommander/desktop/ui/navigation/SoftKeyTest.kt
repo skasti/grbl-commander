@@ -1,12 +1,8 @@
-package no.grblcommander.desktop.ui.softkeys
+package no.grblcommander.desktop.ui.navigation
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
-import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
-import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
-import no.grblcommander.desktop.ui.navigation.SoftKeyModifier
 import kotlin.test.*
 
 class SoftKeyTest {

@@ -2,6 +2,8 @@ package no.grblcommander.desktop.ui.navigation
 
 import androidx.compose.runtime.Composable
 import no.grblcommander.desktop.ui.screens.EditorScreen
+import no.grblcommander.desktop.ui.screens.FileExplorer
+import no.grblcommander.desktop.ui.screens.FileExplorerResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -72,8 +74,8 @@ class ScreenStackTest {
         val editor = EditorScreen()
         val stack = ScreenStack(editor)
         editor.draft = "Unfinished edit"
-        val results = mutableListOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>()
-        val chooser = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer("/programs")
+        val results = mutableListOf<FileExplorerResult>()
+        val chooser = FileExplorer("/programs")
         chooser.open(editor) { result ->
             assertSame(editor, stack.top)
             results += result
@@ -84,7 +86,7 @@ class ScreenStackTest {
         assertTrue(chooser.selectFile(chooser.files.first().name))
         assertSame(editor, stack.top)
         assertEquals("Unfinished edit", editor.draft)
-        assertEquals(listOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>(_root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Selected("example-a.nc")), results)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Selected("example-a.nc")), results)
         assertFalse(chooser.cancel())
         assertFalse(chooser.selectFile(chooser.files.last().name))
         assertEquals(1, results.size)
@@ -96,21 +98,21 @@ class ScreenStackTest {
         val stack = ScreenStack(root)
         val covered = StubScreen()
         stack.push(covered)
-        val chooser = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer("/programs")
-        var result: no.grblcommander.desktop.ui.screens.FileExplorerResult? = null
+        val chooser = FileExplorer("/programs")
+        var result: FileExplorerResult? = null
         chooser.open(stack) { result = it }
         assertSame(stack, chooser.screenStack)
         assertSame(chooser, stack.top)
         assertTrue(chooser.selectFile("example-b.nc"))
         assertSame(covered, stack.top)
-        assertEquals(_root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Selected("example-b.nc"), result)
+        assertEquals(FileExplorerResult.Selected("example-b.nc"), result)
     }
 
     @Test fun popAndOrdinaryDismissDeliverCancellationExactlyOnce() {
         val root = StubScreen()
         val stack = ScreenStack(root)
-        val results = mutableListOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>()
-        val first = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
+        val results = mutableListOf<FileExplorerResult>()
+        val first = FileExplorer()
         first.open(root) {
             assertSame(root, stack.top)
             results += it
@@ -118,9 +120,9 @@ class ScreenStackTest {
         assertSame(first, stack.pop())
         assertFalse(first.cancel())
         assertNull(stack.pop())
-        assertEquals(listOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>(_root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Cancelled), results)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Cancelled), results)
 
-        val second = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
+        val second = FileExplorer()
         second.open(stack) {
             assertSame(root, stack.top)
             results += it
@@ -128,50 +130,50 @@ class ScreenStackTest {
         assertTrue(stack.dismiss(second))
         assertFalse(stack.dismiss(second))
         assertFalse(second.selectFile("example-a.nc"))
-        assertEquals(listOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>(
-            _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Cancelled, _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Cancelled,
+        assertEquals(listOf<FileExplorerResult>(
+            FileExplorerResult.Cancelled, FileExplorerResult.Cancelled,
         ), results)
     }
 
     @Test fun nestedOverlaysAreBoundToParentAndRejectCoveredCompletionAndOpen() {
         val root = StubScreen()
         val stack = ScreenStack(root)
-        val outerResults = mutableListOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>()
-        val innerResults = mutableListOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>()
-        val outer = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
+        val outerResults = mutableListOf<FileExplorerResult>()
+        val innerResults = mutableListOf<FileExplorerResult>()
+        val outer = FileExplorer()
         outer.open(root, outerResults::add)
-        val inner = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
+        val inner = FileExplorer()
         inner.open(outer, innerResults::add)
         assertSame(stack, inner.screenStack)
         assertSame(stack, outer.screenStack)
         assertFalse(outer.selectFile("example-a.nc"))
         assertFalse(stack.dismiss(outer))
-        assertFailsWith<IllegalStateException> { _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer().open(outer) {} }
+        assertFailsWith<IllegalStateException> { FileExplorer().open(outer) {} }
         assertSame(inner, stack.pop())
-        assertEquals(listOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>(_root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Cancelled), innerResults)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Cancelled), innerResults)
         assertTrue(outer.selectFile("example-b.nc"))
         assertSame(root, stack.top)
-        assertEquals(listOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>(_root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Selected("example-b.nc")), outerResults)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Selected("example-b.nc")), outerResults)
         assertFalse(inner.cancel())
     }
 
     @Test fun staleOrUnboundInstancesCannotCompleteOrOpen() {
         val root = StubScreen()
         val stack = ScreenStack(root)
-        val stale = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
+        val stale = FileExplorer()
         assertFalse(stale.cancel())
-        assertFailsWith<IllegalStateException> { _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer().open(stale) {} }
-        val events = mutableListOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>()
+        assertFailsWith<IllegalStateException> { FileExplorer().open(stale) {} }
+        val events = mutableListOf<FileExplorerResult>()
         stale.open(root, events::add)
         assertSame(stale, stack.pop())
-        val newer = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
+        val newer = FileExplorer()
         newer.open(root, events::add)
         assertFalse(stale.selectFile("example-b.nc"))
         assertSame(newer, stack.top)
-        assertEquals(listOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>(_root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Cancelled), events)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Cancelled), events)
         assertTrue(newer.cancel())
-        assertEquals(listOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>(
-            _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Cancelled, _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Cancelled,
+        assertEquals(listOf<FileExplorerResult>(
+            FileExplorerResult.Cancelled, FileExplorerResult.Cancelled,
         ), events)
     }
 
@@ -180,20 +182,20 @@ class ScreenStackTest {
         val rightRoot = StubScreen()
         val leftStack = ScreenStack(leftRoot)
         val rightStack = ScreenStack(rightRoot)
-        val leftResults = mutableListOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>()
-        val rightResults = mutableListOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>()
-        val left = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
-        val right = _root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorer()
+        val leftResults = mutableListOf<FileExplorerResult>()
+        val rightResults = mutableListOf<FileExplorerResult>()
+        val left = FileExplorer()
+        val right = FileExplorer()
         left.open(leftRoot, leftResults::add)
         right.open(rightStack, rightResults::add)
         assertSame(leftStack, left.screenStack)
         assertSame(rightStack, right.screenStack)
         assertFailsWith<IllegalStateException> { rightStack.push(left) }
         assertTrue(left.cancel())
-        assertEquals(listOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>(_root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Cancelled), leftResults)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Cancelled), leftResults)
         assertSame(right, rightStack.top)
         assertTrue(right.selectFile("example-a.nc"))
-        assertEquals(listOf<no.grblcommander.desktop.ui.screens.FileExplorerResult>(_root_ide_package_.no.grblcommander.desktop.ui.screens.FileExplorerResult.Selected("example-a.nc")), rightResults)
+        assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Selected("example-a.nc")), rightResults)
         assertSame(leftRoot, leftStack.top)
         assertSame(rightRoot, rightStack.top)
     }
