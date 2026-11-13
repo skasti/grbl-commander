@@ -22,14 +22,14 @@ class ManualMode : Screen<Unit>(Unit) {
     override fun Content() {
         Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Manual mode · navigation demonstration only")
-            Button(onClick = { ManualDetailsScreen().open(this@ManualMode) }) {
+            Button(onClick = { ManualDetails().open(this@ManualMode) }) {
                 Text("Open manual details")
             }
         }
     }
 }
 
-class ManualDetailsScreen : Screen<Unit>(Unit) {
+class ManualDetails : Screen<Unit>(Unit) {
     @Composable
     override fun Content() {
         var notes by remember { mutableStateOf("") }

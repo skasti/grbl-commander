@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.ui.screens.Editor
 import no.grblcommander.desktop.ui.screens.FileExplorer
 import no.grblcommander.desktop.ui.screens.FileExplorerResult
-import no.grblcommander.desktop.ui.screens.ManualDetailsScreen
+import no.grblcommander.desktop.ui.screens.ManualDetails
 import no.grblcommander.desktop.ui.screens.ManualMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -101,7 +101,7 @@ class ScreenStackMultiHostTest {
             assertEquals(emptyList(), outerResults)
             assertEquals(emptyList(), innerResults)
             assertSame(inner, programStack.top)
-            assertTrue(activeStack.top is ManualDetailsScreen)
+            assertTrue(activeStack.top is ManualDetails)
         }
         runOnIdle { activeStack = programStack }
         onNodeWithText("Choose an example file").assertExists()
