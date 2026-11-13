@@ -38,7 +38,7 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
      */
     private val resolvedBottomKeys by derivedStateOf {
         val currentEntries = entries
-        val firstEntry = currentEntries.last { !it.screen.inheritBottomKeys }
+        val firstEntry = currentEntries.lastOrNull { !it.screen.inheritBottomKeys } ?: currentEntries.first()
         val remainingEntries = currentEntries.subList(currentEntries.indexOf(firstEntry) + 1, currentEntries.size)
 
         firstEntry.screen.bottomKeys.definitions().applyAllOverrides(remainingEntries.map { it.screen.bottomKeys })
@@ -46,7 +46,7 @@ class ScreenStack(root: Screen<*>) : NavigationParent {
 
     private val resolvedRightKeys by derivedStateOf {
         val currentEntries = entries
-        val firstEntry = currentEntries.last { !it.screen.inheritRightKeys }
+        val firstEntry = currentEntries.lastOrNull { !it.screen.inheritRightKeys } ?: currentEntries.first()
         val remainingEntries = currentEntries.subList(currentEntries.indexOf(firstEntry) + 1, currentEntries.size)
         firstEntry.screen.rightKeys.definitions().applyAllOverrides(remainingEntries.map { it.screen.rightKeys })
     }
