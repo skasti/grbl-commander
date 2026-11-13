@@ -14,8 +14,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
-import no.grblcommander.desktop.ui.screens.ManualModeScreen
-import no.grblcommander.desktop.ui.screens.MdiModeScreen
+import no.grblcommander.desktop.ui.screens.ManualMode
+import no.grblcommander.desktop.ui.screens.MdiMode
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
 import no.grblcommander.desktop.ui.screens.WelcomeScreen
@@ -31,8 +31,8 @@ fun CommanderApp() {
     val stacks = remember {
         mapOf(
             OperatorMode.Program to ScreenStack(WelcomeScreen()),
-            OperatorMode.Manual to ScreenStack(ManualModeScreen()),
-            OperatorMode.Mdi to ScreenStack(MdiModeScreen()),
+            OperatorMode.Manual to ScreenStack(ManualMode()),
+            OperatorMode.Mdi to ScreenStack(MdiMode()),
         )
     }
     var activeMode by remember { mutableStateOf(OperatorMode.Program) }

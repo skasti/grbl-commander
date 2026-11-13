@@ -21,7 +21,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
-import no.grblcommander.desktop.ui.screens.EditorScreen
+import no.grblcommander.desktop.ui.screens.Editor
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -84,7 +84,7 @@ class ScreenStackHostTest {
     }
 
     @Test fun editorExampleRestoresDraftOnCancelAndLoadsSelectedFixture() = runComposeUiTest {
-        val editor = EditorScreen()
+        val editor = Editor()
         val stack = ScreenStack(editor)
         setContent { ScreenStackHost(stack) }
         onNodeWithText("Editor draft").performTextReplacement("Unfinished program")
@@ -104,8 +104,8 @@ class ScreenStackHostTest {
     }
 
     @Test fun independentComposeHostsResolveTheirOwnExplorer() = runComposeUiTest {
-        val left = EditorScreen()
-        val right = EditorScreen()
+        val left = Editor()
+        val right = Editor()
         val leftStack = ScreenStack(left)
         val rightStack = ScreenStack(right)
         setContent {
@@ -137,7 +137,7 @@ class ScreenStackHostTest {
     }
 
     @Test fun popFromUiDeliversCancellationAndRestoresEditableScreen() = runComposeUiTest {
-        val editor = EditorScreen()
+        val editor = Editor()
         val stack = ScreenStack(editor)
         setContent { ScreenStackHost(stack) }
         onNodeWithText("Editor draft").performTextReplacement("Keep this")

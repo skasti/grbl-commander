@@ -23,7 +23,7 @@ import no.grblcommander.desktop.ui.BrandAssets
  * This screen never claims controller connectivity or implies machine operation.
  */
 class WelcomeScreen : Screen<Unit>(Unit) {
-    private fun openEditor() { EditorScreen().open(this) }
+    private fun openEditor() { Editor().open(this) }
 
     override val bottomKeys = mapOf(
         BottomSoftKeySlot.F1 to

@@ -21,11 +21,11 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
-import no.grblcommander.desktop.ui.screens.EditorScreen
+import no.grblcommander.desktop.ui.screens.Editor
 import no.grblcommander.desktop.ui.screens.FileExplorer
 import no.grblcommander.desktop.ui.screens.FileExplorerResult
 import no.grblcommander.desktop.ui.screens.ManualDetailsScreen
-import no.grblcommander.desktop.ui.screens.ManualModeScreen
+import no.grblcommander.desktop.ui.screens.ManualMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -78,8 +78,8 @@ class ScreenStackMultiHostTest {
 
     @Test
     fun nestedOverlaysAndTypedResultsStayOnTheirOriginalStack() = runComposeUiTest {
-        val editor = EditorScreen()
-        val manual = ManualModeScreen()
+        val editor = Editor()
+        val manual = ManualMode()
         val programStack = ScreenStack(editor)
         val manualStack = ScreenStack(manual)
         var activeStack by mutableStateOf(programStack)

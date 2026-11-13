@@ -15,7 +15,7 @@ import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
 import no.grblcommander.desktop.ui.navigation.SoftKeyModifier
 import no.grblcommander.desktop.ui.navigation.SoftKeyOverride
-import no.grblcommander.desktop.ui.screens.EditorScreen
+import no.grblcommander.desktop.ui.screens.Editor
 import no.grblcommander.desktop.ui.screens.FileExplorer
 import kotlin.test.*
 
@@ -163,7 +163,7 @@ class SoftKeyInheritanceRenderingTest {
     }
 
     @Test fun editorExplorerShowsIndependentBanksAndRestoresOnClose() = runComposeUiTest {
-        val editor = EditorScreen()
+        val editor = Editor()
         val stack = ScreenStack(editor)
         val explorer = FileExplorer()
         explorer.open(editor)

@@ -19,7 +19,7 @@ import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.Screen
 import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
 
-class EditorScreen : Screen<Unit>(Unit) {
+class Editor : Screen<Unit>(Unit) {
     var draft by mutableStateOf("; Navigation example — no machine operations")
     var selectedFile by mutableStateOf<String?>(null)
         private set

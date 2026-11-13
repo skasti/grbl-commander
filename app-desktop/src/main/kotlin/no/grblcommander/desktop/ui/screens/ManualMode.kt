@@ -17,12 +17,12 @@ import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.ui.navigation.Screen
 
 /** UI fixture only: no jog controls, transport connection or controller commands. */
-class ManualModeScreen : Screen<Unit>(Unit) {
+class ManualMode : Screen<Unit>(Unit) {
     @Composable
     override fun Content() {
         Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Manual mode · navigation demonstration only")
-            Button(onClick = { ManualDetailsScreen().open(this@ManualModeScreen) }) {
+            Button(onClick = { ManualDetailsScreen().open(this@ManualMode) }) {
                 Text("Open manual details")
             }
         }
@@ -41,21 +41,6 @@ class ManualDetailsScreen : Screen<Unit>(Unit) {
                 label = { Text("Temporary notes") },
             )
             Button(onClick = { finish(Unit) }) { Text("Back to Manual") }
-        }
-    }
-}
-
-class MdiModeScreen : Screen<Unit>(Unit) {
-    @Composable
-    override fun Content() {
-        var buffer by remember { mutableStateOf("") }
-        Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("MDI · local text buffer only (not executable)")
-            OutlinedTextField(
-                value = buffer,
-                onValueChange = { buffer = it },
-                label = { Text("Unsent text") },
-            )
         }
     }
 }
