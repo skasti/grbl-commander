@@ -241,7 +241,8 @@ New normal lines are rejected until the expected late `ok`/`error` has been
 consumed; it cannot acknowledge a later recovery command. The same rule applies
 to normal-command timeout, cancellation, response-collection limit overflow,
 or an uncertain write on a usable transport. Cancellation before write admission or local argument rejection needs
-no response drain. A completed `error:n` acknowledgment rejects only its line
+no response drain and does not invalidate other queued lines. A completed
+`error:n` acknowledgment rejects only its line
 and preserves subsequent communication.
 
 Status queries and real-time commands remain available while normal correlation

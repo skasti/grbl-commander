@@ -252,8 +252,8 @@ class GrblMachineSession(
     private fun abandon(request: Pending, error: Throwable, knownNotSent: Boolean = false) {
         if (pending !== request || (request.abandoned && !knownNotSent)) return
         request.abandoned = true
-        commandEpoch++
         if (request.transmissionStarted && !knownNotSent) {
+            commandEpoch++
             mutableState.value = state.value.copy(normalCommandsSynchronized = false)
         } else {
             pending = null

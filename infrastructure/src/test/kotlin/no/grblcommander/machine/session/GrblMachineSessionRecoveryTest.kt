@@ -194,6 +194,33 @@ class GrblMachineSessionRecoveryTest {
         }
     }
 
+    @Test fun `known unsent local rejection does not invalidate other queued lines`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            supervisorScope {
+                val transport = InMemoryTransport()
+                val session = connected(this, transport)
+                val releaseWrite = CompletableDeferred<Unit>()
+                transport.onWrite = { if (it == "!") releaseWrite.await() }
+                try {
+                    val hold = async { session.sendRealtime(RealtimeCommand.FEED_HOLD) }
+                    assertEquals("!", transport.writes.receive())
+                    val rejected = async { session.executeLine("\$I") }
+                    yield()
+                    val queued = async { session.executeLine("\$G") }
+                    yield()
+                    transport.localWriteFailure = IllegalArgumentException("local rejection before IO")
+                    releaseWrite.complete(Unit)
+                    hold.await()
+                    assertFailsWith<IllegalArgumentException> { rejected.await() }
+                    assertEquals("\$G\n", transport.writes.receive())
+                    transport.emit("ok\n")
+                    assertTrue(queued.await().accepted)
+                    assertTrue(session.state.value.normalCommandsSynchronized)
+                } finally { session.close(); session.awaitClosed() }
+            }
+        }
+    }
+
     @Test fun `uncertain realtime error or cancellation preserves further control without replay`() = runBlocking<Unit> {
         withTimeout(5_000) {
             for (cancel in listOf(false, true)) {
