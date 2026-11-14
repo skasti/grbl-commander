@@ -28,15 +28,18 @@ softkey bindings; the shell reads them from the selected persistent stack. The
 Program, Manual and MDI buttons change presentation context only. Softkeys
 invoke safe, in-memory UI actions; machine commands are not implemented.
 
-The application icon and header logo use the classpath resource
-`images/grbl-commander-icon.png` (384 × 256), while the workspace uses
-`images/grbl-commander-splash.jpg` (1024 × 768). The icon is an optimized RGBA
-PNG derived from the supplied transparent artwork, preserving transparent
-corners for the window icon and header. The splash image remains an optimized
-JPEG derived from the supplied artwork. Images preserve their original
-proportions with `ContentScale.Fit` rather than stretching or cropping. The
-operating system displays the application icon according to its window-manager
-conventions.
+The application icon and header logo use the Compose resource
+`drawable/grbl_commander_icon.png` (384 × 256), while the workspace uses
+`drawable/grbl_commander_splash.jpg` (1024 × 768). Compose generates typed
+resource accessors for these bundled images. Load them through the generated
+`Res.drawable` accessors and `org.jetbrains.compose.resources.painterResource`;
+do not load application images through the deprecated classpath string API.
+The icon is an optimized RGBA PNG derived from the supplied transparent
+artwork, preserving transparent corners for the window icon and header. The
+splash image remains an optimized JPEG derived from the supplied artwork.
+Images preserve their original proportions with `ContentScale.Fit` rather than
+stretching or cropping. The operating system displays the application icon
+according to its window-manager conventions.
 
 ## Screen navigation
 

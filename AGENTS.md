@@ -232,6 +232,19 @@ than introducing workarounds that undermine established boundaries.
   independently useful; typed results and screen-local fixtures are examples. Do
   not group unrelated types merely to reduce the file count.
 
+### Deprecated APIs
+
+- Do not introduce deprecated APIs when a supported replacement is available.
+  Check the deprecation guidance and use the replacement that matches the
+  project's dependency versions.
+- Do not suppress a deprecation warning just to retain an old API. If a
+  replacement cannot meet the requirement, keep the suppression as narrow as
+  possible and add a comment explaining why it is necessary.
+- For bundled UI images, use Compose Resources under
+  `src/main/composeResources/drawable` and the generated `Res.drawable` accessors
+  with `org.jetbrains.compose.resources.painterResource`. Do not use the
+  deprecated `androidx.compose.ui.res.painterResource(String)` classpath API.
+
 ## 9. Pull requests and completion criteria
 
 Before considering a task complete:

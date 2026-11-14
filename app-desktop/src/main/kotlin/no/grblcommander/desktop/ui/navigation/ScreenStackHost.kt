@@ -88,8 +88,9 @@ fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier, isActive:
         }
         .focusProperties {
             canFocus = isActive
-            @Suppress("DEPRECATION")
-            enter = { if (isActive) FocusRequester.Default else FocusRequester.Cancel }
+            onEnter = {
+                if (!isActive) cancelFocusChange()
+            }
         }
         .focusGroup()
     ) {
@@ -110,10 +111,10 @@ fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier, isActive:
                     }
                     .focusProperties {
                         // Cancel traversal into the entire covered group, not just its root.
-                        @Suppress("DEPRECATION")
-                        enter = {
-                            if (isActive && stack.top === entry.screen) FocusRequester.Default
-                            else FocusRequester.Cancel
+                        onEnter = {
+                            if (!isActive || stack.top !== entry.screen) {
+                                cancelFocusChange()
+                            }
                         }
                     }
                     .focusGroup()

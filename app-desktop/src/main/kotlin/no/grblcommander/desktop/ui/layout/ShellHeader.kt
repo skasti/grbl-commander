@@ -16,12 +16,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import no.grblcommander.desktop.ui.BrandAssets
+import no.grblcommander.desktop.generated.resources.Res
+import no.grblcommander.desktop.generated.resources.grbl_commander_icon
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
 internal fun ShellHeader(
@@ -39,7 +40,7 @@ internal fun ShellHeader(
             horizontalArrangement = Arrangement.spacedBy(11.dp),
         ) {
             Image(
-                painter = painterResource(BrandAssets.ICON),
+                painter = painterResource(Res.drawable.grbl_commander_icon),
                 contentDescription = "GRBL Commander logo",
                 modifier = Modifier.width(72.dp).height(48.dp),
                 contentScale = ContentScale.Fit,
