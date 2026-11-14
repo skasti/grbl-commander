@@ -21,6 +21,11 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
+import no.grblcommander.desktop.ui.screens.Editor
+import no.grblcommander.desktop.ui.screens.FileExplorer
+import no.grblcommander.desktop.ui.screens.FileExplorerResult
+import no.grblcommander.desktop.ui.screens.ManualDetails
+import no.grblcommander.desktop.ui.screens.ManualMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -73,8 +78,8 @@ class ScreenStackMultiHostTest {
 
     @Test
     fun nestedOverlaysAndTypedResultsStayOnTheirOriginalStack() = runComposeUiTest {
-        val editor = EditorScreen()
-        val manual = ManualModeScreen()
+        val editor = Editor()
+        val manual = ManualMode()
         val programStack = ScreenStack(editor)
         val manualStack = ScreenStack(manual)
         var activeStack by mutableStateOf(programStack)
@@ -96,7 +101,7 @@ class ScreenStackMultiHostTest {
             assertEquals(emptyList(), outerResults)
             assertEquals(emptyList(), innerResults)
             assertSame(inner, programStack.top)
-            assertTrue(activeStack.top is ManualDetailsScreen)
+            assertTrue(activeStack.top is ManualDetails)
         }
         runOnIdle { activeStack = programStack }
         onNodeWithText("Choose an example file").assertExists()

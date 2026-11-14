@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.softkeys
+package no.grblcommander.desktop.ui.navigation
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -25,7 +25,8 @@ class SoftKeyTest {
         var originalCalls = 0
         var replacementCalls = 0
         val icon = ImageVector.Builder("fixture", 16.dp, 16.dp, 16f, 16f).build()
-        val original = SoftKeyDefinition("Select", icon, { originalCalls++ },
+        val original = SoftKeyDefinition(
+            "Select", icon, { originalCalls++ },
             enabled = { selected.value }, active = { selected.value })
         val modified = SoftKeyModifier { it.copy(label = "Choose") }.modify(original)
         assertEquals("Select", original.label)

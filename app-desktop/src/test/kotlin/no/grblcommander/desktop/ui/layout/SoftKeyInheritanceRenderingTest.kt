@@ -11,7 +11,12 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import no.grblcommander.desktop.ui.navigation.*
-import no.grblcommander.desktop.ui.softkeys.*
+import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
+import no.grblcommander.desktop.ui.navigation.SoftKeyModifier
+import no.grblcommander.desktop.ui.navigation.SoftKeyOverride
+import no.grblcommander.desktop.ui.screens.Editor
+import no.grblcommander.desktop.ui.screens.FileExplorer
 import kotlin.test.*
 
 @OptIn(ExperimentalTestApi::class)
@@ -158,7 +163,7 @@ class SoftKeyInheritanceRenderingTest {
     }
 
     @Test fun editorExplorerShowsIndependentBanksAndRestoresOnClose() = runComposeUiTest {
-        val editor = EditorScreen()
+        val editor = Editor()
         val stack = ScreenStack(editor)
         val explorer = FileExplorer()
         explorer.open(editor)

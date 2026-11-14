@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.navigation
+package no.grblcommander.desktop.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,19 +12,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import no.grblcommander.desktop.ui.softkeys.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.Screen
+import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
 
-/** In-memory fixture, not a filesystem adapter or an executable machine program. */
-data class ExampleFile(val name: String, val contents: String)
-
-internal val exampleFiles = listOf(
-    ExampleFile("example-a.nc", "; Example A\n; Preview only"),
-    ExampleFile("example-b.nc", "; Example B\n; Preview only"),
-)
-
-class EditorScreen : Screen<Unit>(Unit) {
+class Editor : Screen<Unit>(Unit) {
     var draft by mutableStateOf("; Navigation example — no machine operations")
     var selectedFile by mutableStateOf<String?>(null)
         private set

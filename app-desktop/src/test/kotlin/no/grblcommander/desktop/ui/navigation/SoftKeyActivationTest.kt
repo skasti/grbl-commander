@@ -1,10 +1,8 @@
-package no.grblcommander.desktop.ui.softkeys
+package no.grblcommander.desktop.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.input.key.Key
-import no.grblcommander.desktop.ui.navigation.Screen
-import no.grblcommander.desktop.ui.navigation.ScreenStack
 import kotlin.test.*
 
 class SoftKeyActivationTest {

@@ -1,30 +1,53 @@
 # Desktop UI layout
 
-GRBL Commander uses a persistent operator-interface shell implemented with Compose Multiplatform Desktop.
+GRBL Commander uses a persistent operator-interface shell implemented with
+Compose Multiplatform Desktop.
 
 ## Current implementation
 
-The shell is composed of four regions, matching the static HTML/CSS and screenshot design references:
+The shell is composed of four regions, matching the static HTML/CSS and
+screenshot design references:
 
-| Region | Current responsibility |
-| --- | --- |
-| Header | Image logo, application identity, Program/Manual/MDI UI-mode selection, current context and explicit connection status |
-| Main workspace | ScreenStackHost: retains all mode screen stacks and renders only the active stack |
-| Bottom softkeys | Eight fixed slots, F1 through F8 |
-| Right softkeys | Seven fixed slots, R1 through R7 |
+| Region          | Current responsibility                                                                                                 |
+|-----------------|------------------------------------------------------------------------------------------------------------------------|
+| Header          | Image logo, application identity, Program/Manual/MDI UI-mode selection, current context and explicit connection status |
+| Main workspace  | ScreenStackHost: retains all mode screen stacks and renders only the active stack                                      |
+| Bottom softkeys | Eight fixed slots, F1 through F8                                                                                       |
+| Right softkeys  | Seven fixed slots, R1 through R7                                                                                       |
 
-The header spans the entire screen width. The right-side softkeys span the workspace and bottom-softkey row. The main workspace and bottom keys share the remaining width. The initial default sizes are 78 dp for the header, 94 dp for the bottom keys and 142 dp for the right column; they may be adjusted for screen sizes and touch targets.
+The header spans the entire screen width. The right-side softkeys span the
+workspace and bottom-softkey row. The main workspace and bottom keys share the
+remaining width. The initial default sizes are 78 dp for the header, 94 dp for
+the bottom keys and 142 dp for the right column; they may be adjusted for screen
+sizes and touch targets.
 
-`AppShell` owns the persistent regions, accepts a Compose content slot for the workspace, and exposes an optional header-controls slot for UI-mode selection. `ShellState` contains display-only header information. Screen instances own softkey bindings; the shell reads them from the selected persistent stack. The Program, Manual and MDI buttons change presentation context only. Softkeys invoke safe, in-memory UI actions; machine commands are not implemented.
+`AppShell` owns the persistent regions, accepts a Compose content slot for the
+workspace, and exposes an optional header-controls slot for UI-mode selection.
+`ShellState` contains display-only header information. Screen instances own
+softkey bindings; the shell reads them from the selected persistent stack. The
+Program, Manual and MDI buttons change presentation context only. Softkeys
+invoke safe, in-memory UI actions; machine commands are not implemented.
 
-The application icon and header logo use the classpath resource `images/grbl-commander-icon.png` (384 × 256), while the workspace uses `images/grbl-commander-splash.jpg` (1024 × 768). The icon is an optimized RGBA PNG derived from the supplied transparent artwork, preserving transparent corners for the window icon and header. The splash image remains an optimized JPEG derived from the supplied artwork. Images preserve their original proportions with `ContentScale.Fit` rather than stretching or cropping. The operating system displays the application icon according to its window-manager conventions.
+The application icon and header logo use the Compose resource
+`drawable/grbl_commander_icon.png` (384 × 256), while the workspace uses
+`drawable/grbl_commander_splash.jpg` (1024 × 768). Compose generates typed
+resource accessors for these bundled images. Load them through the generated
+`Res.drawable` accessors and `org.jetbrains.compose.resources.painterResource`;
+do not load application images through the deprecated classpath string API.
+The icon is an optimized RGBA PNG derived from the supplied transparent
+artwork, preserving transparent corners for the window icon and header. The
+splash image remains an optimized JPEG derived from the supplied artwork.
+Images preserve their original proportions with `ContentScale.Fit` rather than
+stretching or cropping. The operating system displays the application icon
+according to its window-manager conventions.
 
 ## Screen navigation
 
 `NavigationParent` exposes an owning `screenStack`. Both `ScreenStack` and
 `Screen<R>` implement this interface. `ScreenStack(root)` binds the root after
 the screen has been constructed; access to `root.screenStack` before binding
-fails. The root cannot be removed. An opened screen is bound to exactly one stack
+fails. The root cannot be removed. An opened screen is bound to exactly one
+stack
 until dismissed, and cannot simultaneously belong to multiple stacks. Its
 `screenStack` becomes unavailable on removal.
 
@@ -58,7 +81,8 @@ fills the workspace input region and draws a dark scrim above the preceding
 screen; its visible content may occupy only part of that region. Covered screens
 retain their instance, callbacks, ordinary Compose `remember` state, and
 composition effects. Popping disposes only the removed entry; a later push of
-that instance starts a fresh composition while its instance-owned state survives.
+that instance starts a fresh composition while its instance-owned state
+survives.
 
 Only the top screen of the active mode receives workspace pointer and keyboard
 input. Full-workspace pointer targets prevent clicks in overlay margins from
@@ -136,7 +160,8 @@ Screen-owned callbacks and predicate closures remain attached to their
 original screen unless a modifier explicitly replaces them. Pushing,
 popping and mode selection select the current effective bindings without
 saving/restoring any callback state.
-`AppShell` uses the same `SoftkeyTile` for both banks, preserving all eight bottom
+`AppShell` uses the same `SoftkeyTile` for both banks, preserving all eight
+bottom
 and seven right positions and their dimensions. Blank tiles contain no text or
 icon, including shortcut hints. Disabled labelled tiles retain label, icon and
 hint; active tiles use an accent outline/background and selected semantics.
@@ -148,7 +173,8 @@ It resolves the currently active stack's effective definition at activation
 time, then checks its action and latest `enabled` state. It never stores a
 callback or compares a captured binding identity, and a callback is free to
 navigate during its own execution. `active` does not authorize an action.
-For pointer gestures `SoftkeyTile` uses Compose's `key(stack, entry, definition)`:
+For pointer gestures `SoftkeyTile` uses Compose's
+`key(stack, entry, definition)`:
 the selected stack, existing top navigation entry and effective definition
 determine the clickable composition's lifetime. On a visible navigation,
 mode or definition change Compose disposes the old gesture so releasing it
@@ -159,8 +185,10 @@ gesture key. Predicate-result changes only update the rendered presentation.
 No independent softkey lifecycle or identity model is kept. All navigation
 and activation run on the UI thread.
 
-F1–F8 activate the bottom bank. Shift+F1–F7 activate R1–R7; Shift+F8 and shortcuts
-with Ctrl, Alt or Meta are unmapped. The shell handles mapped key-down events and
+F1–F8 activate the bottom bank. Shift+F1–F7 activate R1–R7; Shift+F8 and
+shortcuts
+with Ctrl, Alt or Meta are unmapped. The shell handles mapped key-down events
+and
 consumes their key-up events, even for blank/disabled slots, before workspace
 children can process them. Every key-down, including OS key-repeat, triggers
 activation; repeated actions require appropriate preconditions in their owners.
@@ -182,15 +210,17 @@ facade, navigator, CompositionLocal, or generic result casts:
 ```kotlin
 class FileExplorer(initialDirectory: String) :
     Screen<FileExplorerResult>(FileExplorerResult.Cancelled) {
-    @Composable override fun Content() { /* file selection UI */ }
+    @Composable
+    override fun Content() { /* file selection UI */
+    }
 
     fun selectFile(filename: String) {
         finish(FileExplorerResult.Selected(filename))
     }
 }
 
-// Inside EditorScreen:
-FileExplorer("/programs").open(this@EditorScreen) { result ->
+// Inside Editor:
+FileExplorer("/programs").open(this@Editor) { result ->
     when (result) {
         is FileExplorerResult.Selected -> loadExampleFile(result.filename)
         FileExplorerResult.Cancelled -> Unit
@@ -210,12 +240,15 @@ the same `Cancelled` result.
 
 ### Runnable example
 
-In **Program** mode, choose **Open navigation example** on the welcome screen, edit the draft, then
+In **Program** mode, choose **Open navigation example** on the welcome screen,
+edit the draft, then
 choose **Open example file**. Each invocation creates a `FileExplorer` screen
 instance. **Cancel** or `pop()` restores the same editor and leaves its draft
-unchanged. Clicking a fixture selects it without closing the explorer. **Select file** or
-**F1 Select** delivers `Selected(filename)`; the editor looks up the in-memory fixture and updates its filename and draft. **Back to
-welcome** completes the editor's `Unit` result. The welcome screen's F1 opens the editor; the editor's F1 opens a file explorer
+unchanged. Clicking a fixture selects it without closing the explorer. **Select
+file** or **F1 Select** delivers `Selected(filename)`; the editor looks up the
+in-memory fixture and updates its filename and draft. **Back to
+welcome** completes the editor's `Unit` result. The welcome screen's F1 opens
+the editor; the editor's F1 opens a file explorer
 and F8 returns to welcome. Explorer F1 Select and F2 Clear selection enable only
 when a fixture is selected; F8 cancels. Explorer replaces the entire bottom bank
 but inherits the editor's right bank. In the in-memory example, the editor also
@@ -224,7 +257,8 @@ relabels and disables the inherited editor Open file action, R2 explicitly
 blanks the inherited Back action, and R7 Info (Shift+F7) toggles its active
 presentation and fixture information. Closing the explorer restores the
 editor's definitions automatically. These are stable per-instance definitions
-with bound callbacks and snapshot-state predicates. The example has no real local
+with bound callbacks and snapshot-state predicates. The example has no real
+local
 or controller filesystem access and cannot execute G-code.
 
 While the explorer is open, use the header to select **Manual**, open **Manual
@@ -237,8 +271,15 @@ expose motion operations.
 
 ## Architectural requirements
 
-As the UI grows, modes own their workspace content and contextual actions, not the global layout. Shared softkey components support labels, icons, disabled/active state and typed slot activation with screen-owned callbacks. The action dispatch layer must remain separate from GRBL transports and physical execution.
+As the UI grows, modes own their workspace content and contextual actions, not
+the global layout. Shared softkey components support labels, icons,
+disabled/active state and typed slot activation with screen-owned callbacks. The
+action dispatch layer must remain separate from GRBL transports and physical
+execution.
 
-Machine position/DRO, functional mode-specific pages, live connection state, programmable actions, and physical CNC operations are planned and are not part of the desktop demonstration.
+Machine position/DRO, functional mode-specific pages, live connection state,
+programmable actions, and physical CNC operations are planned and are not part
+of the desktop demonstration.
 
-See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the repository [AGENTS.md](../AGENTS.md).
+See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the
+repository [AGENTS.md](../AGENTS.md).

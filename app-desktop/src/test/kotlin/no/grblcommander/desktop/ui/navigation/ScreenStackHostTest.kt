@@ -21,6 +21,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
+import no.grblcommander.desktop.ui.screens.Editor
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -83,7 +84,7 @@ class ScreenStackHostTest {
     }
 
     @Test fun editorExampleRestoresDraftOnCancelAndLoadsSelectedFixture() = runComposeUiTest {
-        val editor = EditorScreen()
+        val editor = Editor()
         val stack = ScreenStack(editor)
         setContent { ScreenStackHost(stack) }
         onNodeWithText("Editor draft").performTextReplacement("Unfinished program")
@@ -103,8 +104,8 @@ class ScreenStackHostTest {
     }
 
     @Test fun independentComposeHostsResolveTheirOwnExplorer() = runComposeUiTest {
-        val left = EditorScreen()
-        val right = EditorScreen()
+        val left = Editor()
+        val right = Editor()
         val leftStack = ScreenStack(left)
         val rightStack = ScreenStack(right)
         setContent {
@@ -115,7 +116,7 @@ class ScreenStackHostTest {
         }
         onAllNodesWithText("Open example file")[0].performTouchInput { click() }
         runOnIdle {
-            assertTrue(leftStack.top is FileExplorer)
+            assertTrue(leftStack.top is no.grblcommander.desktop.ui.screens.FileExplorer)
             assertSame(right, rightStack.top)
         }
         onNodeWithText("Cancel").performTouchInput { click() }
@@ -136,12 +137,12 @@ class ScreenStackHostTest {
     }
 
     @Test fun popFromUiDeliversCancellationAndRestoresEditableScreen() = runComposeUiTest {
-        val editor = EditorScreen()
+        val editor = Editor()
         val stack = ScreenStack(editor)
         setContent { ScreenStackHost(stack) }
         onNodeWithText("Editor draft").performTextReplacement("Keep this")
         onNodeWithText("Open example file").performTouchInput { click() }
-        runOnIdle { assertTrue(stack.pop() is FileExplorer) }
+        runOnIdle { assertTrue(stack.pop() is no.grblcommander.desktop.ui.screens.FileExplorer) }
         onNodeWithText("Keep this").assertExists()
         runOnIdle {
             assertSame(editor, stack.top)

@@ -20,9 +20,15 @@ kotlin {
 dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
+    implementation(compose.components.resources)
     testImplementation(kotlin("test-junit5"))
     testImplementation(compose.desktop.uiTestJUnit4)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+compose.resources {
+    publicResClass = true
+    packageOfResClass = "no.grblcommander.desktop.generated.resources"
 }
 
 tasks.test {
@@ -39,7 +45,7 @@ val releaseVersion = providers.environmentVariable("RELEASE_VERSION")
 // the same asset so the packaged executable and its Start menu shortcut match it.
 // No additional image processing tools are required to build locally.
 val windowsIconSource = layout.projectDirectory.file(
-    "src/main/resources/images/grbl-commander-icon.png"
+    "src/main/composeResources/drawable/grbl_commander_icon.png"
 )
 val windowsIconOutput = layout.buildDirectory.file("generated/windows/grbl-commander.ico")
 val generateWindowsIcon = tasks.register("generateWindowsIcon") {

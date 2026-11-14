@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.navigation
+package no.grblcommander.desktop.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -6,13 +6,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import no.grblcommander.desktop.ui.softkeys.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.Screen
+import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
+import no.grblcommander.desktop.ui.navigation.SoftKeyModifier
 
 /** A typed result from the in-memory file chooser. */
 sealed interface FileExplorerResult {
@@ -24,7 +28,8 @@ sealed interface FileExplorerResult {
 class FileExplorer(val initialDirectory: String = "/programs") :
     Screen<FileExplorerResult>(FileExplorerResult.Cancelled) {
 
-    val files: List<ExampleFile> = exampleFiles
+    val files: List<ExampleFile> =
+        exampleFiles
 
     var selectedFile by mutableStateOf<String?>(null)
         private set
@@ -37,7 +42,9 @@ class FileExplorer(val initialDirectory: String = "/programs") :
         BottomSoftKeySlot.F2 to SoftKeyDefinition(
             "Clear selection", action = { selectedFile = null }, enabled = { selectedFile != null },
         ),
-        BottomSoftKeySlot.F8 to SoftKeyDefinition("Cancel", action = { cancel() }),
+        BottomSoftKeySlot.F8 to SoftKeyDefinition(
+            "Cancel",
+            action = { cancel() }),
     )
     override val inheritRightKeys = true
 

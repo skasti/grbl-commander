@@ -1,9 +1,6 @@
 package no.grblcommander.desktop.ui.navigation
 
 import androidx.compose.runtime.Composable
-import no.grblcommander.desktop.ui.softkeys.BottomSoftKeySlot
-import no.grblcommander.desktop.ui.softkeys.RightSoftKeySlot
-import no.grblcommander.desktop.ui.softkeys.SoftKeyOverride
 
 /**
  * A stateful workspace screen with a typed completion result.

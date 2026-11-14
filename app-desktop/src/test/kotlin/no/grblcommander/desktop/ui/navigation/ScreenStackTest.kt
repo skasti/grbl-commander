@@ -1,6 +1,9 @@
 package no.grblcommander.desktop.ui.navigation
 
 import androidx.compose.runtime.Composable
+import no.grblcommander.desktop.ui.screens.Editor
+import no.grblcommander.desktop.ui.screens.FileExplorer
+import no.grblcommander.desktop.ui.screens.FileExplorerResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -68,7 +71,7 @@ class ScreenStackTest {
     }
 
     @Test fun screenOwnedOpenFromBoundRootDeliversTypedResultAfterRestoration() {
-        val editor = EditorScreen()
+        val editor = Editor()
         val stack = ScreenStack(editor)
         editor.draft = "Unfinished edit"
         val results = mutableListOf<FileExplorerResult>()

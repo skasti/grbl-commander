@@ -13,12 +13,16 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
-import no.grblcommander.desktop.ui.navigation.FileExplorer
-import no.grblcommander.desktop.ui.navigation.FileExplorerResult
+import no.grblcommander.desktop.ui.screens.FileExplorer
+import no.grblcommander.desktop.ui.screens.FileExplorerResult
 import no.grblcommander.desktop.ui.navigation.Screen
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
-import no.grblcommander.desktop.ui.softkeys.*
+import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
+import no.grblcommander.desktop.ui.navigation.SoftKeyModifier
+import no.grblcommander.desktop.ui.navigation.SoftKeyOverride
 import kotlin.test.*
 
 @OptIn(ExperimentalTestApi::class)
@@ -61,12 +65,25 @@ class SoftKeyRenderingTest {
         var manualCalls = 0
         val allowed = mutableStateOf(true)
         val program = object : Screen<Unit>(Unit) {
-            override val bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyDefinition("Program action", action = { programCalls++ }, enabled = { allowed.value }))
-            override val rightKeys = mapOf(RightSoftKeySlot.R7 to SoftKeyDefinition("Program info", action = { programCalls++ }))
+            override val bottomKeys = mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyDefinition(
+                    "Program action",
+                    action = { programCalls++ },
+                    enabled = { allowed.value })
+            )
+            override val rightKeys = mapOf(
+                RightSoftKeySlot.R7 to SoftKeyDefinition(
+                    "Program info",
+                    action = { programCalls++ })
+            )
             @Composable override fun Content() {}
         }
         val manual = object : Screen<Unit>(Unit) {
-            override val bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyDefinition("Manual action", action = { manualCalls++ }))
+            override val bottomKeys = mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyDefinition(
+                    "Manual action",
+                    action = { manualCalls++ })
+            )
             @Composable override fun Content() {}
         }
         val programStack = ScreenStack(program)
@@ -102,15 +119,19 @@ class SoftKeyRenderingTest {
         var newCalls = 0
         val allowed = mutableStateOf(true)
         val root = object : Screen<Unit>(Unit) {
-            override val bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyDefinition(
-                "Root action", action = { oldCalls++ }, enabled = { allowed.value },
-            ))
+            override val bottomKeys = mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyDefinition(
+                    "Root action", action = { oldCalls++ }, enabled = { allowed.value },
+                )
+            )
             @Composable override fun Content() {}
         }
         val overlay = object : Screen<Unit>(Unit) {
-            override val bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyDefinition(
-                "Overlay action", action = { newCalls++ },
-            ))
+            override val bottomKeys = mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyDefinition(
+                    "Overlay action", action = { newCalls++ },
+                )
+            )
             @Composable override fun Content() {}
         }
         val stack = ScreenStack(root)
@@ -208,7 +229,8 @@ class SoftKeyRenderingTest {
         val stack = ScreenStack(screen)
         setContent {
             MaterialTheme {
-                SoftkeyTile(BottomSoftKeySlot.F1, stack,
+                SoftkeyTile(
+                    BottomSoftKeySlot.F1, stack,
                     { stack }, Modifier.size(120.dp, 80.dp))
             }
         }
@@ -226,11 +248,19 @@ class SoftKeyRenderingTest {
         var programCalls = 0
         var manualCalls = 0
         val program = object : Screen<Unit>(Unit) {
-            override val bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyDefinition("Program", action = { programCalls++ }))
+            override val bottomKeys = mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyDefinition(
+                    "Program",
+                    action = { programCalls++ })
+            )
             @Composable override fun Content() {}
         }
         val manual = object : Screen<Unit>(Unit) {
-            override val bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyDefinition("Manual", action = { manualCalls++ }))
+            override val bottomKeys = mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyDefinition(
+                    "Manual",
+                    action = { manualCalls++ })
+            )
             @Composable override fun Content() {}
         }
         val programStack = ScreenStack(program)
@@ -260,7 +290,11 @@ class SoftKeyRenderingTest {
             @Composable override fun Content() {}
         }
         val child = object : Screen<Unit>(Unit) {
-            override val bottomKeys = mapOf(BottomSoftKeySlot.F1 to SoftKeyDefinition("Child", action = { childCalls++ }))
+            override val bottomKeys = mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyDefinition(
+                    "Child",
+                    action = { childCalls++ })
+            )
             @Composable override fun Content() {}
         }
         val stack = ScreenStack(root)

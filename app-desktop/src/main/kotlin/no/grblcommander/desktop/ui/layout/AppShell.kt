@@ -1,44 +1,16 @@
 package no.grblcommander.desktop.ui.layout
 
-import androidx.compose.foundation.clickable
-import androidx.compose.material3.Icon
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.Role
-import androidx.compose.runtime.rememberUpdatedState
-import no.grblcommander.desktop.ui.navigation.ScreenStack
-import no.grblcommander.desktop.ui.softkeys.*
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
-import androidx.compose.runtime.key
+import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.layout.ContentScale
-import no.grblcommander.desktop.ui.BrandAssets
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import no.grblcommander.desktop.ui.navigation.ScreenStack
+import no.grblcommander.desktop.ui.navigation.handleSoftKeyEvent
 
 internal object ShellColors {
     val frame = Color(0xFF0D1420)
@@ -81,125 +53,3 @@ fun AppShell(
     }
 }
 
-@Composable
-private fun ShellHeader(
-    state: ShellState,
-    modifier: Modifier = Modifier,
-    headerControls: @Composable () -> Unit = {},
-) {
-    Row(
-        modifier = modifier.background(ShellColors.header).padding(horizontal = 22.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
-        ) {
-            Image(
-                painter = painterResource(BrandAssets.ICON),
-                contentDescription = "GRBL Commander logo",
-                modifier = Modifier.width(72.dp).height(48.dp),
-                contentScale = ContentScale.Fit,
-            )
-            Column {
-                Text("GRBL", color = ShellColors.text, fontWeight = FontWeight.Black, fontSize = 17.sp)
-                Text("COMMANDER", color = ShellColors.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.4.sp)
-            }
-        }
-        Box(Modifier.width(1.dp).height(38.dp).background(ShellColors.outline))
-        Column(Modifier.weight(1f)) {
-            Text(state.title, color = ShellColors.text, fontWeight = FontWeight.SemiBold, fontSize = 21.sp)
-            Text(
-                state.context,
-                color = ShellColors.muted,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        headerControls()
-        Box(
-            Modifier
-                .border(1.dp, ShellColors.outline, RoundedCornerShape(6.dp))
-                .background(ShellColors.workspace, RoundedCornerShape(6.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-        ) {
-            Text(state.connectionStatus, color = ShellColors.muted, fontSize = 11.sp, maxLines = 1)
-        }
-    }
-}
-
-@Composable
-private fun BottomSoftkeys(stack: ScreenStack, currentStack: () -> ScreenStack, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier.background(ShellColors.bottom).padding(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        BottomSoftKeySlot.entries.forEach { slot ->
-            SoftkeyTile(slot, stack, currentStack, Modifier.weight(1f).fillMaxHeight())
-        }
-    }
-}
-
-@Composable
-private fun RightSoftkeys(stack: ScreenStack, currentStack: () -> ScreenStack, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.background(ShellColors.right).padding(9.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        RightSoftKeySlot.entries.forEach { slot ->
-            SoftkeyTile(slot, stack, currentStack, Modifier.weight(1f).fillMaxWidth())
-        }
-    }
-}
-
-@Composable
-internal fun SoftkeyTile(
-    slot: SoftKeySlot,
-    stack: ScreenStack,
-    currentStack: () -> ScreenStack,
-    modifier: Modifier = Modifier,
-) {
-    val definition = when (slot) {
-        is BottomSoftKeySlot -> stack.effectiveBottomKeys[slot]
-        is RightSoftKeySlot -> stack.effectiveRightKeys[slot]
-    } ?: SoftKeyDefinition.Blank
-    // Recompose/dispose clickable when the visible screen's attachment lifetime
-    // or effective definition changes. Ordinary enabled/active state does not
-    // change these keys and is observed directly by Compose.
-    key(stack, stack.entries.last(), definition) {
-        // Snapshot reads occur in composition, including predicates retained by modifiers.
-        val enabled = definition.enabled() && definition.action != null
-        val active = definition.active()
-        val foreground = if (enabled) ShellColors.text else ShellColors.muted
-        Column(
-            modifier = modifier
-                .testTag("softkey-${slot.shortcut}")
-                .semantics { selected = active }
-                .border(1.dp, if (active) ShellColors.accent else ShellColors.outline, RoundedCornerShape(6.dp))
-                .background(if (active) ShellColors.header else ShellColors.key, RoundedCornerShape(6.dp))
-                .clickable(enabled = enabled, role = Role.Button) {
-                    activateSoftKey(currentStack, slot)
-                }
-                .padding(7.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            // Undefined and explicit Blank slots have no text or icon, including hints.
-            if (definition.label.isNotEmpty() || definition.icon != null) {
-                Text(slot.shortcut, color = ShellColors.muted, fontSize = 10.sp)
-                Spacer(Modifier.height(7.dp))
-                definition.icon?.let { Icon(it, contentDescription = null, tint = foreground, modifier = Modifier.height(20.dp)) }
-                Text(
-                    definition.label,
-                    color = foreground,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
