@@ -18,7 +18,7 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":machine-communication"))
+    implementation(project(":infrastructure"))
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
     implementation(compose.components.resources)

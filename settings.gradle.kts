@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "grbl-commander"
 include(":app-desktop")
-include(":machine-communication")
+include(":infrastructure")
