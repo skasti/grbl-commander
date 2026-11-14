@@ -806,7 +806,13 @@ and `machine-communication`, a Kotlin/JVM module without UI dependencies.
 `app-desktop` depends on `machine-communication`. Its `MachineTransport` contract
 defines a one-shot byte connection. `TcpTransport` implements cancellable
 non-blocking TCP with bounded connect/write timeouts, EOF detection and
-idempotent close. Serial and session coordination are planned in issue #17. The `core` and `infrastructure` modules in the example below
+idempotent close. `SerialTransport` uses jSerialComm with explicit port, baud,
+data/stop bits, parity, flow control and DTR/RTS configuration. Non-blocking
+serial reads/writes allow cancellation and bounded write deadlines; native open
+is dispatched to the I/O pool. USB disconnect notifications invalidate the
+transport. Native driver calls may delay cancellation until the driver returns.
+Serial lifecycle tests use an injected native adapter; physical ports are not
+verified. Session coordination is planned in issue #17. The `core` and `infrastructure` modules in the example below
 describe the intended organization and are not implemented.
 
 ### Desktop UI package responsibilities

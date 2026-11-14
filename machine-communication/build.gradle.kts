@@ -6,6 +6,7 @@ plugins {
 kotlin { jvmToolchain(21) }
 
 dependencies {
+    implementation("com.fazecast:jSerialComm:2.11.2")
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     testImplementation(kotlin("test-junit5"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
