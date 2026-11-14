@@ -6,6 +6,9 @@ import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runInterruptible
@@ -30,6 +33,9 @@ class TcpTransport(
     private val closed = AtomicBoolean()
     private val channel = AtomicReference<SocketChannel?>()
     private val writer = Mutex()
+
+    override val isConnected: Boolean
+        get() = channel.get()?.let { !closed.get() && it.isOpen && it.isConnected } == true
 
     override suspend fun connect() {
         check(started.compareAndSet(false, true)) { "Transport is one-shot" }
@@ -64,19 +70,24 @@ class TcpTransport(
     }
 
     override suspend fun write(bytes: ByteArray) {
-        try {
-            writer.withLock {
+        writer.withLock {
+            try {
                 withTimeout(writeTimeoutMillis) {
                     val socket = connectedChannel()
                     val buffer = ByteBuffer.wrap(bytes)
                     while (buffer.hasRemaining()) {
+                        currentCoroutineContext().ensureActive()
                         if (socket.write(buffer) == 0) delay(5)
                     }
                 }
+            } catch (cancelled: CancellationException) {
+                // NIO cancellation does not make the socket unusable. The session
+                // owns command-delivery uncertainty and any partial line prefix.
+                throw cancelled
+            } catch (error: Throwable) {
+                try { close() } catch (cleanup: Throwable) { error.addSuppressed(cleanup) }
+                throw error
             }
-        } catch (error: Throwable) {
-            close()
-            throw error
         }
     }
 

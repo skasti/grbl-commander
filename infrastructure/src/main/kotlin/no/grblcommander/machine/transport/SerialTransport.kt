@@ -2,6 +2,9 @@ package no.grblcommander.machine.transport
 
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runInterruptible
@@ -23,6 +26,8 @@ class SerialTransport internal constructor(
     private val closed = AtomicBoolean()
     private val connected = AtomicBoolean()
     private val writer = Mutex()
+
+    override val isConnected: Boolean get() = connected.get() && !closed.get()
 
     override suspend fun connect() {
         check(started.compareAndSet(false, true)) { "Transport is one-shot" }
@@ -60,21 +65,25 @@ class SerialTransport internal constructor(
     }
 
     override suspend fun write(bytes: ByteArray) {
-        try {
-            writer.withLock {
+        writer.withLock {
+            try {
                 withTimeout(writeTimeoutMillis) {
                     checkConnected()
                     var offset = 0
                     while (offset < bytes.size) {
+                        currentCoroutineContext().ensureActive()
                         val count = adapter.write(bytes, offset)
                         if (count < 0) throw IOException("Serial port disconnected or write failed")
                         offset += count
                         if (count == 0) delay(5)
                     }
                 }
+            } catch (cancelled: CancellationException) {
+                // Non-blocking polling can be cancelled without closing the port.
+                throw cancelled
+            } catch (error: Throwable) {
+                terminate(error)
             }
-        } catch (error: Throwable) {
-            terminate(error)
         }
     }
 

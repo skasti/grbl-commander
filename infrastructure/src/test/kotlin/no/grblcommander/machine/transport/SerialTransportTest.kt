@@ -10,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 
 class SerialTransportTest {
     private class Port : SerialPortAdapter {
@@ -20,6 +21,8 @@ class SerialTransportTest {
         var closes = 0
         val written = mutableListOf<Byte>()
         val readStarted = CompletableDeferred<Unit>()
+        val writeStarted = CompletableDeferred<Unit>()
+        var afterWrite: (() -> Unit)? = null
         override fun open(configuration: SerialConfiguration): Boolean {
             this.configuration = configuration
             return opens
@@ -31,6 +34,8 @@ class SerialTransportTest {
         override fun write(bytes: ByteArray, offset: Int): Int {
             val n = minOf(writes, bytes.size - offset)
             if (n > 0) written.addAll(bytes.slice(offset until offset + n))
+            afterWrite?.invoke()
+            writeStarted.complete(Unit)
             return n
         }
         override fun close() { closes++ }
@@ -66,15 +71,43 @@ class SerialTransportTest {
                 if (read) transport.read(ByteArray(1)) else transport.write(byteArrayOf(63))
             }
             assertEquals(1, port.closes)
+            assertFalse(transport.isConnected)
         }
     }
 
-    @Test fun `stalled writes have a deadline`() = runBlocking<Unit> {
+    @Test fun `stalled write deadline preserves the port for later realtime writes`() = runBlocking<Unit> {
         val port = Port().apply { writes = 0 }
         val transport = SerialTransport(SerialConfiguration("test"), port, writeTimeoutMillis = 30)
         transport.connect()
-        assertFailsWith<kotlinx.coroutines.TimeoutCancellationException> { transport.write(byteArrayOf(63)) }
-        assertEquals(1, port.closes)
+        try {
+            assertFailsWith<kotlinx.coroutines.TimeoutCancellationException> { transport.write(byteArrayOf(63)) }
+            assertEquals(0, port.closes)
+            assertTrue(transport.isConnected)
+            port.writes = 1
+            transport.write(byteArrayOf(33))
+            assertEquals(listOf(33.toByte()), port.written)
+        } finally { transport.close() }
+        assertFalse(transport.isConnected)
+    }
+
+    @Test fun `cancelled partial write preserves port and does not replay its prefix`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            val port = Port().apply { writes = 1; afterWrite = { writes = 0 } }
+            val transport = SerialTransport(SerialConfiguration("test"), port)
+            transport.connect()
+            try {
+                val line = launch { transport.write("\$I\n".toByteArray()) }
+                port.writeStarted.await()
+                line.cancelAndJoin()
+                assertTrue(transport.isConnected)
+                assertEquals(0, port.closes)
+                assertEquals(listOf('$'.code.toByte()), port.written)
+                port.afterWrite = null
+                port.writes = 1
+                transport.write(byteArrayOf(33))
+                assertEquals(listOf('$'.code.toByte(), 33.toByte()), port.written)
+            } finally { transport.close() }
+        }
     }
 
     @Test fun `cancellation releases idle reader`() = runBlocking<Unit> {

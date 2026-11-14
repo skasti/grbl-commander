@@ -9,11 +9,15 @@ internal class InMemoryTransport : MachineTransport {
     val writes = Channel<String>(Channel.UNLIMITED)
     var closed = false
         private set
+    private var connected = false
+    override val isConnected: Boolean get() = connected && !closed
     var autoStatus = true
+    var statusReport = "<Idle|MPos:0,0,0|FS:0,0>"
+    var localWriteFailure: Throwable? = null
     var onWrite: (suspend (String) -> Unit)? = null
     var writeFailure = false
     private var remaining = byteArrayOf()
-    override suspend fun connect() { check(!closed) }
+    override suspend fun connect() { check(!closed); connected = true }
     override suspend fun read(buffer: ByteArray): Int {
         if (remaining.isEmpty()) remaining = input.receiveCatching().getOrNull() ?: return -1
         val count = minOf(buffer.size, remaining.size)
@@ -22,13 +26,17 @@ internal class InMemoryTransport : MachineTransport {
         return count
     }
     override suspend fun write(bytes: ByteArray) {
-        if (closed || writeFailure) throw IOException("write failed")
+        if (closed || writeFailure) {
+            close()
+            throw IOException("write failed")
+        }
+        localWriteFailure?.let { localWriteFailure = null; throw it }
         val text = bytes.decodeToString()
         writes.send(text)
         onWrite?.invoke(text)
-        if (text == "?" && autoStatus) emit("<Idle|MPos:0,0,0|FS:0,0>\r\n")
+        if (text == "?" && autoStatus) emit("$statusReport\r\n")
     }
     suspend fun emit(text: String) { input.send(text.toByteArray()) }
-    fun disconnect() { input.close() }
+    fun disconnect() { connected = false; input.close() }
     override fun close() { closed = true; input.close() }
 }

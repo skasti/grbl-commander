@@ -5,12 +5,16 @@ import java.net.ServerSocket
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 
 class TcpTransportTest {
     @Test fun `loopback bytes EOF and one-shot lifecycle`() = runBlocking<Unit> {
@@ -30,6 +34,7 @@ class TcpTransportTest {
                 }
                 val bytes = ByteArray(1)
                 while (transport.read(bytes) == 0) { /* await EOF */ }
+                assertFalse(transport.isConnected)
                 assertFailsWith<IOException> { transport.write(byteArrayOf(63)) }
                 assertFailsWith<IllegalStateException> { transport.connect() }
                 transport.close()
@@ -50,6 +55,29 @@ class TcpTransportTest {
         val transport = TcpTransport("127.0.0.1", 1)
         transport.close()
         assertFailsWith<IOException> { transport.connect() }
+    }
+
+    @Test fun `cancelled writer preserves TCP connection for a later hold`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            ServerSocket(0).use { server ->
+                val peer = async(Dispatchers.IO) { server.accept() }
+                val transport = TcpTransport("127.0.0.1", server.localPort)
+                transport.connect()
+                try {
+                    peer.await().use { socket ->
+                        val writer = launch {
+                            currentCoroutineContext().cancel()
+                            transport.write("\$I\n".toByteArray())
+                        }
+                        writer.join()
+                        assertTrue(transport.isConnected)
+                        transport.write(byteArrayOf(33))
+                        socket.soTimeout = 1_000
+                        assertEquals(33, socket.getInputStream().read())
+                    }
+                } finally { transport.close() }
+            }
+        }
     }
 
     @Test fun `cancelling reader releases connection`() = runBlocking<Unit> {

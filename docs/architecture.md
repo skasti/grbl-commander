@@ -202,7 +202,11 @@ idempotent close. `SerialTransport` uses jSerialComm with explicit port, baud,
 data/stop bits, parity, flow control and DTR/RTS configuration. Non-blocking
 serial reads/writes allow cancellation and bounded write deadlines; native open
 is dispatched to the I/O pool. USB disconnect notifications invalidate the
-transport. Native driver calls may delay cancellation until the driver returns.
+transport. `MachineTransport.isConnected` reports whether the transport is known
+usable; it is not proof of controller responsiveness. Cancelling or timing out a
+write preserves a usable connection but can leave a partial/uncertain write;
+actual I/O failures close it before propagating. Local argument rejection sends
+no bytes. Native driver calls may delay cancellation until the driver returns.
 Serial lifecycle tests use an injected native adapter; physical ports are not
 verified. `GrblProtocol` parses acknowledgments, numeric errors/alarms, startup
 banners and status reports, retaining optional/unknown fields. Incremental
