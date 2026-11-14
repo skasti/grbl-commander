@@ -225,15 +225,50 @@ serialized with one acknowledgment outstanding. `CommandAcknowledgment` reports
 acceptance or an error code, plus information lines observed during that request;
 these lines may include unsolicited controller notifications. It is not an
 operation-completion result. Real-time writes bypass normal admission and its
-acknowledgment wait; writes are atomic per bounded line/real-time byte.
+acknowledgment wait; writes are serialized per bounded line/real-time byte,
+without holding the write lock during the acknowledgment wait.
 
-A timeout, admitted-command cancellation, disconnect, alarm, unexpected
-acknowledgment, startup banner after connection, or explicit soft reset
-terminates the session and fails pending work. Cancellation before normal-command
-admission sends nothing. There is no retry/replay or automatic reconnection:
-construct a fresh transport and session after resolving uncertainty. Close also
-cancels owned coroutines; `awaitClosed()` joins them. The session is a child of
-its supplied application scope and closes on parent cancellation.
+An `ALARM:n` notification keeps the session connected and exposes `alarmCode`,
+invalidating the older status report. The code remains until a subsequent
+non-Alarm status report confirms recovery; `ok` from `$X` alone does not clear
+it. There is no automatic unlock, homing, reset or retry. With no outstanding
+line, application services may submit explicitly requested recovery commands.
+
+An alarm interrupts the active line and invalidates already queued normal
+commands (`CommandCorrelationException`). If transmission began, the session
+retains that line's response slot and sets `normalCommandsSynchronized = false`.
+New normal lines are rejected until the expected late `ok`/`error` has been
+consumed; it cannot acknowledge a later recovery command. The same rule applies
+to normal-command timeout, cancellation, response-collection limit overflow,
+or an uncertain write on a usable transport. Cancellation before write admission or local argument rejection needs
+no response drain. A completed `error:n` acknowledgment rejects only its line
+and preserves subsequent communication.
+
+Status queries and real-time commands remain available while normal correlation
+is unresolved. A status report is not a line acknowledgment and cannot clear
+that uncertainty. If the abandoned line never responds (including a partial
+line without a terminator), normal traffic remains blocked: the operator must
+explicitly reset/re-establish the session. An unsolicited acknowledgment with no
+outstanding line also blocks normal traffic until explicit reset/reconnection;
+the session does not guess how many responses to discard. There is no replay of
+interrupted work, and invalidated queued lines require explicit resubmission.
+
+`sendRealtime()` distinguishes cancellation before write admission (no bytes
+sent), local argument rejection, and attempted writes with potentially unknown
+outcomes. The original exception propagates. If the transport remains usable,
+the session records `lastRealtimeFailure` separately from controller messages
+and fatal `failure`, without disabling normal or other real-time traffic. No
+failed real-time command is retried. A missing status response alone also leaves
+transport/control access available; consumers must check observation freshness.
+
+Known transport loss, reader/framing failure and post-connection startup end the
+session. An explicitly requested soft reset also ends it after successful or uncertain
+transmission, since it may invalidate controller state and correlation.
+Cancellation before reset admission and local rejection before I/O do not reset
+or invalidate the session.
+No automatic reset/reconnect occurs. Close cancels owned coroutines;
+`awaitClosed()` joins them. The session is a child of its supplied application
+scope and closes on parent cancellation.
 
 Snapshots retain the last report on communication loss with FAILED/CLOSED health;
 a controller alarm/restart clears the invalid report. Consumers must check

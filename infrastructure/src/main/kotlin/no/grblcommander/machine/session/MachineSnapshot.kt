@@ -11,6 +11,12 @@ data class MachineSnapshot(
     val reportSequence: Long = 0,
     val lastMessage: String? = null,
     val failure: String? = null,
+    /** Latest ALARM code; cleared only by a subsequent non-Alarm status report. */
+    val alarmCode: Int? = null,
+    /** False while an abandoned line's acknowledgment is outstanding or correlation is lost. */
+    val normalCommandsSynchronized: Boolean = true,
+    /** Local write/query diagnostic, separate from controller messages and fatal failure. */
+    val lastRealtimeFailure: String? = null,
 ) {
     enum class Connection { DISCONNECTED, CONNECTING, CONNECTED, FAILED, CLOSED }
 }

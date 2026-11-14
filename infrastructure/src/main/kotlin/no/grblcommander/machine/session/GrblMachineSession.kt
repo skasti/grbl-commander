@@ -38,6 +38,8 @@ class GrblMachineSession(
     private class Pending {
         val response = CompletableDeferred<CommandAcknowledgment>()
         val lines = mutableListOf<String>()
+        var transmissionStarted = false
+        var abandoned = false
     }
 
     private val gate = Any()
@@ -50,6 +52,7 @@ class GrblMachineSession(
     private val statusQueries = Mutex()
     private val writes = Mutex()
     private var pending: Pending? = null
+    private var commandEpoch = 0L
 
     init {
         owner.invokeOnCompletion { cause ->
@@ -94,40 +97,56 @@ class GrblMachineSession(
 
     override suspend fun executeLine(command: String): CommandAcknowledgment {
         val bytes = GrblProtocol.encodeCommand(command)
+        val epoch = synchronized(gate) { checkNormalCommands(); commandEpoch }
         // Cancellation while waiting for admission cannot have transmitted anything.
         return normalCommands.withLock {
             val request = Pending()
             synchronized(gate) {
-                checkUsable()
+                checkNormalCommands()
+                if (epoch != commandEpoch) throw CommandCorrelationException("Queued line interrupted; submit explicitly again")
                 pending = request
             }
             try {
                 withTimeout(commandTimeoutMillis) {
                     writes.withLock {
-                        synchronized(gate) { checkUsable() }
+                        currentCoroutineContext().ensureActive()
+                        synchronized(gate) {
+                            checkUsable()
+                            if (request.abandoned) throw CommandCorrelationException("Line interrupted before transmission")
+                            request.transmissionStarted = true
+                        }
                         transport.write(bytes)
                     }
                     request.response.await()
                 }
             } catch (error: Throwable) {
-                // After admission bytes may have reached the controller. Correlation is lost.
-                terminate(error)
+                if (!transport.isConnected) terminate(error)
+                else synchronized(gate) { abandon(request, error, knownNotSent = error is IllegalArgumentException) }
                 throw error
             }
         }
     }
 
     override suspend fun sendRealtime(command: RealtimeCommand) {
+        var attempted = false
         try {
             writes.withLock {
+                currentCoroutineContext().ensureActive()
                 synchronized(gate) { checkUsable() }
+                attempted = true
                 transport.write(byteArrayOf(command.byte))
+                synchronized(gate) { mutableState.value = state.value.copy(lastRealtimeFailure = null) }
                 if (command == RealtimeCommand.SOFT_RESET) {
                     terminate(IOException("Controller reset; command outcomes are uncertain"))
                 }
             }
         } catch (error: Throwable) {
-            terminate(error)
+            if (attempted) {
+                if (!transport.isConnected || (command == RealtimeCommand.SOFT_RESET && error !is IllegalArgumentException)) {
+                    terminate(error)
+                }
+                else recordRealtimeFailure("$command", error)
+            }
             throw error
         }
     }
@@ -142,8 +161,20 @@ class GrblMachineSession(
                 checkNotNull(observed.status)
             }
         } catch (error: Throwable) {
-            terminate(error)
+            if (!transport.isConnected) terminate(error)
+            else recordRealtimeFailure("Status query", error)
             throw error
+        }
+    }
+
+    private fun recordRealtimeFailure(operation: String, error: Throwable) = synchronized(gate) {
+        if (!terminal()) {
+            val detail = when (error) {
+                is IllegalArgumentException -> "local rejection"
+                is CancellationException -> "cancelled; outcome may be unknown"
+                else -> "failed; outcome may be unknown"
+            }
+            mutableState.value = state.value.copy(lastRealtimeFailure = "$operation $detail: ${error.message}")
         }
     }
 
@@ -169,15 +200,19 @@ class GrblMachineSession(
                 mutableState.value = state.value.copy(
                     status = message.report, reportedAt = Instant.now(),
                     reportSequence = state.value.reportSequence + 1,
+                    alarmCode = state.value.alarmCode.takeIf { message.report.executionState.substringBefore(':') == "Alarm" },
                 )
             }
             GrblMessage.Ok -> acknowledge(null)
             is GrblMessage.Error -> acknowledge(message.code)
             is GrblMessage.Alarm -> {
-                mutableState.value = state.value.copy(lastMessage = line, status = null, reportedAt = null)
-                if (state.value.connection == Connection.CONNECTED) {
-                    terminate(IOException("Controller alarm ${message.code}; command outcomes are uncertain"))
-                }
+                mutableState.value = state.value.copy(
+                    lastMessage = line, status = null, reportedAt = null, alarmCode = message.code,
+                )
+                // ALARM is not an acknowledgment. Never free its line's response slot
+                // for a new command until the expected ok/error has been drained.
+                commandEpoch++
+                pending?.let { abandon(it, CommandCorrelationException("Controller alarm ${message.code}; line outcome unknown")) }
             }
             is GrblMessage.Startup -> {
                 mutableState.value = state.value.copy(lastMessage = line, status = null, reportedAt = null)
@@ -187,9 +222,10 @@ class GrblMachineSession(
             }
             is GrblMessage.Information -> {
                 mutableState.value = state.value.copy(lastMessage = line)
-                pending?.let {
-                    if (it.lines.size >= 256) throw IOException("Too many response lines without acknowledgment")
-                    it.lines.add(line)
+                pending?.takeUnless { it.abandoned }?.let {
+                    if (it.lines.size >= 256) {
+                        abandon(it, CommandCorrelationException("Response line limit exceeded; awaiting the line acknowledgment"))
+                    } else it.lines.add(line)
                 }
             }
         }
@@ -203,10 +239,34 @@ class GrblMachineSession(
                 mutableState.value = state.value.copy(lastMessage = errorCode?.let { "error:$it" } ?: "ok")
                 return
             }
-            throw IOException("Unsolicited acknowledgment; command correlation lost")
+            commandEpoch++
+            mutableState.value = state.value.copy(normalCommandsSynchronized = false)
+            return
         }
         pending = null
+        mutableState.value = state.value.copy(normalCommandsSynchronized = true)
         request.response.complete(CommandAcknowledgment(errorCode, Collections.unmodifiableList(request.lines.toList())))
+    }
+
+    /** Keep one tombstone for a transmitted line; only its acknowledgment can drain it. */
+    private fun abandon(request: Pending, error: Throwable, knownNotSent: Boolean = false) {
+        if (pending !== request || (request.abandoned && !knownNotSent)) return
+        request.abandoned = true
+        commandEpoch++
+        if (request.transmissionStarted && !knownNotSent) {
+            mutableState.value = state.value.copy(normalCommandsSynchronized = false)
+        } else {
+            pending = null
+            mutableState.value = state.value.copy(normalCommandsSynchronized = true)
+        }
+        request.response.completeExceptionally(error)
+    }
+
+    private fun checkNormalCommands() {
+        checkUsable()
+        if (!state.value.normalCommandsSynchronized) {
+            throw CommandCorrelationException("Normal command correlation unresolved; real-time/status remain available")
+        }
     }
 
     private fun checkUsable(allowConnecting: Boolean = false) {
@@ -223,7 +283,10 @@ class GrblMachineSession(
         synchronized(gate) {
             if (terminal()) return
             try { transport.close() } catch (cleanup: Throwable) { error.addSuppressed(cleanup) }
-            mutableState.value = state.value.copy(connection = connection, failure = error.message ?: error.javaClass.simpleName)
+            mutableState.value = state.value.copy(
+                connection = connection, failure = error.message ?: error.javaClass.simpleName,
+                normalCommandsSynchronized = false,
+            )
             pending?.response?.completeExceptionally(error)
             pending = null
             owner.cancel(CancellationException("Session terminated", error))

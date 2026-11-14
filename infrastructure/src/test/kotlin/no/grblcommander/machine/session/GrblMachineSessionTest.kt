@@ -115,29 +115,44 @@ class GrblMachineSessionTest {
         }
     }
 
-    @Test fun `admitted cancellation terminates correlation`() = runBlocking<Unit> {
+    @Test fun `admitted cancellation drains its response without closing realtime access`() = runBlocking<Unit> {
         withTimeout(5_000) {
             val transport = InMemoryTransport()
             val session = connected(this, transport)
             val admitted = launch { session.executeLine("\$I") }
             assertEquals("\$I\n", transport.writes.receive())
-            admitted.cancelAndJoin()
-            session.awaitClosed()
-            assertEquals(Connection.FAILED, session.state.value.connection)
-            assertTrue(transport.closed)
-            assertFailsWith<IOException> { session.executeLine("G4 P0") }
+            try {
+                admitted.cancelAndJoin()
+                assertEquals(Connection.CONNECTED, session.state.value.connection)
+                assertFalse(session.state.value.normalCommandsSynchronized)
+                assertFalse(transport.closed)
+                assertFailsWith<CommandCorrelationException> { session.executeLine("G4 P0") }
+                session.sendRealtime(RealtimeCommand.FEED_HOLD)
+                assertEquals("!", transport.writes.receive())
+                transport.emit("ok\n")
+                session.state.first { it.normalCommandsSynchronized }
+            } finally { session.close(); session.awaitClosed() }
         }
     }
 
-    @Test fun `missing acknowledgment has terminal deadline`() = runBlocking<Unit> {
+    @Test fun `missing acknowledgment blocks normal lines but keeps status and realtime access`() = runBlocking<Unit> {
         withTimeout(5_000) {
             val transport = InMemoryTransport()
             val session = GrblMachineSession(transport, this, commandTimeoutMillis = 30)
             session.connect()
-            assertFailsWith<kotlinx.coroutines.TimeoutCancellationException> { session.executeLine("\$I") }
-            session.awaitClosed()
-            assertTrue(transport.closed)
-            assertEquals(Connection.FAILED, session.state.value.connection)
+            try {
+                assertFailsWith<kotlinx.coroutines.TimeoutCancellationException> { session.executeLine("\$I") }
+                assertEquals("?", transport.writes.receive())
+                assertEquals("\$I\n", transport.writes.receive())
+                assertEquals(Connection.CONNECTED, session.state.value.connection)
+                assertFalse(session.state.value.normalCommandsSynchronized)
+                assertFailsWith<CommandCorrelationException> { session.executeLine("\$G") }
+                assertEquals("Idle", session.queryStatus().executionState)
+                assertFalse(session.state.value.normalCommandsSynchronized) // status is not an acknowledgment
+                assertEquals("?", transport.writes.receive())
+                transport.emit("error:9\n")
+                session.state.first { it.normalCommandsSynchronized }
+            } finally { session.close(); session.awaitClosed() }
         }
     }
 
@@ -151,9 +166,9 @@ class GrblMachineSessionTest {
         }
     }
 
-    @Test fun `alarm restart reset and unsolicited acknowledgment invalidate correlation`() = runBlocking<Unit> {
+    @Test fun `restart and explicit reset terminate the session`() = runBlocking<Unit> {
         withTimeout(5_000) {
-            for (notification in listOf("ALARM:1\n", "GrblHAL 1.1f ['$' for help]\n", "ok\n", "reset")) {
+            for (notification in listOf("GrblHAL 1.1f ['$' for help]\n", "reset")) {
                 val transport = InMemoryTransport()
                 val session = connected(this, transport)
                 if (notification == "reset") session.sendRealtime(RealtimeCommand.SOFT_RESET)

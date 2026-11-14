@@ -78,10 +78,28 @@ verification on the target hardware.
 
 A connection awaits a controller status report without reset/unlock. Normal
 commands return acknowledgments, not proof that an operation finished. Real-time
-commands bypass queued normal lines. Communication uncertainty terminates the
-session; no commands are replayed and reconnection requires a fresh instance.
+commands bypass queued normal lines, including during an alarm or uncertain
+normal-command outcome. `ALARM:n` is exposed as `state.alarmCode` and keeps
+communication available; no unlock, homing or reset happens automatically.
+
+An interrupted transmitted line retains its response slot, and
+`state.normalCommandsSynchronized` is false until its late `ok`/`error` has been
+drained. Queued lines invalidated by an alarm/uncertainty are rejected, never
+replayed; explicitly submit any subsequent recovery command. Status alone does
+not restore line correlation. If the old acknowledgment never arrives, normal
+traffic stays blocked until an explicitly requested reset/re-established session;
+real-time/status access remains available. A regular `error:n` rejects only its
+own command.
+
+Local errors and write cancellation preserve a usable transport; an attempted
+real-time write may have an unknown outcome and is never automatically retried.
+`state.lastRealtimeFailure` records recoverable real-time/query diagnostics.
+Actual transport loss marks the session FAILED. Post-connection controller
+restart or a successfully/uncertainly transmitted explicit soft reset also
+requires a fresh session; local reset rejection before I/O preserves it.
 Observe `session.state` (`StateFlow`), checking connection health and report
-timestamps before treating retained observations as live. Close and await
+timestamps before treating retained observations as live. Only a non-Alarm
+status report clears a reported alarm code. Close and await
 `session.awaitClosed()` when disposing the owning service.
 
 Hardware-free transport/parser/session tests run on Linux and Windows:
@@ -105,7 +123,7 @@ The opt-in `simulatorTest` task is separate from `test`/`check` and fails if its
 binary is missing. Each test process gets an isolated working directory/EEPROM,
 uses `-p <port>` for raw TCP, waits for readiness with a deadline and is terminated
 on success or failure. Tests cover `$I` identification, parsed `?` status, `$G`
-(non-motion modal reporting), peer disconnection and process cleanup. Linux CI
+(non-motion modal reporting), command rejection followed by further communication, peer disconnection and process cleanup. Linux CI
 runs this as a separate job. Native serial library loading/enumeration and the
 serial adapter contract are tested on both desktop platforms; physical serial
 ports, virtual-PTY simulator integration and controller hardware are not tested.
