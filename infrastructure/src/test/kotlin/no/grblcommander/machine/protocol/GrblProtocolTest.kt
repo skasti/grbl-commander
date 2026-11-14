@@ -26,7 +26,7 @@ class GrblProtocolTest {
         assertEquals(GrblMessage.Ok, GrblProtocol.parse("ok"))
         assertEquals(GrblMessage.Error(20), GrblProtocol.parse("error:20"))
         assertEquals(GrblMessage.Alarm(1), GrblProtocol.parse("ALARM:1"))
-        assertIs<GrblMessage.Startup>(GrblProtocol.parse("GrblHAL 1.1f ['$' or '$HELP' for help]"))
+        assertIs<GrblMessage.Startup>(GrblProtocol.parse("GrblHAL 1.1f ['$' or '\$HELP' for help]"))
     }
 
     @Test fun `decoder handles fragmented coalesced and mixed CR LF lines`() {

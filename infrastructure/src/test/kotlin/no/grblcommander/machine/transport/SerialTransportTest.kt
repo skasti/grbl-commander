@@ -36,7 +36,7 @@ class SerialTransportTest {
         override fun close() { closes++ }
     }
 
-    @Test fun `explicit configuration partial writes and idempotent disposal`() = runBlocking {
+    @Test fun `explicit configuration partial writes and idempotent disposal`() = runBlocking<Unit> {
         val port = Port()
         val config = SerialConfiguration("COM7", 230400, parity = SerialConfiguration.Parity.EVEN)
         val transport = SerialTransport(config, port)
@@ -51,13 +51,13 @@ class SerialTransportTest {
         assertFailsWith<IllegalStateException> { transport.connect() }
     }
 
-    @Test fun `open failure closes native resources`() = runBlocking {
+    @Test fun `open failure closes native resources`() = runBlocking<Unit> {
         val port = Port().apply { opens = false }
         assertFailsWith<IOException> { SerialTransport(SerialConfiguration("test"), port).connect() }
         assertEquals(1, port.closes)
     }
 
-    @Test fun `disconnect and write errors terminate transport`() = runBlocking {
+    @Test fun `disconnect and write errors terminate transport`() = runBlocking<Unit> {
         for (read in listOf(true, false)) {
             val port = Port().apply { reads = -1; writes = -1 }
             val transport = SerialTransport(SerialConfiguration("test"), port)
@@ -69,7 +69,7 @@ class SerialTransportTest {
         }
     }
 
-    @Test fun `stalled writes have a deadline`() = runBlocking {
+    @Test fun `stalled writes have a deadline`() = runBlocking<Unit> {
         val port = Port().apply { writes = 0 }
         val transport = SerialTransport(SerialConfiguration("test"), port, writeTimeoutMillis = 30)
         transport.connect()
@@ -77,7 +77,7 @@ class SerialTransportTest {
         assertEquals(1, port.closes)
     }
 
-    @Test fun `cancellation releases idle reader`() = runBlocking {
+    @Test fun `cancellation releases idle reader`() = runBlocking<Unit> {
         withTimeout(5_000) {
             val port = Port()
             val transport = SerialTransport(SerialConfiguration("test"), port)

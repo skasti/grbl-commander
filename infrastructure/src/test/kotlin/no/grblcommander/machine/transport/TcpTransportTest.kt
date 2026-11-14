@@ -13,7 +13,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class TcpTransportTest {
-    @Test fun `loopback bytes EOF and one-shot lifecycle`() = runBlocking {
+    @Test fun `loopback bytes EOF and one-shot lifecycle`() = runBlocking<Unit> {
         withTimeout(5_000) {
             ServerSocket(0).use { server ->
                 val peer = async(Dispatchers.IO) { server.accept() }
@@ -38,7 +38,7 @@ class TcpTransportTest {
         }
     }
 
-    @Test fun `refused connect closes transport`() = runBlocking {
+    @Test fun `refused connect closes transport`() = runBlocking<Unit> {
         val port = ServerSocket(0).use { it.localPort }
         val transport = TcpTransport("127.0.0.1", port)
         assertFailsWith<IOException> { transport.connect() }
@@ -46,13 +46,13 @@ class TcpTransportTest {
         transport.close()
     }
 
-    @Test fun `close before connect cannot resurrect connection`() = runBlocking {
+    @Test fun `close before connect cannot resurrect connection`() = runBlocking<Unit> {
         val transport = TcpTransport("127.0.0.1", 1)
         transport.close()
         assertFailsWith<IOException> { transport.connect() }
     }
 
-    @Test fun `cancelling reader releases connection`() = runBlocking {
+    @Test fun `cancelling reader releases connection`() = runBlocking<Unit> {
         withTimeout(5_000) {
             ServerSocket(0).use { server ->
                 val peer = async(Dispatchers.IO) { server.accept() }

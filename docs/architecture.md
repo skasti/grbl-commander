@@ -303,8 +303,9 @@ changes do not cancel overlays, discard drafts, or alter controller execution
 state. The window icon and header show the supplied app logo. Softkey slots
 render screen-owned labels/icons, reactive enabled/active state, and safe
 in-memory navigation actions. Pointer and keyboard input share guarded slot
-activation. Controller communication, DRO, real mode operations and machine
-status reporting are not implemented. The header explicitly displays an
+activation. DRO, real mode operations and live machine-status presentation are not
+implemented. Controller communication is available through `:infrastructure`
+but is not connected to the desktop demonstration. The header explicitly displays an
 unconnected state. The shared slot layout is described
 in [UI layout](ui-layout.md).
 
@@ -818,8 +819,30 @@ CR/LF decoding bounds each response line to 4096 bytes. Normal commands are
 limited to 120 printable ASCII bytes, excluding embedded real-time bytes.
 `MachineSession` defines the application-facing connection, line acknowledgment,
 real-time and status-query API. `MachineSnapshot` uses read-only `StateFlow` and
-retains the observation timestamp and explicit connection health. Its concrete
-session implementation is planned in issue #17. The `core` module in the example below describes intended organization and
+retains the observation timestamp and explicit connection health.
+`GrblMachineSession` owns one transport and one reader. It connects by requesting
+status (`?`) until a report arrives within a bounded handshake deadline; it
+never resets, unlocks or resumes a controller implicitly. Normal lines are
+serialized with one acknowledgment outstanding. `CommandAcknowledgment` reports
+acceptance or an error code, plus information lines observed during that request;
+these lines may include unsolicited controller notifications. It is not an
+operation-completion result. Real-time writes bypass normal admission and its
+acknowledgment wait; writes are atomic per bounded line/real-time byte.
+
+A timeout, admitted-command cancellation, disconnect, alarm, unexpected
+acknowledgment, startup banner after connection, or explicit soft reset
+terminates the session and fails pending work. Cancellation before normal-command
+admission sends nothing. There is no retry/replay or automatic reconnection:
+construct a fresh transport and session after resolving uncertainty. Close also
+cancels owned coroutines; `awaitClosed()` joins them. The session is a child of
+its supplied application scope and closes on parent cancellation.
+
+Snapshots retain the last report on communication loss with FAILED/CLOSED health;
+a controller alarm/restart clears the invalid report. Consumers must check
+connection health and `reportedAt` for freshness. No polling or operation
+coordinator is implicit. `queryStatus()` awaits a subsequent report independently
+of normal commands. Capability discovery, streaming and application workflows
+remain planned. The `core` module in the example below describes intended organization and
 is not implemented.
 
 ### Desktop UI package responsibilities

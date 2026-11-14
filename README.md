@@ -36,8 +36,9 @@ still present. Manual has a local notes screen; MDI has an unsent text buffer.
 These are UI fixtures, not machine functions. The application does not connect
 to a controller, access actual program files or execute commands.
 
-The UI-independent `:infrastructure` module defines the byte transport
-boundary. Concrete transports and GRBL session support are planned in #17.
+The UI-independent `:infrastructure` module provides TCP and serial transports,
+GRBL parsing and a shared machine-session API with observable controller state.
+The desktop demonstration does not instantiate a session or send machine commands.
 
 ### Requirements
 
