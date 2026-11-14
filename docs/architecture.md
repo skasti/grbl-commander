@@ -801,8 +801,11 @@ transport-specific libraries, or operating-system-specific APIs.
 
 ## 12. Source Organization
 
-The current Gradle build contains an `app-desktop` module for the Compose
-desktop shell. The `core` and `infrastructure` modules in the example below
+The current Gradle build contains `app-desktop` for the Compose desktop shell
+and `machine-communication`, a Kotlin/JVM module without UI dependencies.
+`app-desktop` depends on `machine-communication`. Its `MachineTransport` contract
+defines a one-shot byte connection; TCP/serial implementations and session
+coordination are planned in issue #17. The `core` and `infrastructure` modules in the example below
 describe the intended organization and are not implemented.
 
 ### Desktop UI package responsibilities
@@ -875,6 +878,7 @@ grbl-commander/
 │                   ├── MdiMode.kt
 │                   └── Welcome.kt
 │
+├── machine-communication/                 # byte transport contract
 ├── core/                                  # intended; not implemented
 ├── infrastructure/                        # intended; not implemented
 └── docs/
