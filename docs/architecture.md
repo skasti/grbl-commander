@@ -812,7 +812,11 @@ serial reads/writes allow cancellation and bounded write deadlines; native open
 is dispatched to the I/O pool. USB disconnect notifications invalidate the
 transport. Native driver calls may delay cancellation until the driver returns.
 Serial lifecycle tests use an injected native adapter; physical ports are not
-verified. Session coordination is planned in issue #17. The `core` module in the example below describes intended organization and
+verified. `GrblProtocol` parses acknowledgments, numeric errors/alarms, startup
+banners and status reports, retaining optional/unknown fields. Incremental
+CR/LF decoding bounds each response line to 4096 bytes. Normal commands are
+limited to 120 printable ASCII bytes, excluding embedded real-time bytes.
+Session coordination is planned in issue #17. The `core` module in the example below describes intended organization and
 is not implemented.
 
 ### Desktop UI package responsibilities
