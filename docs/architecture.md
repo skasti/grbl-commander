@@ -816,7 +816,10 @@ verified. `GrblProtocol` parses acknowledgments, numeric errors/alarms, startup
 banners and status reports, retaining optional/unknown fields. Incremental
 CR/LF decoding bounds each response line to 4096 bytes. Normal commands are
 limited to 120 printable ASCII bytes, excluding embedded real-time bytes.
-Session coordination is planned in issue #17. The `core` module in the example below describes intended organization and
+`MachineSession` defines the application-facing connection, line acknowledgment,
+real-time and status-query API. `MachineSnapshot` uses read-only `StateFlow` and
+retains the observation timestamp and explicit connection health. Its concrete
+session implementation is planned in issue #17. The `core` module in the example below describes intended organization and
 is not implemented.
 
 ### Desktop UI package responsibilities
