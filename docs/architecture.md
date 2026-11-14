@@ -193,6 +193,51 @@ outcomes must never silently replace confirmed controller observations.
 
 Disconnected or stale values must be visibly distinguished from live values.
 
+### 3.5 Implemented communication API
+
+The `MachineTransport` contract
+defines a one-shot byte connection. `TcpTransport` implements cancellable
+non-blocking TCP with bounded connect/write timeouts, EOF detection and
+idempotent close. `SerialTransport` uses jSerialComm with explicit port, baud,
+data/stop bits, parity, flow control and DTR/RTS configuration. Non-blocking
+serial reads/writes allow cancellation and bounded write deadlines; native open
+is dispatched to the I/O pool. USB disconnect notifications invalidate the
+transport. Native driver calls may delay cancellation until the driver returns.
+Serial lifecycle tests use an injected native adapter; physical ports are not
+verified. `GrblProtocol` parses acknowledgments, numeric errors/alarms, startup
+banners and status reports, retaining optional/unknown fields. Incremental
+CR/LF decoding bounds each response line to 4096 bytes. Normal commands are
+limited to 120 printable ASCII bytes, excluding embedded real-time bytes.
+`MachineSession` defines the application-facing connection, line acknowledgment,
+real-time and status-query API. `MachineSnapshot` uses read-only `StateFlow` and
+retains the observation timestamp and explicit connection health.
+`GrblMachineSession` owns one transport and one reader. It connects by requesting
+status (`?`) until a report arrives within a bounded handshake deadline; it
+never resets, unlocks or resumes a controller implicitly. Firmware startup-block
+acknowledgments, NVS errors and alarms received during this status-only
+handshake are retained as diagnostics, not correlated with commands. A reported
+Alarm state is a valid connection result, not permission to move. Normal lines are
+serialized with one acknowledgment outstanding. `CommandAcknowledgment` reports
+acceptance or an error code, plus information lines observed during that request;
+these lines may include unsolicited controller notifications. It is not an
+operation-completion result. Real-time writes bypass normal admission and its
+acknowledgment wait; writes are atomic per bounded line/real-time byte.
+
+A timeout, admitted-command cancellation, disconnect, alarm, unexpected
+acknowledgment, startup banner after connection, or explicit soft reset
+terminates the session and fails pending work. Cancellation before normal-command
+admission sends nothing. There is no retry/replay or automatic reconnection:
+construct a fresh transport and session after resolving uncertainty. Close also
+cancels owned coroutines; `awaitClosed()` joins them. The session is a child of
+its supplied application scope and closes on parent cancellation.
+
+Snapshots retain the last report on communication loss with FAILED/CLOSED health;
+a controller alarm/restart clears the invalid report. Consumers must check
+connection health and `reportedAt` for freshness. No polling or operation
+coordinator is implicit. `queryStatus()` awaits a subsequent report independently
+of normal commands. Capability discovery, streaming and application workflows
+remain planned.
+
 ## 4. Application Operations
 
 Application operations represent user intentions rather than raw protocol
@@ -804,48 +849,7 @@ transport-specific libraries, or operating-system-specific APIs.
 
 The current Gradle build contains `app-desktop` for the Compose desktop shell
 and `infrastructure`, a Kotlin/JVM module without UI dependencies.
-`app-desktop` depends on `infrastructure`. Its `MachineTransport` contract
-defines a one-shot byte connection. `TcpTransport` implements cancellable
-non-blocking TCP with bounded connect/write timeouts, EOF detection and
-idempotent close. `SerialTransport` uses jSerialComm with explicit port, baud,
-data/stop bits, parity, flow control and DTR/RTS configuration. Non-blocking
-serial reads/writes allow cancellation and bounded write deadlines; native open
-is dispatched to the I/O pool. USB disconnect notifications invalidate the
-transport. Native driver calls may delay cancellation until the driver returns.
-Serial lifecycle tests use an injected native adapter; physical ports are not
-verified. `GrblProtocol` parses acknowledgments, numeric errors/alarms, startup
-banners and status reports, retaining optional/unknown fields. Incremental
-CR/LF decoding bounds each response line to 4096 bytes. Normal commands are
-limited to 120 printable ASCII bytes, excluding embedded real-time bytes.
-`MachineSession` defines the application-facing connection, line acknowledgment,
-real-time and status-query API. `MachineSnapshot` uses read-only `StateFlow` and
-retains the observation timestamp and explicit connection health.
-`GrblMachineSession` owns one transport and one reader. It connects by requesting
-status (`?`) until a report arrives within a bounded handshake deadline; it
-never resets, unlocks or resumes a controller implicitly. Firmware startup-block
-acknowledgments, NVS errors and alarms received during this status-only
-handshake are retained as diagnostics, not correlated with commands. A reported
-Alarm state is a valid connection result, not permission to move. Normal lines are
-serialized with one acknowledgment outstanding. `CommandAcknowledgment` reports
-acceptance or an error code, plus information lines observed during that request;
-these lines may include unsolicited controller notifications. It is not an
-operation-completion result. Real-time writes bypass normal admission and its
-acknowledgment wait; writes are atomic per bounded line/real-time byte.
-
-A timeout, admitted-command cancellation, disconnect, alarm, unexpected
-acknowledgment, startup banner after connection, or explicit soft reset
-terminates the session and fails pending work. Cancellation before normal-command
-admission sends nothing. There is no retry/replay or automatic reconnection:
-construct a fresh transport and session after resolving uncertainty. Close also
-cancels owned coroutines; `awaitClosed()` joins them. The session is a child of
-its supplied application scope and closes on parent cancellation.
-
-Snapshots retain the last report on communication loss with FAILED/CLOSED health;
-a controller alarm/restart clears the invalid report. Consumers must check
-connection health and `reportedAt` for freshness. No polling or operation
-coordinator is implicit. `queryStatus()` awaits a subsequent report independently
-of normal commands. Capability discovery, streaming and application workflows
-remain planned. The `core` module in the example below describes intended organization and
+`app-desktop` depends on `infrastructure`. The `core` module in the example below describes intended organization and
 is not implemented.
 
 ### Desktop UI package responsibilities
@@ -918,7 +922,7 @@ grbl-commander/
 │                   ├── MdiMode.kt
 │                   └── Welcome.kt
 │
-├── infrastructure/                 # byte transport contract
+├── infrastructure/                        # transports, GRBL protocol and session
 ├── core/                                  # intended; not implemented
 └── docs/
     └── architecture.md
@@ -947,7 +951,24 @@ The test strategy includes:
   desktop integrations.
 - Platform-native packaging smoke tests.
 
-The simulated controller should support configurable delays, missing responses,
+The implemented `:infrastructure:test` suite covers GRBL framing/parsing,
+TCP loopback lifecycle, serial lifecycle via an injected native adapter, native
+serial library loading/enumeration, and in-memory session correlation/failure
+behavior on Linux and Windows. Serial hardware and virtual-PTY integration are
+not verified.
+
+The opt-in Linux `:infrastructure:simulatorTest` task starts the official grblHAL
+Simulator pinned by `scripts/build-grblhal-simulator.sh`, including its recorded
+core/SD-card submodules. It uses an isolated EEPROM/working directory and raw TCP
+`-p <port>`, connects with production `TcpTransport`/`GrblMachineSession` under a
+readiness deadline, verifies `$I`, `?` and `$G`, and tests peer disconnection.
+The process is terminated with bounded graceful/forced cleanup in `finally`,
+including assertion failures. CI runs it separately from the Linux/Windows
+build/test matrix. Setup and commands are in the [README](../README.md).
+Simulator timing is approximate and its implementation experimental; these tests
+neither exercise physical ports nor establish physical-machine safety.
+
+The planned application-level simulated controller should support configurable delays, missing responses,
 errors, alarms, disconnections, and tool-change pauses.
 
 Existing grblHAL macro repositories can serve as regression fixtures for macro
