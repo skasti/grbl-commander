@@ -10,6 +10,7 @@ internal class InMemoryTransport : MachineTransport {
     var closed = false
         private set
     var autoStatus = true
+    var onWrite: (suspend (String) -> Unit)? = null
     var writeFailure = false
     private var remaining = byteArrayOf()
     override suspend fun connect() { check(!closed) }
@@ -24,6 +25,7 @@ internal class InMemoryTransport : MachineTransport {
         if (closed || writeFailure) throw IOException("write failed")
         val text = bytes.decodeToString()
         writes.send(text)
+        onWrite?.invoke(text)
         if (text == "?" && autoStatus) emit("<Idle|MPos:0,0,0|FS:0,0>\r\n")
     }
     suspend fun emit(text: String) { input.send(text.toByteArray()) }

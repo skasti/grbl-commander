@@ -849,8 +849,8 @@ transport-specific libraries, or operating-system-specific APIs.
 
 The current Gradle build contains `app-desktop` for the Compose desktop shell
 and `infrastructure`, a Kotlin/JVM module without UI dependencies.
-`app-desktop` depends on `infrastructure`. The `core` module in the example below describes intended organization and
-is not implemented.
+`app-desktop` depends on `infrastructure`. The `core` module in the example
+below describes intended organization and is not implemented.
 
 ### Desktop UI package responsibilities
 

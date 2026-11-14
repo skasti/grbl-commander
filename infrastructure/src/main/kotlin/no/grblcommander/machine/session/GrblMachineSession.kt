@@ -10,7 +10,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,7 +49,6 @@ class GrblMachineSession(
     private val normalCommands = Mutex()
     private val statusQueries = Mutex()
     private val writes = Mutex()
-    private val firstStatus = CompletableDeferred<Unit>()
     private var pending: Pending? = null
 
     init {
@@ -70,17 +68,22 @@ class GrblMachineSession(
                 transport.connect()
                 scope.launch { readLoop() }
                 // Query reports rather than assuming a banner or resetting a running machine.
-                while (!firstStatus.isCompleted) {
+                while (true) {
                     writes.withLock {
                         synchronized(gate) { checkUsable(allowConnecting = true) }
                         transport.write(byteArrayOf(RealtimeCommand.STATUS_QUERY.byte))
                     }
-                    withTimeoutOrNull(150) { firstStatus.await() }
-                }
-                firstStatus.await()
-                synchronized(gate) {
-                    checkUsable(allowConnecting = true)
-                    mutableState.value = state.value.copy(connection = Connection.CONNECTED)
+                    withTimeoutOrNull(150) {
+                        state.first { it.status != null || isTerminal(it.connection) }
+                    }
+                    val ready = synchronized(gate) {
+                        checkUsable(allowConnecting = true)
+                        if (state.value.status != null) {
+                            mutableState.value = state.value.copy(connection = Connection.CONNECTED)
+                            true
+                        } else false
+                    }
+                    if (ready) break
                 }
             }
         } catch (error: Throwable) {
@@ -167,7 +170,6 @@ class GrblMachineSession(
                     status = message.report, reportedAt = Instant.now(),
                     reportSequence = state.value.reportSequence + 1,
                 )
-                firstStatus.complete(Unit)
             }
             GrblMessage.Ok -> acknowledge(null)
             is GrblMessage.Error -> acknowledge(message.code)
@@ -222,7 +224,6 @@ class GrblMachineSession(
             if (terminal()) return
             try { transport.close() } catch (cleanup: Throwable) { error.addSuppressed(cleanup) }
             mutableState.value = state.value.copy(connection = connection, failure = error.message ?: error.javaClass.simpleName)
-            firstStatus.completeExceptionally(error)
             pending?.response?.completeExceptionally(error)
             pending = null
             owner.cancel(CancellationException("Session terminated", error))

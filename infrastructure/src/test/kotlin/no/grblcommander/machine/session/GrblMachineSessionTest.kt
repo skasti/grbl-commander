@@ -1,6 +1,7 @@
 package no.grblcommander.machine.session
 
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -191,6 +192,54 @@ class GrblMachineSessionTest {
                 assertEquals(Connection.CONNECTED, session.state.value.connection)
                 assertEquals("Alarm", session.state.value.status?.executionState)
             } finally { session.close(); session.awaitClosed() }
+        }
+    }
+
+    @Test fun `startup invalidates a report received during the handshake write`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            val transport = InMemoryTransport().apply { autoStatus = false }
+            val releaseWrite = CompletableDeferred<Unit>()
+            var firstWrite = true
+            transport.onWrite = {
+                if (firstWrite) {
+                    firstWrite = false
+                    releaseWrite.await()
+                }
+            }
+            val session = GrblMachineSession(transport, this)
+            try {
+                val connection = async { session.connect() }
+                assertEquals("?", transport.writes.receive())
+                transport.emit("<Idle|MPos:0,0,0>\n")
+                session.state.first { it.reportSequence == 1L }
+                transport.emit("GrblHAL 1.1f ['$' for help]\n")
+                session.state.first { it.lastMessage?.startsWith("GrblHAL") == true }
+                releaseWrite.complete(Unit)
+                assertEquals("?", transport.writes.receive())
+                assertFalse(connection.isCompleted)
+                transport.emit("<Idle|MPos:1,2,3>\n")
+                connection.await()
+                assertEquals(listOf(1.0, 2.0, 3.0), session.state.value.status?.machinePosition)
+            } finally { session.close(); session.awaitClosed() }
+        }
+    }
+
+    @Test fun `explicit close rejects both admitted and queued work`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            supervisorScope {
+                val transport = InMemoryTransport()
+                val session = connected(this, transport)
+                val admitted = async { session.executeLine("\$I") }
+                assertEquals("\$I\n", transport.writes.receive())
+                val queued = async { session.executeLine("\$G") }
+                yield()
+                session.close()
+                assertFailsWith<IOException> { admitted.await() }
+                assertFailsWith<IOException> { queued.await() }
+                session.awaitClosed()
+                assertEquals(Connection.CLOSED, session.state.value.connection)
+                assertTrue(transport.writes.tryReceive().isFailure)
+            }
         }
     }
 
