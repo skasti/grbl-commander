@@ -804,8 +804,9 @@ transport-specific libraries, or operating-system-specific APIs.
 The current Gradle build contains `app-desktop` for the Compose desktop shell
 and `machine-communication`, a Kotlin/JVM module without UI dependencies.
 `app-desktop` depends on `machine-communication`. Its `MachineTransport` contract
-defines a one-shot byte connection; TCP/serial implementations and session
-coordination are planned in issue #17. The `core` and `infrastructure` modules in the example below
+defines a one-shot byte connection. `TcpTransport` implements cancellable
+non-blocking TCP with bounded connect/write timeouts, EOF detection and
+idempotent close. Serial and session coordination are planned in issue #17. The `core` and `infrastructure` modules in the example below
 describe the intended organization and are not implemented.
 
 ### Desktop UI package responsibilities
