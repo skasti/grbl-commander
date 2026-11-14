@@ -846,38 +846,39 @@ Suggested initial structure:
 
 ```text
 grbl-commander/
-├── app-desktop/
-│   └── src/main/kotlin/
-│       └── .../
-│           ├── ui/
-│           │   ├── layout/
-│           │   ├── components/
-│           │   └── modes/
-│           └── bootstrap/
+├── app-desktop/                         # implemented
+│   └── src/main/
+│       ├── composeResources/drawable/
+│       └── kotlin/no/grblcommander/desktop/
+│           ├── Main.kt
+│           └── ui/
+│               ├── CommanderApp.kt
+│               ├── layout/
+│               │   ├── AppShell.kt
+│               │   ├── BottomSoftkeys.kt
+│               │   ├── RightSoftkeys.kt
+│               │   ├── ShellHeader.kt
+│               │   ├── ShellState.kt
+│               │   └── SoftkeyTile.kt
+│               ├── navigation/
+│               │   ├── NavigationParent.kt
+│               │   ├── Screen.kt
+│               │   ├── ScreenStack.kt
+│               │   ├── ScreenStackHost.kt
+│               │   ├── SoftKey.kt
+│               │   ├── SoftKeyActivation.kt
+│               │   └── SoftKeyOverrides.kt
+│               └── screens/
+│                   ├── Editor.kt
+│                   ├── FileExplorer.kt
+│                   ├── ManualMode.kt
+│                   ├── MdiMode.kt
+│                   └── Welcome.kt
 │
-├── core/
-│   └── src/main/kotlin/
-│       └── .../
-│           ├── machine/
-│           ├── operations/
-│           ├── program/
-│           ├── gcode/
-│           ├── macros/
-│           ├── tools/
-│           └── toolpath/
-│
-├── infrastructure/
-│   └── src/main/kotlin/
-│       └── .../
-│           ├── grbl/
-│           ├── transport/
-│           ├── storage/
-│           └── configuration/
-│
-├── docs/
-│   └── architecture.md
-│
-└── settings.gradle.kts
+├── core/                                  # intended; not implemented
+├── infrastructure/                        # intended; not implemented
+└── docs/
+    └── architecture.md
 ```
 
 Additional Gradle modules should be introduced when there is a concrete benefit,
