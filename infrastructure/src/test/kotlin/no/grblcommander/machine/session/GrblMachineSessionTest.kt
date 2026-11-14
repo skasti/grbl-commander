@@ -179,6 +179,21 @@ class GrblMachineSessionTest {
         }
     }
 
+    @Test fun `startup diagnostics precede readiness without being command responses`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            val transport = InMemoryTransport().apply { autoStatus = false }
+            val session = GrblMachineSession(transport, this)
+            try {
+                val connection = async { session.connect() }
+                assertEquals("?", transport.writes.receive())
+                transport.emit("error:7\r\nGrblHAL 1.1f ['$' for help]\r\nALARM:1\r\nok\r\n<Alarm|MPos:0,0,0>\r\n")
+                connection.await()
+                assertEquals(Connection.CONNECTED, session.state.value.connection)
+                assertEquals("Alarm", session.state.value.status?.executionState)
+            } finally { session.close(); session.awaitClosed() }
+        }
+    }
+
     @Test fun `write errors terminate session`() = runBlocking<Unit> {
         val transport = InMemoryTransport()
         val session = connected(this, transport)

@@ -173,7 +173,9 @@ class GrblMachineSession(
             is GrblMessage.Error -> acknowledge(message.code)
             is GrblMessage.Alarm -> {
                 mutableState.value = state.value.copy(lastMessage = line, status = null, reportedAt = null)
-                terminate(IOException("Controller alarm ${message.code}; command outcomes are uncertain"))
+                if (state.value.connection == Connection.CONNECTED) {
+                    terminate(IOException("Controller alarm ${message.code}; command outcomes are uncertain"))
+                }
             }
             is GrblMessage.Startup -> {
                 mutableState.value = state.value.copy(lastMessage = line, status = null, reportedAt = null)
@@ -192,7 +194,15 @@ class GrblMachineSession(
     }
 
     private fun acknowledge(errorCode: Int?) {
-        val request = pending ?: throw IOException("Unsolicited acknowledgment; command correlation lost")
+        val request = pending ?: run {
+            if (state.value.connection == Connection.CONNECTING) {
+                // Firmware may emit startup-block acknowledgments or NVS diagnostics.
+                // No line command has been admitted during the status-only handshake.
+                mutableState.value = state.value.copy(lastMessage = errorCode?.let { "error:$it" } ?: "ok")
+                return
+            }
+            throw IOException("Unsolicited acknowledgment; command correlation lost")
+        }
         pending = null
         request.response.complete(CommandAcknowledgment(errorCode, Collections.unmodifiableList(request.lines.toList())))
     }

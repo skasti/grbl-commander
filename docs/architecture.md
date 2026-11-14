@@ -822,7 +822,10 @@ real-time and status-query API. `MachineSnapshot` uses read-only `StateFlow` and
 retains the observation timestamp and explicit connection health.
 `GrblMachineSession` owns one transport and one reader. It connects by requesting
 status (`?`) until a report arrives within a bounded handshake deadline; it
-never resets, unlocks or resumes a controller implicitly. Normal lines are
+never resets, unlocks or resumes a controller implicitly. Firmware startup-block
+acknowledgments, NVS errors and alarms received during this status-only
+handshake are retained as diagnostics, not correlated with commands. A reported
+Alarm state is a valid connection result, not permission to move. Normal lines are
 serialized with one acknowledgment outstanding. `CommandAcknowledgment` reports
 acceptance or an error code, plus information lines observed during that request;
 these lines may include unsolicited controller notifications. It is not an
