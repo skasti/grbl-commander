@@ -18,14 +18,6 @@ import no.grblcommander.desktop.ui.navigation.Screen
 import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
 import no.grblcommander.desktop.ui.navigation.SoftKeyModifier
 
-/** In-memory fixture, not a filesystem adapter or an executable machine program. */
-data class ExampleFile(val name: String, val contents: String)
-
-internal val exampleFiles = listOf(
-    ExampleFile("example-a.nc", "; Example A\n; Preview only"),
-    ExampleFile("example-b.nc", "; Example B\n; Preview only"),
-)
-
 /** A typed result from the in-memory file chooser. */
 sealed interface FileExplorerResult {
     data class Selected(val filename: String) : FileExplorerResult
