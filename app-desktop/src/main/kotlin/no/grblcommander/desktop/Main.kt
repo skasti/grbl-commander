@@ -9,7 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
-import no.grblcommander.desktop.connection.ControllerConnection
+import no.grblcommander.core.connection.ControllerConnection
+import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.desktop.generated.resources.Res
 import no.grblcommander.desktop.generated.resources.grbl_commander_icon
 import no.grblcommander.desktop.ui.CommanderApp
@@ -18,6 +19,7 @@ import org.jetbrains.compose.resources.painterResource
 fun main() {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val connection = ControllerConnection(scope)
+    val settings = ControllerSettings(connection)
     try {
         application {
             Window(
@@ -26,7 +28,7 @@ fun main() {
                 icon = painterResource(Res.drawable.grbl_commander_icon),
                 state = rememberWindowState(width = 1280.dp, height = 760.dp),
             ) {
-                CommanderApp(connection)
+                CommanderApp(connection, settings)
             }
         }
     } finally {

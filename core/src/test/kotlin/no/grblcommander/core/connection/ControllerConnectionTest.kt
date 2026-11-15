@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.connection
+package no.grblcommander.core.connection
 
 import java.io.IOException
 import kotlinx.coroutines.*
@@ -15,6 +15,59 @@ import kotlin.test.*
 class ControllerConnectionTest {
     private val tcp = ControllerEndpoint.Tcp("localhost", 23)
     private val serial = ControllerEndpoint.Serial(SerialConfiguration("test-port"))
+
+    @Test fun `intentional disconnect clears close diagnostics while unexpected loss remains a failure`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            val transports = mutableListOf<ConnectionTestTransport>()
+            val owner = ControllerConnection(this, { _, child ->
+                ConnectionTestTransport().also { transports += it }.let { GrblMachineSession(it, child) }
+            })
+            try {
+                owner.connect(tcp)
+                val report = owner.state.value.snapshot.status
+                owner.disconnect()
+                assertEquals(Connection.DISCONNECTED, owner.state.value.snapshot.connection)
+                assertNull(owner.state.value.snapshot.failure)
+                assertEquals(report, owner.state.value.snapshot.status)
+                assertTrue(owner.state.value.reportIsStale())
+                owner.connect(tcp)
+                transports.last().disconnect()
+                owner.state.first { it.snapshot.connection == Connection.FAILED }
+                assertNotNull(owner.state.value.snapshot.failure)
+                owner.disconnect() // Explicit acknowledgement clears the displayed error.
+                assertNull(owner.state.value.snapshot.failure)
+            } finally { owner.close(); owner.awaitClosed() }
+            assertNull(owner.state.value.snapshot.failure)
+        }
+    }
+
+    @Test fun `background status reports remain live while a normal command awaits acknowledgment`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            val transport = ConnectionTestTransport()
+            val owner = ControllerConnection(this, { _, child -> GrblMachineSession(transport, child) })
+            try {
+                owner.connect(tcp)
+                assertEquals("?", transport.writes.receive())
+                val command = async { owner.executeLine("G4 P0") }
+                assertEquals("G4 P0\n", transport.nextNonStatusWrite())
+                val sequence = owner.state.value.snapshot.reportSequence
+                owner.state.first { it.snapshot.reportSequence > sequence }
+                assertFalse(command.isCompleted)
+                assertNotNull(owner.state.value.snapshot.reportedAt)
+                assertFalse(owner.state.value.reportIsStale())
+                transport.emit("ok\n")
+                assertTrue(command.await().accepted)
+                owner.disconnect()
+                var polls = 0
+                while (true) {
+                    val write = transport.writes.tryReceive().getOrNull() ?: break
+                    assertEquals("?", write)
+                    polls++
+                }
+                assertTrue(polls > 0)
+            } finally { owner.close(); owner.awaitClosed() }
+        }
+    }
 
     @Test fun `typed endpoints use existing production transports and serial defaults`() {
         val transport = assertIs<TcpTransport>(controllerTransport(tcp))
@@ -44,22 +97,22 @@ class ControllerConnectionTest {
                 assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
                 assertEquals(tcp, owner.state.value.endpoint)
                 val line = async { owner.executeLine("\$I") }
-                assertEquals("\$I\n", first.writes.receive())
+                assertEquals("\$I\n", first.nextNonStatusWrite())
                 first.emit("[VER:test]\nok\n")
                 assertTrue(line.await().accepted)
                 owner.sendRealtime(RealtimeCommand.FEED_HOLD)
-                assertEquals("!", first.writes.receive())
+                assertEquals("!", first.nextNonStatusWrite())
                 assertEquals("Idle", owner.queryStatus().executionState)
                 first.writes.receive()
                 owner.history.first { events -> events.last().event.direction.name == "RX" && events.size == 5 }
                 val pending = async { runCatching { owner.executeLine("G4 P0") } }
-                assertEquals("G4 P0\n", first.writes.receive())
+                assertEquals("G4 P0\n", first.nextNonStatusWrite())
                 owner.connect(serial)
                 assertContains(pending.await().exceptionOrNull()?.message.orEmpty(), "outcome unknown")
                 assertEquals(1, first.closeCount)
                 assertEquals(2, transports.size)
                 assertEquals("?", transports.last().writes.receive())
-                assertTrue(transports.last().writes.tryReceive().isFailure) // no replay
+                assertTrue(transports.last().drainWrites().all { it == "?" }) // no replay
                 owner.history.first { it.last().sessionId == 2L }
                 assertTrue(owner.history.value.size <= 5)
                 owner.disconnect()
@@ -120,7 +173,7 @@ class ControllerConnectionTest {
                     assertEquals(11, owner.state.value.snapshot.alarmCode)
                     assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
                     assertEquals("?", transports.last().writes.receive())
-                    assertTrue(transports.last().writes.tryReceive().isFailure)
+                    assertTrue(transports.last().drainWrites().all { it == "?" })
                     owner.disconnect()
                     assertTrue(owner.history.value.isNotEmpty())
                 } finally { owner.close(); owner.awaitClosed() }
@@ -230,13 +283,19 @@ class ControllerConnectionTest {
         withTimeout(5_000) {
             for (cancelParent in listOf(false, true)) {
                 val parent = SupervisorJob()
-                val transport = ConnectionTestTransport().apply { autoStatus = false }
+                val firstStatusWrite = CompletableDeferred<Unit>()
+                val transport = ConnectionTestTransport().apply {
+                    autoStatus = false
+                    // Hold a known in-flight handshake write instead of racing its admission.
+                    onWrite = { firstStatusWrite.complete(Unit); awaitCancellation() }
+                }
                 val owner = ControllerConnection(CoroutineScope(parent + Dispatchers.Default), { _, child ->
                     GrblMachineSession(transport, child)
                 })
                 try {
                     val connecting = async { runCatching { owner.connect(tcp) } }
                     owner.state.first { it.snapshot.connection == Connection.CONNECTING }
+                    firstStatusWrite.await()
                     if (cancelParent) parent.cancel() else owner.close()
                     owner.awaitClosed()
                     assertTrue(connecting.await().isFailure)

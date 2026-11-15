@@ -10,7 +10,7 @@ screenshot design references:
 
 | Region          | Current responsibility                                                                                                 |
 |-----------------|------------------------------------------------------------------------------------------------------------------------|
-| Header          | Image logo, application identity, Program/Manual/MDI UI-mode selection, current context and explicit connection status |
+| Header          | Image logo, application identity, Program/Manual/MDI/Util UI-mode selection, current context and explicit connection status |
 | Main workspace  | ScreenStackHost: retains all mode screen stacks and renders only the active stack                                      |
 | Bottom softkeys | Eight fixed slots, F1 through F8                                                                                       |
 | Right softkeys  | Seven fixed slots, R1 through R7                                                                                       |
@@ -24,12 +24,15 @@ sizes and touch targets.
 `AppShell` owns the persistent regions, accepts a Compose content slot for the
 workspace, and exposes an optional header-controls slot for UI-mode selection.
 `ShellState` contains display-only header information, including connection health
-observed from the shared application-owned `ControllerConnection`. All modes
-receive that same owner through `LocalControllerConnection`; it outlives their
-stacks and compositions. No connection settings or command UI is implemented. Screen instances own
+observed from the shared application-owned `ControllerConnection`. The application
+composition root creates one core-owned connection/settings pair. All modes
+receive that same connection owner through `LocalControllerConnection`; it outlives their
+stacks and compositions. Util supplies controller connection settings; a terminal
+command UI is not implemented. Screen instances own
 softkey bindings; the shell reads them from the selected persistent stack. The
-Program, Manual and MDI buttons change presentation context only. Softkeys
-invoke safe, in-memory UI actions; machine commands are not implemented.
+Program, Manual, MDI and icon-only ⚙ Util buttons change presentation context
+only. Util connection actions use the shared owner; other mode examples are
+in-memory fixtures. No UI exposes motion commands.
 
 The application icon and header logo use the Compose resource
 `drawable/grbl_commander_icon.png` (384 × 256), while the workspace uses
@@ -94,6 +97,45 @@ children. Covered focus groups reject focus entry and key preview handlers block
 stale focused descendants. Covered content is removed from accessibility
 semantics. Focus returns to the active layer, not necessarily the previously
 focused editor field. The header and softkeys stay outside this input boundary.
+
+### Shared modal dialogs
+
+`ui.dialogs.ModalDialog<R>` is a reusable `Screen<R>` for a title, message and
+labelled bottom-softkey choices carrying typed result values. Open it with an
+explicit parent and handle the result after the parent has been restored:
+
+```kotlin
+ModalDialog(
+    title = "Interrupt current connection?",
+    message = "Disconnect the current controller session?",
+    cancellationResult = false,
+    choices = mapOf(
+        BottomSoftKeySlot.F1 to ModalDialog.Choice("Disconnect", true),
+        BottomSoftKeySlot.F8 to ModalDialog.Choice("Cancel", false),
+    ),
+).open(this@ParentScreen) { confirmed ->
+    if (confirmed) requestDisconnect()
+}
+```
+
+The modal displays a centered, scrollable message surface inside the workspace.
+It has no workspace action buttons and opens no native dialog/window. The
+persistent bottom softkeys supply choices through the existing pointer/keyboard
+activation path. Choice labels, slots and result types are supplied by the caller;
+no separate screen subclass is required for each message or confirmation.
+
+Both key banks replace inherited bindings. Unassigned slots, including all right
+keys, are blank, so covered form actions and Util navigation cannot leak through.
+`ScreenStackHost` supplies the scrim, focus/input isolation and retained parent
+composition. `Screen`/`ScreenStack` enforce topmost-only completion and at-most-once
+result delivery; pop/dismiss returns the supplied cancellation result. Mode
+switching retains a pending modal on its original stack without confirming it.
+
+Connection interruption uses F1 **Disconnect** / **Disconnect and connect** and
+F8 **Cancel**. Repeating the initiating F2/F3 cannot confirm or duplicate the
+modal, because those slots are blank while it is topmost. Cancelling restores the
+same form, draft and navigation/softkey state. The parent screen applies the
+confirmed result through its existing core operation.
 
 ### Independent mode stacks
 
@@ -280,9 +322,75 @@ disabled/active state and typed slot activation with screen-owned callbacks. The
 action dispatch layer must remain separate from GRBL transports and physical
 execution.
 
-Machine position/DRO, functional mode-specific pages, connection settings UI,
+Machine position/DRO, machine operation pages, terminal command UI,
 programmable actions, and physical CNC operations are planned and are not part
 of the desktop demonstration.
+
+### Util connection settings
+
+Util is selected by an icon-only ⚙ header button with accessible name "Util" and
+selected semantics/color. Connection health stays in the separate display-only
+header indicator, with the current endpoint in the header context. No settings
+screen is pushed onto Program, Manual or MDI stacks.
+
+Util owns a persistent `ScreenStack(UtilMode(...))`. Its initial root is an empty
+workspace containing **Controller connection**; the terminal root is planned in
+[#22](https://github.com/skasti/grbl-commander/issues/22). F7 **⌨ Util** selects the
+root; F8 **🔗 Connection** opens `ControllerConnectionSettings` above it using the
+root as explicit parent. F6 is unassigned. F8 while settings is active cannot
+create another screen.
+These slots show selected view, independently of actual controller health. Closing
+settings returns to the same root. Each screen owns its banks; settings does not
+inherit the right bank, so future terminal filters are covered automatically.
+
+Settings is a scrolling touch-friendly form with Serial/USB and TCP/network
+selection. TCP requires host/IP and port 1–65535; serial supports optional refresh,
+descriptive port buttons and manual device entry. Baud is always visible, while
+Advanced exposes bits, parity, stop bits, flow control and DTR/RTS. Manual entry
+remains enabled when discovery is empty or fails. Defaults are 115200, 8N1, no
+flow control, DTR/RTS false. Edits never change the current endpoint/session.
+
+F1 **Save**, F2 **Connect**, F3 **Disconnect**, F7 **Util** and F8 **Connection**
+use the existing guarded softkey activation. Close remains a workspace button;
+there is no separate Close softkey. Matching workspace actions
+use the same screen callbacks. Invalid values show validation errors before any
+transport is created. Save persists without connecting; Connect awaits the status
+handshake before saving and reporting success. Progress/errors, current endpoint,
+last connection failure and stale/unknown report warning reflect shared owner
+state. Staleness expires after three seconds without reports and is also reflected
+in the header. Core owns background status polling every 500 ms after handshake,
+independently of the active screen/mode; UI does not start additional pollers.
+Polling stops on connection disposal/failure and pauses during reset handshake.
+Missing replies still become stale; sending a poll is not a confirmed report.
+Deliberate Disconnect displays neutral progress/status, with no technical
+"Session closed" error or stale-state warning. Disconnected values remain labelled
+as last observations, and a neutral note explains that they are not being updated.
+Connecting displays a waiting note; actual failure and stale reports while
+connected retain warning/error styling. The header adds a stale qualifier only
+while connected, not during expected disconnect/shutdown.
+
+Replacing/disconnecting an active or connecting session requires a screen-local
+`ModalDialog<Boolean>` describing interruption and uncertain pending command
+outcomes. F1 confirms and F8 cancels through the bottom bank; there are no
+workspace confirmation buttons. The modal opens above the form on the same
+Util stack. It
+never resets/stops/replays machine work implicitly. Disconnect can interrupt a
+handshake. Disconnect is disabled during Save and a running Disconnect; repeated
+callbacks cannot start competing operations. A confirmed Disconnect reserves the
+single operation slot before awaiting Connect cancellation and cleanup. If the
+handshake has completed, it waits for Connect's persistence instead of cancelling
+that save. Workspace buttons and softkeys use the same enabled condition.
+Close cancels unfinished form work but keeps a completed connection.
+Switching modes retains the form, its current operation and scroll state. Saving
+and discovery failures remain visible without claiming false connection health.
+
+Presentation depends on `:core`. `ControllerSettings` owns the saved configuration
+and load/validation/save/connect workflows; the screen owns only its editable
+draft, progress, confirmations and navigation. It requests Save or Connect, and
+core performs any persistence internal to those operations. Neither Compose nor
+screens instantiate or refer to the JVM Preferences adapter. Serial discovery is
+requested through core and executed by infrastructure. `Main` supplies the shared
+core services to `CommanderApp`; changing mode never recreates them.
 
 See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the
 repository [AGENTS.md](../AGENTS.md).

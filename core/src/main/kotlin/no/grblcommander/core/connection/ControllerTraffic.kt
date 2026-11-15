@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.connection
+package no.grblcommander.core.connection
 
 import no.grblcommander.machine.session.CommunicationEvent
 

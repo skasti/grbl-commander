@@ -67,7 +67,7 @@ internal fun SoftkeyTile(
         ) {
             // Undefined and explicit Blank slots have no text or icon, including hints.
             if (definition.label.isNotEmpty() || definition.icon != null) {
-                Text(slot.shortcut, color = ShellColors.muted, fontSize = 10.sp)
+                Text(slot.shortcut, color = ShellColors.muted, fontSize = 10.sp, lineHeight = 12.sp)
                 Spacer(Modifier.height(7.dp))
                 definition.icon?.let {
                     Icon(
@@ -81,6 +81,7 @@ internal fun SoftkeyTile(
                     definition.label,
                     color = foreground,
                     fontSize = 12.sp,
+                    lineHeight = 14.sp,
                     textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,

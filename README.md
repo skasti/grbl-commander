@@ -15,7 +15,7 @@ who are.
 
 The desktop application uses Kotlin/JVM and Compose Multiplatform Desktop. The
 persistent `AppShell` owns a header with Program, Manual and MDI UI-mode
-buttons, a workspace, and fixed bottom/right screen-owned softkeys. Each window
+buttons and an icon-only ⚙ Util selector, a workspace, and fixed bottom/right screen-owned softkeys. Each window
 owns a persistent `ScreenStack` for each UI mode. `ScreenStackHost` hosts all
 these stacks, retaining inactive compositions and overlays (including ordinary
 Compose `remember` state), while only the active stack is visible and
@@ -34,18 +34,63 @@ modifies its right keys. Open the explorer, switch to Manual, navigate into its
 details screen, then return to Program: the explorer and unfinished editor are
 still present. Manual has a local notes screen; MDI has an unsent text buffer.
 These are UI fixtures, not machine functions. They do not access actual program
-files or send commands. The application starts disconnected; connection controls
-and endpoint settings UI remain planned.
+files or send commands. The application starts disconnected. Util provides controller connection settings.
 
-The UI-independent `:infrastructure` module provides TCP and serial transports,
-GRBL parsing and a shared machine-session API with observable controller state.
-The application owns one `ControllerConnection` above every mode/screen lifetime.
-It selects the existing production transport from a typed TCP or serial endpoint,
-creates one fresh session for each explicit connection, and closes/awaits it at
-application exit. `connect(endpoint)`, `disconnect()` and `reconfigure(endpoint)`
-are application APIs; reconfiguration alone does not connect. All retained modes
-share this owner through `LocalControllerConnection`; the header observes its
-actual connection health. No endpoint is selected or connected automatically.
+The module dependency direction is **app-desktop → core → infrastructure**.
+`:app-desktop` contains Compose presentation and startup/composition. The
+UI-independent `:core` module owns `ControllerConnection`, `ControllerSettings`,
+endpoint/configuration models, validation, shared configuration state and
+connection/settings workflows. `:infrastructure` provides transports, protocol,
+`GrblMachineSession`, serial discovery and actual JVM Preferences storage.
+
+`Main` constructs one core connection/settings pair above every mode/screen
+lifetime, and closes/awaits the connection at exit. Core selects the existing
+production transport from a typed endpoint and creates a fresh session per
+explicit connection. All retained modes share this owner; the header observes
+its actual health. Save and Connect remain explicit user intentions, while core
+performs validation and Connect's subsequent persistence internally. Screens
+never instantiate sessions, transports or preferences adapters. No endpoint is
+selected or connected automatically.
+
+Select **⚙ Util**, then **Controller connection** or **F8 Connection** to configure
+TCP/network or Serial/USB. Util has one persistent stack and an otherwise empty
+root; its terminal is planned in [#22](https://github.com/skasti/grbl-commander/issues/22).
+**F7 Util** returns to that root, and F8 highlights the settings view. F6 is free;
+connection health remains a separate shared header indicator. Switching modes
+retains an open form and never disconnects the shared session.
+
+Enter a TCP host/IP and its configured port (no fixed port is assumed), or refresh
+the optional serial-port list and/or enter a device manually. Serial defaults are
+115200 baud, 8N1, no flow control and DTR/RTS false; Advanced exposes all options.
+Discovery does not open ports or change control lines. Empty discovery or native/
+permission failures do not prevent manual entry.
+
+**Save** asks core to store the selected transport/settings without
+changing the active connection. **Connect** validates, connects through the shared
+owner, waits for a controller status handshake and then saves. **Disconnect** can
+cancel a pending handshake, but is disabled during Save or an ongoing Disconnect.
+After a successful handshake it waits for Connect's settings save before disconnecting.
+Replacing/disconnecting an active or connecting session
+requires confirmation through a modal screen on the Util stack: **F1 confirms**
+and **F8 cancels** using the bottom softkeys. The modal has no action buttons in
+its workspace and hides the covered screen's actions until it closes. Reusable
+`ModalDialog<R>` supports other messages/typed choices through the same stack.
+Confirmation does not stop physical motion or replay commands.
+Close cancels an unfinished form action; it does not disconnect a completed session.
+Storage errors are displayed separately from actual connection health. Settings
+load when opening the form; missing/corrupt/incomplete records use blank endpoint
+fields and normal serial defaults. The application never automatically connects or retries connection attempts.
+
+The screen shows the actual endpoint and lifecycle state. Deliberate Disconnect
+clears the displayed connection error and shows a neutral note that machine state
+is not being updated. Unexpected connection failures remain errors; a connected
+controller with missing reports still shows a stale-state warning. Core sends a background `?` status query every 500 ms after successful handshake,
+independently of the selected screen/mode. Polling stops with the connection and
+pauses during reset handshake. Writes are sequential, with no backlog or catch-up
+bursts; a slow write delays the next poll. Missing reports still become stale
+after three seconds, and polling never reconnects, resets or sends normal commands. Hardware-free tests cover validation, persistence,
+serial discovery, confirmation, cancellation, timeout/reconnect and Util navigation.
+Physical controller/USB line behavior remains unverified.
 
 ### Requirements
 
@@ -61,10 +106,20 @@ gradle :app-desktop:run
 Build and test:
 
 ```bash
-gradle :infrastructure:build :app-desktop:build
+gradle :infrastructure:build :core:build :app-desktop:build
 ```
 
-GitHub Actions builds and tests on Linux and Windows, the officially supported
+Core can also be built/tested without compiling Compose:
+
+```bash
+gradle :core:build --configure-on-demand
+```
+
+JVM Preferences keeps the `no/grblcommander/controller` node, `endpoint` key and
+v1 Properties record. Existing TCP and advanced serial settings remain readable.
+Core interprets/validates this record; infrastructure only reads/writes its text.
+
+GitHub Actions builds and tests all three modules on Linux and Windows, the officially supported
 desktop platforms. Each merged PR triggers a versioned GitHub Release with
 native Linux (DEB/RPM) and Windows (MSI) installers. macOS is neither tested nor
 packaged and is not an officially supported target; the shared Kotlin/JVM and

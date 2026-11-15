@@ -63,7 +63,7 @@ flowchart TB
     UI["Compose Desktop UI"]
 
     subgraph APP["Application"]
-        MC["Machine Session"]
+        MC["Controller Connection"]
         OPS["Operation Coordinator"]
         PROG["Program Service"]
         MAC["Macro Service"]
@@ -78,6 +78,7 @@ flowchart TB
     end
 
     subgraph INFRA["Infrastructure"]
+        SESSION["Machine Session"]
         PROTO["GRBL Protocol"]
         SERIAL["Serial Transport"]
         TCP["TCP Transport"]
@@ -95,7 +96,8 @@ flowchart TB
     PROG --> PATH
     MAC --> META
     TOOLS --> META
-    MC --> PROTO
+    MC --> SESSION
+    SESSION --> PROTO
     PROTO --> SERIAL
     PROTO --> TCP
     PROG --> FILES
@@ -303,10 +305,11 @@ Capability discovery, streaming and application operation workflows remain plann
 
 ### 3.6 Application connection ownership
 
-`desktop.connection.ControllerConnection` is the UI-independent application
-boundary in `:app-desktop`; no additional core module is required. `Main` creates
-one owner above the window/mode stacks and explicitly closes and awaits it when
-the application exits. `CommanderApp` supplies the same owner to every retained
+`core.connection.ControllerConnection` is the UI-independent application
+boundary in `:core`. `Main` in `:app-desktop` creates one connection owner and
+one `ControllerSettings` instance above the window/mode stacks, passes them into
+presentation, and explicitly closes and awaits the connection when the
+application exits. `CommanderApp` supplies the same owner to every retained
 mode through `LocalControllerConnection`, and displays its connection health in
 the header. Screens never construct sessions or transports.
 
@@ -314,7 +317,86 @@ the header. Screens never construct sessions or transports.
 select `TcpTransport` and `SerialTransport` through a small factory. Serial uses
 `SerialConfiguration` unchanged, including its 115200/8N1/no-flow-control/DTR/RTS
 low defaults. Native serial-port lookup occurs at connect rather than endpoint
-selection. No endpoint storage, chooser or connection settings UI is implemented.
+selection. `ControllerEndpointDraft` validates editable fields without DNS lookup
+or I/O. TCP uses an explicitly entered port (1–65535); serial retains the existing
+defaults and permits manual Windows port names and Linux device paths, including
+devices absent from discovery.
+
+`ControllerSettings` in core owns the observable saved `configuration`, separate
+from the active session endpoint and a screen's unsaved draft. Its load/save
+workflows serialize configuration access, validate loaded/edited values and
+publish configuration after a successful read/write. Loading occurs through the
+core operation when the form opens; startup never connects an endpoint.
+Connect validates and awaits handshake before persisting its endpoint inside
+core; presentation invokes user intentions and never performs this internal save.
+
+`ControllerEndpointRecord` in core maps typed endpoints to/from the versioned
+Properties text. Missing, incomplete, invalid or unsupported records leave the
+endpoint unselected and retain normal serial defaults. Infrastructure's
+`configuration.ControllerEndpointPreferences` reads/writes that opaque text using
+JVM per-user preferences, at node `no/grblcommander/controller`, key `endpoint`.
+The v1 field names and representation are stable; storage does not interpret or
+validate endpoint models. This small string boundary keeps infrastructure
+independent of core without duplicating models or introducing a repository
+framework. Storage/flush failures propagate through core; core dispatches storage
+I/O and saving never reconfigures or connects a session.
+
+`SerialPortDiscovery` in `:infrastructure` enumerates jSerialComm ports on the I/O
+dispatcher, returning device paths/names and descriptive labels without opening
+ports or changing control lines. Empty discovery and native/permission failures
+are distinct results; cancellation propagates. Discovery is advisory, so manual
+device entry remains valid independently of its result. Presentation requests
+discovery through `ControllerSettings.discoverSerialPorts()`; the native adapter
+and enumeration remain in infrastructure.
+
+`ControllerSettings` validates and orchestrates explicit load/save/connect/disconnect
+requests through the existing owner. Replacing or disconnecting a connected or
+connecting session requires explicit interruption confirmation. Save cannot
+reconfigure an active session. Connect saves only after successful handshake;
+a subsequent storage failure leaves connected health visible. Cancellation during
+handshake closes the unfinished attempt; disconnect remains available during it.
+The settings screen tracks its one active job as Save, Connect or Disconnect.
+The application reports handshake completion before persistence begins, so this
+phase does not depend on later connection-health changes. Disconnect can replace
+only Connect, awaiting cancellation/cleanup of an unfinished
+handshake, or awaiting its settings save if handshake has completed. Save and a
+running Disconnect cannot be cancelled by another Disconnect action. Workspace
+buttons and softkeys share the same enabled predicate, and callbacks also guard
+against repeated activation. Interruption still requires explicit confirmation.
+Connection attempts and machine commands are not automatically retried; no
+reset, machine command replay or auto-connect is implicit.
+
+The Util mode owns one persistent stack rooted at `UtilMode`, an empty workspace
+with a connection-settings button. `ControllerConnectionSettings : Screen<Unit>`
+opens above that root using the explicit parent contract; F7 returns to Util and
+F8 selects Connection. F6 is unassigned. The root is reserved for the terminal in
+[#22](https://github.com/skasti/grbl-commander/issues/22). Settings uses its own
+right bank, without inheriting future terminal filters. The form owns draft,
+validation/error display and stack-owned interruption confirmation, never a session.
+Mode changes preserve the form and connection. Closing the form cancels unfinished
+form work; a completed connection outlives the screen.
+
+Both header and form read the same authoritative owner state. A presentation clock
+marks retained reports stale after three seconds, even without a new state emission;
+disconnected/unknown reports are not live.
+
+Each active connection owns one core background polling coroutine, independent
+of UI composition and mode selection. After successful handshake it waits 500 ms
+and sends `RealtimeCommand.STATUS_QUERY` through the existing session realtime
+writer. It does not await a response or hold the explicit `queryStatus()` mutex;
+the single session reader handles every report. Normal-command acknowledgment
+slots and traffic categorization are unchanged. Polling waits 500 ms after each
+write completes, so slow writes cannot overlap or create catch-up bursts.
+
+Polling pauses while `resetInProgress` because reset owns its status handshake.
+Alarms, `resetRequired` and uncertain normal-command correlation do not block
+status requests. Recoverable write failures/timeouts retain the session's existing
+diagnostics and permit the next scheduled poll; cancellation propagates. Actual
+connection failure stops polling, and disconnect/reconfiguration/replacement or
+application/parent shutdown cancels and awaits the old connection's polling work.
+A reconnect creates one fresh loop only after disposing the old session. No
+normal command, reset, reconnect or status-derived success is synthesized;
+missing responses remain visibly stale.
 
 The owner starts disconnected. `connect(endpoint)` is an explicit operator
 request: it closes, cancels and awaits any old session/handshake before creating
@@ -334,7 +416,12 @@ disposal and their controller outcome must not be assumed known.
 `ControllerConnectionState` exposes the selected endpoint, the authoritative
 `MachineSnapshot` and a closing flag. Transport health, controller execution
 state, command synchronization and report freshness remain separate. A retained
-snapshot after disconnect is an observation, not live machine state. The owner
+snapshot after disconnect is an observation, not live machine state. Explicit
+disconnect/reconfiguration/shutdown clears the application-level failure field;
+the session's technical close reason is not a connection error. State observers
+do not publish session-close diagnostics while the application owner is closing.
+Unexpected failures remain visible until an explicit lifecycle action acknowledges
+them; navigation alone never clears errors. The owner
 and session are explicitly disposable; `awaitClosed()` joins owned work.
 
 ### 3.7 Passive communication diagnostics
@@ -492,19 +579,20 @@ Shared operations can use consistent positions where appropriate screens expose
 them; no softkey is unconditionally visible across modes or overlays.
 
 **Current implementation:** The desktop shell renders a header with Program,
-Manual and MDI UI-mode selection, a central workspace, eight bottom softkey
+Manual, MDI and icon-only Util UI-mode selection, a central workspace, eight bottom softkey
 slots and seven right softkey slots. Each window retains a `ScreenStack` for
 each UI mode, hosted together by `ScreenStackHost`. Program includes the branded
 welcome screen and a runnable in-memory editor/file-explorer example. Manual has
-a nested details screen with local notes; MDI has an unsent text buffer. Mode
+a nested details screen with local notes; MDI has an unsent text buffer. Util has
+an empty root and controller connection settings. Mode
 changes do not cancel overlays, discard drafts, or alter controller execution
 state. The window icon and header show the supplied app logo. Softkey slots
 render screen-owned labels/icons, reactive enabled/active state, and safe
 in-memory navigation actions. Pointer and keyboard input share guarded slot
 activation. DRO, real mode operations and live machine-status presentation are not
-implemented. A shared application-owned connection uses `:infrastructure`; the
-header observes its real health. It starts disconnected and has no connection
-settings UI. The shared slot layout is described
+implemented. A shared core-owned connection coordinates `:infrastructure`; the
+header observes its real health and report freshness. It starts disconnected;
+Util owns explicit connection settings/actions. The shared slot layout is described
 in [UI layout](ui-layout.md).
 
 ### Screen navigation contract
@@ -541,6 +629,15 @@ or pending typed callbacks. Every screen retains ordinary Compose `remember`
 state, not merely screen-instance fields. `CommanderApp` creates the stacks
 once per application window and keeps the active UI-mode selection in Compose
 state; there is no mode-specific navigation registry or globally shared host.
+
+Reusable `ui.dialogs.ModalDialog<R>` screens render a message and map supplied
+bottom-softkey choices to typed results. They open above an explicit parent in
+its existing stack, replace both key banks and rely on the host for the scrim,
+input isolation and retained compositions. There is no global dialog navigator,
+native modal window or separate result mechanism. Dialog content has no action
+buttons; the shell renders the choices. Connection interruption uses F1 confirm
+and F8 cancel, with the parent restored before it processes the decision through
+core. Generic dialog presentation has no connection/core dependencies.
 
 Header and softkey regions remain owned by `AppShell` outside workspace input
 boundaries. Navigation is observable through Compose snapshot state and confined
@@ -619,7 +716,7 @@ Initial modes:
 | Program    | Program selection, editing, toolpath preview, and execution        |
 | Probing    | Macro-driven probing workflows                                     |
 | Macros     | Macro discovery, editing, execution, and synchronization           |
-| Debug      | Communication terminal, diagnostics, and controller inspection     |
+| Util       | Connection settings; planned terminal, diagnostics and controller inspection |
 
 Tool Management may be presented as a mode or as a workspace accessible from
 Program and Macros.
@@ -629,7 +726,7 @@ Program and Macros.
 Switching UI mode must not implicitly modify machine state or interrupt an
 active operation. Each window retains its mode stacks and their composed
 navigation histories independently. The current demonstration provides Program,
-Manual and MDI contexts; probing, macro and debug workspaces remain planned.
+Manual, MDI and Util contexts; probing, macro and terminal workspaces remain planned.
 
 ### 5.3 DRO
 
@@ -874,7 +971,7 @@ The application must:
 - Never automatically resume interrupted motion following reconnection.
 - Avoid presenting simulated or predicted outcomes as confirmed machine state.
 
-Raw command access remains possible in Debug mode, but bypassing
+Planned raw command access belongs in Util mode, but bypassing
 application-level workflows must be explicit.
 
 Software validation and toolpath previews cannot guarantee collision-free or
@@ -988,7 +1085,7 @@ Initial technology choices:
 | Serial transport | jSerialComm                                                   |
 | 2D rendering     | Compose Canvas / Skia                                         |
 | Build            | Gradle Kotlin DSL                                             |
-| Configuration    | Kotlin serialization with an appropriate persistent format    |
+| Configuration    | JVM preferences for desktop controller endpoints; other configuration planned |
 | Testing          | Kotlin/JVM tests, simulated controller, and cross-platform CI |
 | Packaging        | Platform-native desktop distributions                         |
 
@@ -1000,11 +1097,36 @@ transport-specific libraries, or operating-system-specific APIs.
 
 ## 12. Source Organization
 
-The current Gradle build contains `app-desktop` for the Compose desktop shell
-and `infrastructure`, a Kotlin/JVM module without UI dependencies.
-`app-desktop` depends on `infrastructure`. The `core` module in the example
-below describes intended organization and is not implemented. The logical
-application connection contracts live in `desktop.connection`, outside UI packages.
+The Gradle build contains three modules with dependency direction
+**app-desktop → core → infrastructure**:
+
+| Module | Responsibility | Dependency |
+| --- | --- | --- |
+| `:app-desktop` | Compose presentation, screens, navigation, AppShell/softkeys, draft/UI state, startup and composition | `:core` |
+| `:core` | Application connection/settings workflows, lifecycle, endpoint/configuration models, validation and shared application state | `:infrastructure` |
+| `:infrastructure` | TCP/serial I/O, protocol, `GrblMachineSession`, machine snapshots/events, serial discovery and JVM Preferences storage | No dependency on core or presentation |
+
+Core is Kotlin/JVM without Compose or another UI framework. Its
+`no.grblcommander.core.connection` package contains `ControllerConnection`,
+`ControllerConnectionState`, `ControllerSettings`, typed endpoint/draft models,
+record mapping, traffic history and the production session factory. Session and
+transport construction is confined to this core composition boundary; their
+implementations and protocol semantics remain in infrastructure. Future shared
+machine-operation coordination and application/domain models belong in core.
+Application-owned background status polling belongs to the core connection
+lifetime rather than a screen, using the existing infrastructure realtime path.
+
+Infrastructure does not import core configuration models. Its preferences adapter
+stores a text record supplied by core; core owns its schema, validation and
+load/save policy. Core re-exports the existing infrastructure API because its
+public contracts use immutable `MachineSnapshot`, communication and serial-option
+models. Presentation may render those shared values without constructing sessions,
+transports or storage adapters. It has no direct Gradle infrastructure dependency.
+
+`Main` composes one shared connection/settings pair for the application. Screens
+use core operations such as load, Save, Connect, Disconnect and discovery. A UI
+mode or screen cannot establish a parallel controller session or decide to save
+as a hidden consequence of Connect. Core performs that workflow itself.
 
 ### Desktop UI package responsibilities
 
@@ -1016,6 +1138,8 @@ screen implementations:
   activation path. These APIs do not depend on concrete application screens.
 - `ui.layout` contains the persistent shell, header, softkey banks, and shared
   softkey tile presentation.
+- `ui.dialogs` contains reusable typed modal message/choice screens. It uses
+  navigation contracts without depending on concrete feature screens or core.
 - `ui.screens` contains concrete screen implementations such as `Welcome`,
   `Editor`, `FileExplorer`, `ManualMode`, `ManualDetails`, and `MdiMode`.
 - The application composition root selects concrete mode roots and supplies
@@ -1043,50 +1167,22 @@ Start with a small number of Gradle modules. Use packages to establish component
 boundaries. The same JVM modules are shared by Linux and Windows;
 platform-specific integrations can remain isolated within infrastructure.
 
-Suggested initial structure:
+Implemented source ownership:
 
-```text
-grbl-commander/
-├── app-desktop/                         # implemented
-│   └── src/main/
-│       ├── composeResources/drawable/
-│       └── kotlin/no/grblcommander/desktop/
-│           ├── Main.kt
-│           └── ui/
-│               ├── CommanderApp.kt
-│               ├── layout/
-│               │   ├── AppShell.kt
-│               │   ├── BottomSoftkeys.kt
-│               │   ├── RightSoftkeys.kt
-│               │   ├── ShellHeader.kt
-│               │   ├── ShellState.kt
-│               │   └── SoftkeyTile.kt
-│               ├── navigation/
-│               │   ├── NavigationParent.kt
-│               │   ├── Screen.kt
-│               │   ├── ScreenStack.kt
-│               │   ├── ScreenStackHost.kt
-│               │   ├── SoftKey.kt
-│               │   ├── SoftKeyActivation.kt
-│               │   └── SoftKeyOverrides.kt
-│               └── screens/
-│                   ├── Editor.kt
-│                   ├── FileExplorer.kt
-│                   ├── ManualMode.kt
-│                   ├── MdiMode.kt
-│                   └── Welcome.kt
-│
-├── infrastructure/                        # transports, GRBL protocol and session
-├── core/                                  # intended; not implemented
-└── docs/
-    └── architecture.md
-```
+| Location | Contents |
+| --- | --- |
+| `app-desktop/src/main/kotlin/no/grblcommander/desktop/Main.kt` | Application composition and shutdown |
+| `app-desktop/src/main/kotlin/no/grblcommander/desktop/ui/` | Presentation infrastructure and concrete screens |
+| `core/src/main/kotlin/no/grblcommander/core/connection/` | Application services and connection/configuration models |
+| `core/src/test/` | UI-independent application tests |
+| `core/src/testFixtures/` | Shared simulated transport used by core and UI tests |
+| `infrastructure/src/main/kotlin/no/grblcommander/machine/` | Technical machine communication and discovery |
+| `infrastructure/src/main/kotlin/no/grblcommander/configuration/` | JVM Preferences record storage |
 
 Additional Gradle modules should be introduced when there is a concrete benefit,
 such as independent testing, dependency isolation, or separate reuse.
 
-The package layout is illustrative, not a requirement to create every package
-immediately.
+Additional domain/feature packages should follow concrete application responsibilities.
 
 ## 13. Testing
 
@@ -1104,6 +1200,14 @@ The test strategy includes:
 - Cross-platform CI on Linux and Windows for shared functionality and relevant
   desktop integrations.
 - Platform-native packaging smoke tests.
+
+`gradle :core:build --configure-on-demand` builds and tests application services
+without compiling or testing Compose. Core tests preserve controller lifecycle,
+handshake, cancellation, diagnostics and settings contracts; they also cover
+legacy record compatibility, shared configuration state and simulated restarts.
+Core and desktop tests share one simulated transport through Gradle test fixtures.
+Desktop tests retain navigation, confirmation and concurrent-form coverage.
+Linux/Windows CI runs `:infrastructure:build :core:build :app-desktop:build`.
 
 The implemented `:infrastructure:test` suite covers GRBL framing/parsing,
 TCP loopback lifecycle, serial lifecycle via an injected native adapter, native

@@ -18,7 +18,8 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":infrastructure"))
+    implementation(project(":core"))
+    testImplementation(testFixtures(project(":core")))
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
     implementation(compose.components.resources)

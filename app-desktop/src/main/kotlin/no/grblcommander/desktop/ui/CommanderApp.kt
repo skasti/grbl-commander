@@ -14,7 +14,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
-import no.grblcommander.desktop.connection.ControllerConnection
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import no.grblcommander.core.connection.ControllerConnection
+import no.grblcommander.core.connection.ControllerSettings
+import no.grblcommander.core.connection.description
+import no.grblcommander.machine.session.MachineSnapshot.Connection
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.screens.ManualMode
@@ -22,21 +30,24 @@ import no.grblcommander.desktop.ui.screens.MdiMode
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
 import no.grblcommander.desktop.ui.screens.Welcome
+import no.grblcommander.desktop.ui.screens.UtilMode
 
 /** Stable UI context identities, separate from GRBL controller execution states. */
 private enum class OperatorMode(val label: String) {
-    Program("Program"), Manual("Manual"), Mdi("MDI"),
+    Program("Program"), Manual("Manual"), Mdi("MDI"), Util("Util"),
 }
 
 @Composable
-fun CommanderApp(connection: ControllerConnection) {
+fun CommanderApp(connection: ControllerConnection, settings: ControllerSettings) {
     val connectionState by connection.state.collectAsState()
+    val now = rememberCurrentTime()
     // Each application window owns one persistent ScreenStack for each UI mode.
-    val stacks = remember {
+    val stacks = remember(connection) {
         mapOf(
             OperatorMode.Program to ScreenStack(Welcome()),
             OperatorMode.Manual to ScreenStack(ManualMode()),
             OperatorMode.Mdi to ScreenStack(MdiMode()),
+            OperatorMode.Util to ScreenStack(UtilMode(settings)),
         )
     }
     var activeMode by remember { mutableStateOf(OperatorMode.Program) }
@@ -46,15 +57,24 @@ fun CommanderApp(connection: ControllerConnection) {
             AppShell(
                 state = ShellState.startup().copy(
                     title = activeMode.label,
-                    context = "In-memory UI demonstration · no machine controls",
-                    connectionStatus = if (connectionState.closing) "Closing" else connectionState.snapshot.connection.name,
+                    context = connectionState.endpoint?.description() ?: "No controller endpoint selected",
+                    connectionStatus = (if (connectionState.closing) "Closing" else connectionState.snapshot.connection.name) +
+                        if (!connectionState.closing && connectionState.snapshot.connection == Connection.CONNECTED &&
+                            connectionState.reportIsStale(now)) " · stale" else "",
                 ),
                 currentStack = { stacks.getValue(activeMode) },
                 headerControls = {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         OperatorMode.entries.forEach { mode ->
-                            TextButton(onClick = { activeMode = mode }) {
-                                Text(if (activeMode == mode) "• ${mode.label}" else mode.label)
+                            TextButton(
+                                onClick = { activeMode = mode },
+                                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                    selected = activeMode == mode
+                                    if (mode == OperatorMode.Util) contentDescription = "Util"
+                                },
+                            ) {
+                                Text(if (mode == OperatorMode.Util) "⚙" else if (activeMode == mode) "• ${mode.label}" else mode.label,
+                                    color = if (activeMode == mode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                             }
                         }
                     }

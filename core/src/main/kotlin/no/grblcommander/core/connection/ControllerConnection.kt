@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.connection
+package no.grblcommander.core.connection
 
 import java.io.Closeable
 import java.io.IOException
@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import no.grblcommander.machine.session.CommunicationEvent
@@ -31,7 +32,7 @@ import no.grblcommander.machine.session.MachineSnapshot
 import no.grblcommander.machine.session.RealtimeCommand
 
 /** App-lifetime command boundary. Screens never receive a transport or replace its session. */
-class ControllerConnection internal constructor(
+class ControllerConnection(
     parentScope: CoroutineScope,
     private val sessionFactory: (ControllerEndpoint, CoroutineScope) -> MachineSession,
     private val historyCapacity: Int = 5_000,
@@ -109,20 +110,40 @@ class ControllerConnection internal constructor(
                 }
                 entry.observers += scope.launch(start = CoroutineStart.UNDISPATCHED) {
                     session.state.collect { synchronized(gate) {
-                        if (active === entry && !closed) mutableState.value = state.value.copy(snapshot = session.state.value)
+                        if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
                     } }
+                }
+                entry.observers += scope.launch {
+                    session.state.first { it.connection == MachineSnapshot.Connection.CONNECTED ||
+                        it.connection == MachineSnapshot.Connection.FAILED || it.connection == MachineSnapshot.Connection.CLOSED }
+                    while (isActive) {
+                        delay(500)
+                        val snapshot = synchronized(gate) {
+                            if (active !== entry || closed || state.value.closing) return@launch
+                            session.state.value
+                        }
+                        if (snapshot.connection != MachineSnapshot.Connection.CONNECTED) return@launch
+                        if (snapshot.resetInProgress) continue // Reset owns its own status handshake.
+                        try {
+                            // Status has no acknowledgment slot; the existing reader owns all reports.
+                            session.sendRealtime(RealtimeCommand.STATUS_QUERY)
+                        } catch (_: Exception) {
+                            // Session records I/O errors. Preserve cancellation, never reconnect here.
+                            currentCoroutineContext().ensureActive()
+                        }
+                    }
                 }
                 entry.connecting = scope.async(start = CoroutineStart.LAZY) {
                     try {
                         session.connect()
                         synchronized(gate) {
-                            if (active === entry && !closed) mutableState.value = state.value.copy(snapshot = session.state.value)
+                            if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
                         }
                     }
                     catch (error: Throwable) {
                         withContext(NonCancellable) { entry.close(); session.awaitClosed() }
                         synchronized(gate) {
-                            if (active === entry && !closed) mutableState.value = state.value.copy(snapshot = session.state.value)
+                            if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
                         }
                         throw error
                     }
@@ -158,7 +179,7 @@ class ControllerConnection internal constructor(
         stopActive()
         synchronized(gate) {
             if (!closed) mutableState.value = state.value.copy(
-                snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.DISCONNECTED), closing = false,
+                snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.DISCONNECTED, failure = null), closing = false,
             )
         }
     }
@@ -176,8 +197,10 @@ class ControllerConnection internal constructor(
             if (active === old) {
                 active = null
                 mutableState.value = state.value.copy(
+                    // Explicit disposal is a normal lifecycle action, not a connection failure.
+                    // Retain the last observation, but not the session's technical close reason.
                     snapshot = old.session.state.value.copy(connection = if (closed) MachineSnapshot.Connection.CLOSED
-                        else MachineSnapshot.Connection.DISCONNECTED),
+                        else MachineSnapshot.Connection.DISCONNECTED, failure = null),
                     closing = false,
                 )
             }
@@ -236,7 +259,7 @@ class ControllerConnection internal constructor(
         active?.session?.awaitClosed()
         synchronized(gate) {
             active?.let { finishObservations(it) }
-            mutableState.value = state.value.copy(snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.CLOSED), closing = false)
+            mutableState.value = state.value.copy(snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.CLOSED, failure = null), closing = false)
         }
     }
 }

@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.connection
+package no.grblcommander.core.connection
 
 import kotlinx.coroutines.CoroutineScope
 import no.grblcommander.machine.session.GrblMachineSession

@@ -8,6 +8,9 @@ on:
       - ".github/scripts/assert_msi_start_menu.ps1"
       - "build.gradle.kts"
       - "gradle.properties"
+      - "settings.gradle.kts"
+      - "core/build.gradle.kts"
+      - "infrastructure/build.gradle.kts"
       - "app-desktop/build.gradle.kts"
 
 permissions:
