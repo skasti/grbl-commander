@@ -1,6 +1,7 @@
 package no.grblcommander.machine.session
 
 import java.io.IOException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -275,6 +276,154 @@ class GrblAlarmProtocolTest {
                     transport.emit("<Alarm:1|FW:grblHAL|\$C:1>\n")
                     assertFailsWith<CommandCorrelationException> { next.await() }
                     assertTrue(session.state.value.resetRequired)
+                } finally { session.close(); session.awaitClosed() }
+            }
+        }
+    }
+
+    private suspend fun resetFromCriticalAlarm(
+        session: GrblMachineSession,
+        transport: InMemoryTransport,
+        report: String,
+    ) {
+        transport.emit("ALARM:1\n")
+        session.state.first { it.resetRequired }
+        transport.statusReport = report
+        session.reset()
+        assertFalse(session.state.value.resetRequired)
+        assertTrue(session.state.value.normalCommandsSynchronized)
+        while (transport.writes.tryReceive().isSuccess) { /* consume reset/status writes */ }
+    }
+
+    @Test fun `new status alarm after reset and Idle interrupts active and queued work`() = runBlocking<Unit> {
+        withTimeout(15_000) {
+            for (code in listOf(11, 1)) {
+                for (fields in listOf("", "|FW:grblHAL", "|\$C:1", "|FW:grblHAL|\$C:1")) supervisorScope {
+                    val transport = InMemoryTransport()
+                    val session = connected(this, transport)
+                    try {
+                        resetFromCriticalAlarm(session, transport, "<Alarm:1|FW:grblHAL>")
+                        transport.emit("<Idle|FW:grblHAL>\n")
+                        session.state.first { it.status?.executionState == "Idle" }
+                        val line = async { session.executeLine("G4 P1") }
+                        assertEquals("G4 P1\n", transport.writes.receive())
+                        val queued = async(start = CoroutineStart.UNDISPATCHED) { session.executeLine("\$I") }
+                        transport.emit("<Alarm:$code$fields>\n")
+                        assertFailsWith<CommandCorrelationException> { line.await() }
+                        assertFailsWith<CommandCorrelationException> { queued.await() }
+                        val resetRequired = code == 1 || fields.contains("\$C:1")
+                        assertEquals(code, session.state.value.alarmCode)
+                        assertEquals(resetRequired, session.state.value.resetRequired)
+                        assertFalse(session.state.value.normalCommandsSynchronized)
+                        assertEquals(Connection.CONNECTED, session.state.value.connection)
+                        assertFailsWith<CommandCorrelationException> { session.executeLine("\$X") }
+                        assertTrue(transport.writes.tryReceive().isFailure) // no replay or automatic recovery
+                        session.sendRealtime(RealtimeCommand.FEED_HOLD)
+                        assertEquals("!", transport.writes.receive())
+                        transport.statusReport = "<Alarm:$code$fields>"
+                        session.queryStatus()
+                        assertEquals("?", transport.writes.receive())
+                        // A late reply drains only a noncritical line's old response slot.
+                        val sequence = session.state.value.reportSequence
+                        transport.emit("ok\n<Alarm:$code$fields>\n")
+                        session.state.first { it.reportSequence > sequence }
+                        assertEquals(!resetRequired, session.state.value.normalCommandsSynchronized)
+                        assertEquals(resetRequired, session.state.value.resetRequired)
+                        if (!resetRequired) {
+                            val home = async { session.executeLine("\$H") }
+                            assertEquals("\$H\n", transport.writes.receive())
+                            assertFalse(home.isCompleted)
+                            transport.emit("ok\n")
+                            assertTrue(home.await().accepted)
+                        }
+                        assertFalse(transport.closed)
+                    } finally { session.close(); session.awaitClosed() }
+                }
+            }
+        }
+    }
+
+    @Test fun `retained status alarm preserves pending unlock with partial and all-fields reports`() = runBlocking<Unit> {
+        withTimeout(10_000) {
+            for (fields in listOf("", "|FW:grblHAL")) {
+                for (initialCode in listOf("", ":1")) {
+                    val transport = InMemoryTransport()
+                    val session = connected(this, transport)
+                    try {
+                        resetFromCriticalAlarm(session, transport, "<Alarm$initialCode$fields>")
+                        val unlock = async { session.executeLine("\$X") }
+                        assertEquals("\$X\n", transport.writes.receive())
+                        val sequence = session.state.value.reportSequence
+                        transport.emit("<Alarm:1$fields>\n<Alarm:1$fields>\n")
+                        session.state.first { it.reportSequence >= sequence + 2 }
+                        assertEquals(1, session.state.value.alarmCode)
+                        assertFalse(session.state.value.resetRequired)
+                        assertTrue(session.state.value.normalCommandsSynchronized)
+                        assertFalse(unlock.isCompleted)
+                        transport.emit("ok\n")
+                        assertTrue(unlock.await().accepted)
+                    } finally { session.close(); session.awaitClosed() }
+                }
+            }
+        }
+    }
+
+    @Test fun `changed alarm code ends retained history even without intervening Idle`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            supervisorScope {
+                val transport = InMemoryTransport()
+                val session = connected(this, transport)
+                try {
+                    resetFromCriticalAlarm(session, transport, "<Alarm:1|FW:grblHAL>")
+                    val unlock = async { session.executeLine("\$X") }
+                    assertEquals("\$X\n", transport.writes.receive())
+                    transport.emit("<Alarm:11|FW:grblHAL>\n")
+                    assertFailsWith<CommandCorrelationException> { unlock.await() }
+                    assertFalse(session.state.value.resetRequired)
+                    assertFalse(session.state.value.normalCommandsSynchronized)
+                    transport.emit("ok\n")
+                    session.state.first { it.normalCommandsSynchronized }
+                    val home = async { session.executeLine("\$H") }
+                    assertEquals("\$H\n", transport.writes.receive())
+                    transport.emit("<Alarm:1|FW:grblHAL>\n")
+                    assertFailsWith<CommandCorrelationException> { home.await() }
+                    assertTrue(session.state.value.resetRequired)
+                } finally { session.close(); session.awaitClosed() }
+            }
+        }
+    }
+
+    @Test fun `explicit alarm notification supersedes retained status history in either message order`() = runBlocking<Unit> {
+        withTimeout(10_000) {
+            for (notificationFirst in listOf(false, true)) supervisorScope {
+                val transport = InMemoryTransport()
+                val session = connected(this, transport)
+                try {
+                    resetFromCriticalAlarm(session, transport, "<Alarm:1|FW:grblHAL>")
+                    val unlock = async { session.executeLine("\$X") }
+                    assertEquals("\$X\n", transport.writes.receive())
+                    val status = "<Alarm:1|FW:grblHAL>\n"
+                    transport.emit(if (notificationFirst) "ALARM:1\n$status" else "${status}ALARM:1\n")
+                    assertFailsWith<CommandCorrelationException> { unlock.await() }
+                    assertTrue(session.state.value.resetRequired)
+                    assertFalse(session.state.value.normalCommandsSynchronized)
+                    assertEquals(Connection.CONNECTED, session.state.value.connection)
+                } finally { session.close(); session.awaitClosed() }
+            }
+        }
+    }
+
+    @Test fun `unseen alarm code after reset is not retained merely because blocking flag is absent`() = runBlocking<Unit> {
+        withTimeout(10_000) {
+            for (code in listOf(1, 11, 200)) {
+                val transport = InMemoryTransport()
+                val session = connected(this, transport)
+                try {
+                    transport.statusReport = "<Alarm:$code|FW:grblHAL>"
+                    session.reset() // pre-reset state was Idle, so there is no known retained code
+                    assertEquals(code, session.state.value.alarmCode)
+                    assertEquals(code != 11, session.state.value.resetRequired)
+                    assertEquals(code == 11, session.state.value.normalCommandsSynchronized)
                 } finally { session.close(); session.awaitClosed() }
             }
         }

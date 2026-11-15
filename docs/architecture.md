@@ -270,8 +270,13 @@ session recovery before admitting normal work.
 
 A critical alarm code may remain reported after reset has exited the blocking
 loop. Therefore alarm criticality is not equivalent to `resetRequired`. A
-retained code after a confirmed reset boundary does not itself demand a second
-reset. New `ALARM:n` events or critical-blocking status reassert the restriction.
+retained, known pre-reset code after a confirmed reset boundary does not itself
+demand a second reset, including when a bare Alarm report precedes its substatus.
+This exception ends on a non-Alarm status, a changed alarm code or an explicit
+`ALARM:n` event. A subsequent alarm transition is handled as a new event, even
+when it repeats the pre-reset code. New critical alarms, `ALARM:n` events with
+critical/unknown codes or critical-blocking status reassert the restriction.
+Absence of `$C:1` does not identify a reported alarm as retained.
 In grblHAL all-fields reports, `FW:grblHAL` identifies the report that includes
 `$C:1` while the blocking event is active; `ControllerStatus.blockingCriticalEvent`
 exposes this observation when available. `STATUS_QUERY_ALL` (0x87) requests these
