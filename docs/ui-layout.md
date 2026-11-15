@@ -98,6 +98,45 @@ stale focused descendants. Covered content is removed from accessibility
 semantics. Focus returns to the active layer, not necessarily the previously
 focused editor field. The header and softkeys stay outside this input boundary.
 
+### Shared modal dialogs
+
+`ui.dialogs.ModalDialog<R>` is a reusable `Screen<R>` for a title, message and
+labelled bottom-softkey choices carrying typed result values. Open it with an
+explicit parent and handle the result after the parent has been restored:
+
+```kotlin
+ModalDialog(
+    title = "Interrupt current connection?",
+    message = "Disconnect the current controller session?",
+    cancellationResult = false,
+    choices = mapOf(
+        BottomSoftKeySlot.F1 to ModalDialog.Choice("Disconnect", true),
+        BottomSoftKeySlot.F8 to ModalDialog.Choice("Cancel", false),
+    ),
+).open(this@ParentScreen) { confirmed ->
+    if (confirmed) requestDisconnect()
+}
+```
+
+The modal displays a centered, scrollable message surface inside the workspace.
+It has no workspace action buttons and opens no native dialog/window. The
+persistent bottom softkeys supply choices through the existing pointer/keyboard
+activation path. Choice labels, slots and result types are supplied by the caller;
+no separate screen subclass is required for each message or confirmation.
+
+Both key banks replace inherited bindings. Unassigned slots, including all right
+keys, are blank, so covered form actions and Util navigation cannot leak through.
+`ScreenStackHost` supplies the scrim, focus/input isolation and retained parent
+composition. `Screen`/`ScreenStack` enforce topmost-only completion and at-most-once
+result delivery; pop/dismiss returns the supplied cancellation result. Mode
+switching retains a pending modal on its original stack without confirming it.
+
+Connection interruption uses F1 **Disconnect** / **Disconnect and connect** and
+F8 **Cancel**. Repeating the initiating F2/F3 cannot confirm or duplicate the
+modal, because those slots are blank while it is topmost. Cancelling restores the
+same form, draft and navigation/softkey state. The parent screen applies the
+confirmed result through its existing core operation.
+
 ### Independent mode stacks
 
 `CommanderApp` creates a stable `Map<OperatorMode, ScreenStack>` with
@@ -331,7 +370,10 @@ connected retain warning/error styling. The header adds a stale qualifier only
 while connected, not during expected disconnect/shutdown.
 
 Replacing/disconnecting an active or connecting session requires a screen-local
-confirmation describing interruption and uncertain pending command outcomes. It
+`ModalDialog<Boolean>` describing interruption and uncertain pending command
+outcomes. F1 confirms and F8 cancels through the bottom bank; there are no
+workspace confirmation buttons. The modal opens above the form on the same
+Util stack. It
 never resets/stops/replays machine work implicitly. Disconnect can interrupt a
 handshake. Disconnect is disabled during Save and a running Disconnect; repeated
 callbacks cannot start competing operations. A confirmed Disconnect reserves the

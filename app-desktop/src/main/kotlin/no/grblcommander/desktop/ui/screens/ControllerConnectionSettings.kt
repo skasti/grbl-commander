@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,6 +40,7 @@ import kotlinx.coroutines.launch
 import no.grblcommander.core.connection.ControllerEndpointDraft
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.description
+import no.grblcommander.desktop.ui.dialogs.ModalDialog
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.desktop.ui.navigation.Screen
@@ -63,7 +63,6 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
     private var discoveryError by mutableStateOf<String?>(null)
     private var refreshing by mutableStateOf(false)
     private var confirmation by mutableStateOf<Action?>(null)
-    private var confirmedDraft: ControllerEndpointDraft? = null
     private enum class Action { SAVE, CONNECT, DISCONNECT }
     private data class Operation(val action: Action, val job: Job)
     private val busy get() = !loaded || operation != null
@@ -118,8 +117,22 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
             try { draft.endpoint() } catch (failure: IllegalArgumentException) { error = failure.message; return }
         }
         if (settings.requiresInterruptionConfirmation || operation?.action == Action.CONNECT) {
-            confirmedDraft = draft
+            val entered = draft
             confirmation = action
+            ModalDialog(
+                title = "Interrupt current connection?",
+                message = "This closes the current controller session. Pending commands fail and machine execution may continue with an unknown outcome. Nothing is automatically stopped, reset or replayed.",
+                cancellationResult = false,
+                choices = mapOf(
+                    BottomSoftKeySlot.F1 to ModalDialog.Choice(
+                        if (action == Action.CONNECT) "Disconnect and connect" else "Disconnect", true,
+                    ),
+                    BottomSoftKeySlot.F8 to ModalDialog.Choice("Cancel", false),
+                ),
+            ).open(this) { confirmed ->
+                confirmation = null
+                if (confirmed) execute(action, entered, true)
+            }
         } else execute(action, draft, false)
     }
 
@@ -238,19 +251,6 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
                     TextButton(onClick = ::close, enabled = confirmation == null) { Text("Close") }
                 }
             }
-        }
-        confirmation?.let { action ->
-            AlertDialog(
-                onDismissRequest = { confirmation = null },
-                title = { Text("Interrupt current connection?") },
-                text = { Text("This closes the current controller session. Pending commands fail and machine execution may continue with an unknown outcome. Nothing is automatically stopped, reset or replayed.") },
-                confirmButton = { TextButton(onClick = {
-                    val entered = confirmedDraft ?: draft
-                    confirmation = null
-                    execute(action, entered, true)
-                }) { Text(if (action == Action.CONNECT) "Disconnect and connect" else "Disconnect") } },
-                dismissButton = { TextButton(onClick = { confirmation = null }) { Text("Cancel") } },
-            )
         }
     }
 }

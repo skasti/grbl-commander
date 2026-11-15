@@ -71,7 +71,11 @@ owner, waits for a controller status handshake and then saves. **Disconnect** ca
 cancel a pending handshake, but is disabled during Save or an ongoing Disconnect.
 After a successful handshake it waits for Connect's settings save before disconnecting.
 Replacing/disconnecting an active or connecting session
-requires confirmation; this does not stop physical motion or replay commands.
+requires confirmation through a modal screen on the Util stack: **F1 confirms**
+and **F8 cancels** using the bottom softkeys. The modal has no action buttons in
+its workspace and hides the covered screen's actions until it closes. Reusable
+`ModalDialog<R>` supports other messages/typed choices through the same stack.
+Confirmation does not stop physical motion or replay commands.
 Close cancels an unfinished form action; it does not disconnect a completed session.
 Storage errors are displayed separately from actual connection health. Settings
 load when opening the form; missing/corrupt/incomplete records use blank endpoint
