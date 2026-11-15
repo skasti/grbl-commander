@@ -77,8 +77,10 @@ Storage errors are displayed separately from actual connection health. Settings
 load when opening the form; missing/corrupt/incomplete records use blank endpoint
 fields and normal serial defaults. The application never automatically connects or retries connection attempts.
 
-The screen shows the actual endpoint, lifecycle state, last error and stale/unknown
-machine-state warning. Core sends a background `?` status query every 500 ms after successful handshake,
+The screen shows the actual endpoint and lifecycle state. Deliberate Disconnect
+clears the displayed connection error and shows a neutral note that machine state
+is not being updated. Unexpected connection failures remain errors; a connected
+controller with missing reports still shows a stale-state warning. Core sends a background `?` status query every 500 ms after successful handshake,
 independently of the selected screen/mode. Polling stops with the connection and
 pauses during reset handshake. Writes are sequential, with no backlog or catch-up
 bursts; a slow write delays the next poll. Missing reports still become stale

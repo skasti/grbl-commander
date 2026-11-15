@@ -22,6 +22,7 @@ import androidx.compose.ui.semantics.semantics
 import no.grblcommander.core.connection.ControllerConnection
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.description
+import no.grblcommander.machine.session.MachineSnapshot.Connection
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.screens.ManualMode
@@ -58,7 +59,8 @@ fun CommanderApp(connection: ControllerConnection, settings: ControllerSettings)
                     title = activeMode.label,
                     context = connectionState.endpoint?.description() ?: "No controller endpoint selected",
                     connectionStatus = (if (connectionState.closing) "Closing" else connectionState.snapshot.connection.name) +
-                        if (connectionState.snapshot.status != null && connectionState.reportIsStale(now)) " · stale" else "",
+                        if (!connectionState.closing && connectionState.snapshot.connection == Connection.CONNECTED &&
+                            connectionState.reportIsStale(now)) " · stale" else "",
                 ),
                 currentStack = { stacks.getValue(activeMode) },
                 headerControls = {

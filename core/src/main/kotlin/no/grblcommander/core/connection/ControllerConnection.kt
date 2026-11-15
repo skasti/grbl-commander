@@ -110,7 +110,7 @@ class ControllerConnection(
                 }
                 entry.observers += scope.launch(start = CoroutineStart.UNDISPATCHED) {
                     session.state.collect { synchronized(gate) {
-                        if (active === entry && !closed) mutableState.value = state.value.copy(snapshot = session.state.value)
+                        if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
                     } }
                 }
                 entry.observers += scope.launch {
@@ -137,13 +137,13 @@ class ControllerConnection(
                     try {
                         session.connect()
                         synchronized(gate) {
-                            if (active === entry && !closed) mutableState.value = state.value.copy(snapshot = session.state.value)
+                            if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
                         }
                     }
                     catch (error: Throwable) {
                         withContext(NonCancellable) { entry.close(); session.awaitClosed() }
                         synchronized(gate) {
-                            if (active === entry && !closed) mutableState.value = state.value.copy(snapshot = session.state.value)
+                            if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
                         }
                         throw error
                     }
@@ -179,7 +179,7 @@ class ControllerConnection(
         stopActive()
         synchronized(gate) {
             if (!closed) mutableState.value = state.value.copy(
-                snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.DISCONNECTED), closing = false,
+                snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.DISCONNECTED, failure = null), closing = false,
             )
         }
     }
@@ -197,8 +197,10 @@ class ControllerConnection(
             if (active === old) {
                 active = null
                 mutableState.value = state.value.copy(
+                    // Explicit disposal is a normal lifecycle action, not a connection failure.
+                    // Retain the last observation, but not the session's technical close reason.
                     snapshot = old.session.state.value.copy(connection = if (closed) MachineSnapshot.Connection.CLOSED
-                        else MachineSnapshot.Connection.DISCONNECTED),
+                        else MachineSnapshot.Connection.DISCONNECTED, failure = null),
                     closing = false,
                 )
             }
@@ -257,7 +259,7 @@ class ControllerConnection(
         active?.session?.awaitClosed()
         synchronized(gate) {
             active?.let { finishObservations(it) }
-            mutableState.value = state.value.copy(snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.CLOSED), closing = false)
+            mutableState.value = state.value.copy(snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.CLOSED, failure = null), closing = false)
         }
     }
 }

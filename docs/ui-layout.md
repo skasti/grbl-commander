@@ -323,6 +323,12 @@ in the header. Core owns background status polling every 500 ms after handshake,
 independently of the active screen/mode; UI does not start additional pollers.
 Polling stops on connection disposal/failure and pauses during reset handshake.
 Missing replies still become stale; sending a poll is not a confirmed report.
+Deliberate Disconnect displays neutral progress/status, with no technical
+"Session closed" error or stale-state warning. Disconnected values remain labelled
+as last observations, and a neutral note explains that they are not being updated.
+Connecting displays a waiting note; actual failure and stale reports while
+connected retain warning/error styling. The header adds a stale qualifier only
+while connected, not during expected disconnect/shutdown.
 
 Replacing/disconnecting an active or connecting session requires a screen-local
 confirmation describing interruption and uncertain pending command outcomes. It

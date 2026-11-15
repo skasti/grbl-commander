@@ -102,6 +102,31 @@ class ControllerConnectionSettingsTest {
         return activated
     }
 
+    @Test fun `intentional disconnect is neutral while an unexpected connection loss stays visible`() = runComposeUiTest {
+        Fixture().use { fixture ->
+            runBlocking { fixture.owner.connect(fixture.draft.endpoint()) }
+            open(fixture)
+            fixture.releaseClose = CompletableDeferred()
+            assertTrue(activate(fixture, BottomSoftKeySlot.F3))
+            onNode(hasText("Disconnect") and hasAnyAncestor(isDialog())).performClick()
+            waitUntil(timeoutMillis = 5_000) { fixture.awaitEntered.get() == 1 }
+            onNodeWithText("Disconnecting…").assertExists()
+            onNodeWithText("Last connection error:", substring = true).assertDoesNotExist()
+            onNodeWithText("Machine state is stale or unavailable.", substring = true).assertDoesNotExist()
+            fixture.releaseClose!!.complete(Unit)
+            waitUntil(timeoutMillis = 5_000) { fixture.stack.softKeyDefinition(BottomSoftKeySlot.F2)!!.enabled() }
+            onNodeWithText("Disconnected. Machine state is not being updated.").assertExists()
+            onNodeWithText("Last connection error:", substring = true).assertDoesNotExist()
+            onNodeWithText("Last machine state: Idle").assertExists()
+            assertTrue(activate(fixture, BottomSoftKeySlot.F2))
+            waitUntil(timeoutMillis = 5_000) { fixture.owner.state.value.snapshot.connection == Connection.CONNECTED }
+            fixture.transports.last().disconnect()
+            waitUntil(timeoutMillis = 5_000) { fixture.owner.state.value.snapshot.connection == Connection.FAILED }
+            onNodeWithText("Last connection error:", substring = true).assertExists()
+            onNodeWithText("Machine state is stale or unavailable.", substring = true).assertExists()
+        }
+    }
+
     @Test fun `Disconnect confirms before cancelling an unfinished Connect and allows explicit reconnect`() = runComposeUiTest {
         Fixture().use { fixture ->
             fixture.autoStatus = false

@@ -16,6 +16,31 @@ class ControllerConnectionTest {
     private val tcp = ControllerEndpoint.Tcp("localhost", 23)
     private val serial = ControllerEndpoint.Serial(SerialConfiguration("test-port"))
 
+    @Test fun `intentional disconnect clears close diagnostics while unexpected loss remains a failure`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            val transports = mutableListOf<ConnectionTestTransport>()
+            val owner = ControllerConnection(this, { _, child ->
+                ConnectionTestTransport().also { transports += it }.let { GrblMachineSession(it, child) }
+            })
+            try {
+                owner.connect(tcp)
+                val report = owner.state.value.snapshot.status
+                owner.disconnect()
+                assertEquals(Connection.DISCONNECTED, owner.state.value.snapshot.connection)
+                assertNull(owner.state.value.snapshot.failure)
+                assertEquals(report, owner.state.value.snapshot.status)
+                assertTrue(owner.state.value.reportIsStale())
+                owner.connect(tcp)
+                transports.last().disconnect()
+                owner.state.first { it.snapshot.connection == Connection.FAILED }
+                assertNotNull(owner.state.value.snapshot.failure)
+                owner.disconnect() // Explicit acknowledgement clears the displayed error.
+                assertNull(owner.state.value.snapshot.failure)
+            } finally { owner.close(); owner.awaitClosed() }
+            assertNull(owner.state.value.snapshot.failure)
+        }
+    }
+
     @Test fun `background status reports remain live while a normal command awaits acknowledgment`() = runBlocking<Unit> {
         withTimeout(5_000) {
             val transport = ConnectionTestTransport()

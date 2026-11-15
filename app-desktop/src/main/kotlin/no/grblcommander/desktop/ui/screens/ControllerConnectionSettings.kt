@@ -47,6 +47,7 @@ import no.grblcommander.desktop.ui.navigation.Screen
 import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
 import no.grblcommander.machine.transport.DiscoveredSerialPort
 import no.grblcommander.machine.transport.SerialConfiguration
+import no.grblcommander.machine.session.MachineSnapshot.Connection
 
 /** Form and screen-local confirmations; all lifecycle actions use the shared application owner. */
 class ControllerConnectionSettings(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
@@ -170,17 +171,27 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
         val state by settings.connection.state.collectAsState()
         val now = rememberCurrentTime()
         val editable = !busy && confirmation == null
+        val disconnecting = state.closing || operation?.action == Action.DISCONNECT
         Surface(Modifier.fillMaxSize()) {
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text("Controller connection", style = MaterialTheme.typography.headlineSmall)
-                Text(if (state.closing) "Closing connection…" else "Controller: ${state.snapshot.connection}")
+                Text(if (disconnecting) "Closing connection…" else "Controller: ${state.snapshot.connection}")
                 Text("Current endpoint: ${state.endpoint?.description() ?: "None"}")
-                state.snapshot.failure?.let { Text("Last connection error: $it", color = MaterialTheme.colorScheme.error) }
+                if (!disconnecting) state.snapshot.failure?.let { Text("Last connection error: $it", color = MaterialTheme.colorScheme.error) }
                 state.snapshot.status?.let { Text("Last machine state: ${it.executionState}") }
-                if (state.reportIsStale(now)) Text("Machine state is stale or unavailable. Do not treat retained values as live.", color = MaterialTheme.colorScheme.tertiary)
+                if (disconnecting) Text("Disconnecting…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else when (state.snapshot.connection) {
+                    Connection.DISCONNECTED, Connection.CLOSED -> Text(
+                        "Disconnected. Machine state is not being updated.", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Connection.CONNECTING -> Text("Waiting for controller status…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else -> if (state.reportIsStale(now)) Text(
+                        "Machine state is stale or unavailable. Do not treat retained values as live.", color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
                 if (busy) CircularProgressIndicator()
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ControllerEndpointDraft.Transport.entries.forEach { transport ->

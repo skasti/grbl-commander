@@ -416,7 +416,12 @@ disposal and their controller outcome must not be assumed known.
 `ControllerConnectionState` exposes the selected endpoint, the authoritative
 `MachineSnapshot` and a closing flag. Transport health, controller execution
 state, command synchronization and report freshness remain separate. A retained
-snapshot after disconnect is an observation, not live machine state. The owner
+snapshot after disconnect is an observation, not live machine state. Explicit
+disconnect/reconfiguration/shutdown clears the application-level failure field;
+the session's technical close reason is not a connection error. State observers
+do not publish session-close diagnostics while the application owner is closing.
+Unexpected failures remain visible until an explicit lifecycle action acknowledges
+them; navigation alone never clears errors. The owner
 and session are explicitly disposable; `awaitClosed()` joins owned work.
 
 ### 3.7 Passive communication diagnostics
