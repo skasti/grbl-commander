@@ -2,11 +2,16 @@ package no.grblcommander.machine.session
 
 import java.io.Closeable
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import no.grblcommander.machine.protocol.ControllerStatus
 
 /** Application integration boundary, owned above the UI mode/screen lifetime. */
 interface MachineSession : Closeable {
     val state: StateFlow<MachineSnapshot>
+    /** Passive, bounded, non-blocking multicast. Replays a bounded recent buffer. */
+    val communication: SharedFlow<CommunicationEvent>
+    /** Cumulative events rejected by a full diagnostic buffer; not transport byte loss. */
+    val droppedCommunicationEvents: StateFlow<Long>
     /** Connect and await a controller status report; never reset or unlock implicitly. */
     suspend fun connect()
     /**
@@ -33,3 +38,4 @@ interface MachineSession : Closeable {
     /** Close is idempotent; wait for owned coroutines after closing when disposing a service. */
     suspend fun awaitClosed()
 }
+

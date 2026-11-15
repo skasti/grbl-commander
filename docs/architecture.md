@@ -296,6 +296,73 @@ acknowledgments with no owner require explicit reset. See
 pinned source findings and simulator versus in-memory verification coverage.
 Capability discovery, streaming and application operation workflows remain planned.
 
+### 3.6 Application connection ownership
+
+`desktop.connection.ControllerConnection` is the UI-independent application
+boundary in `:app-desktop`; no additional core module is required. `Main` creates
+one owner above the window/mode stacks and explicitly closes and awaits it when
+the application exits. `CommanderApp` supplies the same owner to every retained
+mode through `LocalControllerConnection`, and displays its connection health in
+the header. Screens never construct sessions or transports.
+
+`ControllerEndpoint.Tcp(host, port)` and `ControllerEndpoint.Serial(configuration)`
+select `TcpTransport` and `SerialTransport` through a small factory. Serial uses
+`SerialConfiguration` unchanged, including its 115200/8N1/no-flow-control/DTR/RTS
+low defaults. Native serial-port lookup occurs at connect rather than endpoint
+selection. No endpoint storage, chooser or connection settings UI is implemented.
+
+The owner starts disconnected. `connect(endpoint)` is an explicit operator
+request: it closes, cancels and awaits any old session/handshake before creating
+a fresh one-shot session. `disconnect()` can interrupt a pending connection.
+`reconfigure(endpoint)` disposes the existing connection and selects the endpoint
+without opening it. Failed/cancelled handshakes clean up; another connection
+requires an explicit request. There is no implicit reconnect, reset, unlock,
+homing, command replay or resumption. The owner forwards `executeLine`,
+`sendRealtime`, `reset` and `queryStatus` to its single session without changing
+admission, priority, correlation or uncertainty semantics. Pending lines fail on
+disposal and their controller outcome must not be assumed known.
+
+`ControllerConnectionState` exposes the selected endpoint, the authoritative
+`MachineSnapshot` and a closing flag. Transport health, controller execution
+state, command synchronization and report freshness remain separate. A retained
+snapshot after disconnect is an observation, not live machine state. The owner
+and session are explicitly disposable; `awaitClosed()` joins owned work.
+
+### 3.7 Passive communication diagnostics
+
+`MachineSession.communication` is a read-only `SharedFlow<CommunicationEvent>`
+observed at the existing coordinated session I/O boundary. No observer reads the
+transport or owns acknowledgments. The reader retains each original nonempty
+decoded line alongside the parsed category: status, acknowledgment, error, alarm,
+startup or information (including unknown extensions). Normal TX retains its
+exact encoded line including LF; realtime/status bytes are rendered as printable
+ASCII or `0xNN`. Each event has a session-local sequence and `Instant` timestamp.
+
+TX `ATTEMPTED` means handoff to the transport, never delivery, acknowledgment or
+motion completion. A failed handoff emits a related event referencing the attempt:
+`LOCAL_REJECTION` guarantees no bytes were sent under the transport contract;
+`UNCERTAIN` covers cancellation, timeout and I/O failure, including possible
+partial writes. Session validation/admission rejection has no TX event. A write
+that returns normally remains an attempt observation; normal `ok`/`error` remains
+a separate RX event owned by the existing session correlation logic.
+
+The session retains a bounded replay buffer (256 events by default) and uses only
+non-suspending publication. When a stalled subscriber fills it, a new diagnostic
+event is discarded and `droppedCommunicationEvents` increases. Sequence gaps and
+the cumulative count make loss observable, including a final dropped event with
+no later traffic. Without subscribers, replay retains only the recent bounded
+tail; this ordinary eviction is not protocol loss. Observation never changes
+controller state, normal admission, status parsing, priorities or alarm handling.
+
+The application subscribes before connecting, capturing handshake traffic, and
+keeps a read-only history of at most 5,000 events independent of screen
+composition. Entries carry endpoint and session identity so sequences from
+explicit reconnects remain distinguishable. The dropped counter accumulates
+across sessions. Shutdown/switch collects the remaining bounded replay tail
+without duplicates. History eviction is ordinary retention, separate from
+subscriber overflow. Debug terminal rendering/filtering, command widgets and
+persistent/file logging are not implemented.
+
 ## 4. Application Operations
 
 Application operations represent user intentions rather than raw protocol
@@ -407,9 +474,9 @@ state. The window icon and header show the supplied app logo. Softkey slots
 render screen-owned labels/icons, reactive enabled/active state, and safe
 in-memory navigation actions. Pointer and keyboard input share guarded slot
 activation. DRO, real mode operations and live machine-status presentation are not
-implemented. Controller communication is available through `:infrastructure`
-but is not connected to the desktop demonstration. The header explicitly displays an
-unconnected state. The shared slot layout is described
+implemented. A shared application-owned connection uses `:infrastructure`; the
+header observes its real health. It starts disconnected and has no connection
+settings UI. The shared slot layout is described
 in [UI layout](ui-layout.md).
 
 ### Screen navigation contract
@@ -908,7 +975,8 @@ transport-specific libraries, or operating-system-specific APIs.
 The current Gradle build contains `app-desktop` for the Compose desktop shell
 and `infrastructure`, a Kotlin/JVM module without UI dependencies.
 `app-desktop` depends on `infrastructure`. The `core` module in the example
-below describes intended organization and is not implemented.
+below describes intended organization and is not implemented. The logical
+application connection contracts live in `desktop.connection`, outside UI packages.
 
 ### Desktop UI package responsibilities
 
@@ -1116,3 +1184,4 @@ The following rules guide architectural decisions:
 - [Existing grblHAL macro examples](https://github.com/skasti/grblhal-macros)
 - [Compose Multiplatform](https://www.jetbrains.com/compose-multiplatform/)
 - [jSerialComm](https://github.com/Fazecast/jSerialComm)
+

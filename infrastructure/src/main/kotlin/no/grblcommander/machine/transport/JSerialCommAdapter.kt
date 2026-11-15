@@ -6,7 +6,9 @@ import com.fazecast.jSerialComm.SerialPortEvent
 import java.util.concurrent.atomic.AtomicBoolean
 
 internal class JSerialCommAdapter(portName: String) : SerialPortAdapter {
-    private val port = SerialPort.getCommPort(portName)
+    // Endpoint selection/session construction must not require an existing native port.
+    private val nativePort = lazy { SerialPort.getCommPort(portName) }
+    private val port by nativePort
     private val disconnected = AtomicBoolean()
 
     override fun open(configuration: SerialConfiguration): Boolean {
@@ -44,7 +46,9 @@ internal class JSerialCommAdapter(portName: String) : SerialPortAdapter {
         if (disconnected.get()) -1 else port.writeBytes(bytes, bytes.size - offset, offset)
 
     override fun close() {
+        if (!nativePort.isInitialized()) return
         port.removeDataListener()
         check(port.closePort()) { "Unable to close serial port ${port.systemPortName}" }
     }
 }
+
