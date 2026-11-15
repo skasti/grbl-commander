@@ -23,5 +23,32 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "9.8.2"
-      - name: Build and test desktop application
-        run: gradle :app-desktop:build --no-daemon --stacktrace
+      - name: Build and test infrastructure and desktop application
+        run: gradle :infrastructure:build :app-desktop:build --no-daemon --stacktrace
+
+  simulator-test:
+    name: grblHAL Simulator integration (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "9.8.2"
+      - name: Build pinned upstream simulator
+        run: bash scripts/build-grblhal-simulator.sh
+      - name: Test production TCP communication against simulator
+        run: gradle :infrastructure:simulatorTest -PgrblhalSimulator="$PWD/build/grblhal-simulator/build/grblHAL_sim" --no-daemon --stacktrace
+      - name: Upload simulator test reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: grblhal-simulator-test-reports
+          path: |
+            infrastructure/build/reports/tests/simulatorTest/
+            infrastructure/build/test-results/simulatorTest/
+          if-no-files-found: ignore

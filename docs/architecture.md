@@ -193,6 +193,109 @@ outcomes must never silently replace confirmed controller observations.
 
 Disconnected or stale values must be visibly distinguished from live values.
 
+### 3.5 Implemented communication API
+
+The `MachineTransport` contract
+defines a one-shot byte connection. `TcpTransport` implements cancellable
+non-blocking TCP with bounded connect/write timeouts, EOF detection and
+idempotent close. `SerialTransport` uses jSerialComm with explicit port, baud,
+data/stop bits, parity, flow control and DTR/RTS configuration. Non-blocking
+serial reads/writes allow cancellation and bounded write deadlines; native open
+is dispatched to the I/O pool. USB disconnect notifications invalidate the
+transport. `MachineTransport.isConnected` reports whether the transport is known
+usable; it is not proof of controller responsiveness. Cancelling or timing out a
+write preserves a usable connection but can leave a partial/uncertain write;
+actual I/O failures close it before propagating. Local argument rejection sends
+no bytes. Native driver calls may delay cancellation until the driver returns.
+Serial lifecycle tests use an injected native adapter; physical ports are not
+verified. `GrblProtocol` parses acknowledgments, numeric errors/alarms, startup
+banners and status reports, retaining optional/unknown fields. Incremental
+CR/LF decoding bounds each response line to 4096 bytes. Normal commands are
+limited to 120 printable ASCII bytes, excluding embedded real-time bytes.
+`MachineSession` defines the application-facing connection, line acknowledgment,
+real-time and status-query API. `MachineSnapshot` uses read-only `StateFlow` and
+retains the observation timestamp and explicit connection health.
+`GrblMachineSession` owns one transport and one reader. It connects by requesting
+status (`?`) until a report arrives within a bounded handshake deadline; it
+never resets, unlocks or resumes a controller implicitly. Firmware startup-block
+acknowledgments, NVS errors and alarms received during this status-only
+handshake are retained as diagnostics, not correlated with commands. A reported
+Alarm state is a valid connection result, not permission to move. Normal lines are
+serialized with one acknowledgment outstanding. `CommandAcknowledgment` reports
+acceptance or an error code, plus information lines observed during that request;
+these lines may include unsolicited controller notifications. It is not an
+operation-completion result. Real-time writes bypass normal admission and its
+acknowledgment wait; writes are serialized per bounded line/real-time byte,
+without holding the write lock during the acknowledgment wait.
+
+Alarm state, transport health and ordinary command correlation are independent.
+`ALARM:n` and optional `Alarm:n` status substates populate `alarmCode` and the
+computed `alarm` descriptor (category, exact core criticality and guidance).
+Unknown numeric codes retain unknown criticality. Explicit `$EA` output supplies
+controller/extension descriptions when available; the metadata cache is bounded
+to 512 entries. No catalog query, unlock, homing or reset is automatic.
+
+Core-critical codes are exactly 1, 2, 10, 17 and 20. A critical event can discard
+a line without acknowledgment. The session fails active/queued normal work and
+sets `resetRequired`, without waiting for a late `ok` and without closing a usable
+transport. Ordinary writes remain prohibited even if an unrelated acknowledgment
+or a status report arrives. Unknown numeric extension alarms require the same
+conservative reset boundary, without being labelled core-critical. A bare Alarm
+with no known code blocks normal writes until identified or explicitly reset.
+
+Non-critical alarms interrupt an active line and invalidate already queued lines.
+A transmitted line retains its response slot: `normalCommandsSynchronized` is
+false until that line's late `ok`/`error` is consumed. The same applies to a
+normal-command timeout, cancellation, response-collection overflow or uncertain
+write. If no response arrives, `reset()` provides an explicit recovery path.
+An alarm with no outstanding line creates no response expectation; a
+non-critical alarm such as homing-required (11) permits explicitly requested
+`$H` through the normal API. Repeated reports of the same Alarm state do not
+interrupt that request. An `ok` does not establish homing or operation completion.
+Local rejection/cancellation before write admission preserves other queued work.
+A regular `error:n` rejects only its own line.
+
+`reset()` (also used by `sendRealtime(SOFT_RESET)`) sends one explicit reset byte
+on the existing transport, invalidates pending/queued work and waits under a
+bounded deadline for the initialization banner and a subsequent status report.
+Pre-banner statuses and acknowledgments cannot restore synchronization. The
+banner is the core's parser/input-buffer reset boundary; it discards old response
+expectations without replay. The session never opens another transport, retries
+the reset, unlocks or homes. `resetInProgress` describes this handshake separately
+from `connection`. A timeout or uncertain reset write leaves control/status
+available but normal work blocked; the operator may clear the cause and request
+another reset. A known unsent local reset rejection preserves existing work.
+Unexpected initialization also preserves transport/control but requires explicit
+session recovery before admitting normal work.
+
+A critical alarm code may remain reported after reset has exited the blocking
+loop. Therefore alarm criticality is not equivalent to `resetRequired`. A
+retained code after a confirmed reset boundary does not itself demand a second
+reset. New `ALARM:n` events or critical-blocking status reassert the restriction.
+In grblHAL all-fields reports, `FW:grblHAL` identifies the report that includes
+`$C:1` while the blocking event is active; `ControllerStatus.blockingCriticalEvent`
+exposes this observation when available. `STATUS_QUERY_ALL` (0x87) requests these
+fields as a grblHAL extension. Ordinary `?` status remains supported without
+assuming that extension exists on every GRBL-compatible controller.
+
+Status and real-time writes bypass normal admission and acknowledgment waits;
+the controller determines which controls it processes in each state. Critical
+loops continue status/reset handling but must not be assumed to execute Feed
+Hold, Cycle Start or overrides normally. No real-time error is retried.
+Recoverable/local errors and cancellation preserve a usable transport and are
+reported separately in `lastRealtimeFailure`; actual I/O loss and reader/framing
+failure mark the connection FAILED. A missed status response alone does not
+close a usable transport. Consumers must check `reportedAt` and connection health
+before treating retained observations as live. Close cancels owned coroutines;
+`awaitClosed()` joins them. Parent cancellation closes the owned session.
+
+There is no generic resynchronization guarantee from status, an empty line or a
+diagnostic request: ordinary responses have no request IDs. Unsolicited
+acknowledgments with no owner require explicit reset. See
+[grblHAL alarm protocol](grbl-alarms.md) for categories, recovery considerations,
+pinned source findings and simulator versus in-memory verification coverage.
+Capability discovery, streaming and application operation workflows remain planned.
+
 ## 4. Application Operations
 
 Application operations represent user intentions rather than raw protocol
@@ -303,8 +406,9 @@ changes do not cancel overlays, discard drafts, or alter controller execution
 state. The window icon and header show the supplied app logo. Softkey slots
 render screen-owned labels/icons, reactive enabled/active state, and safe
 in-memory navigation actions. Pointer and keyboard input share guarded slot
-activation. Controller communication, DRO, real mode operations and machine
-status reporting are not implemented. The header explicitly displays an
+activation. DRO, real mode operations and live machine-status presentation are not
+implemented. Controller communication is available through `:infrastructure`
+but is not connected to the desktop demonstration. The header explicitly displays an
 unconnected state. The shared slot layout is described
 in [UI layout](ui-layout.md).
 
@@ -801,9 +905,10 @@ transport-specific libraries, or operating-system-specific APIs.
 
 ## 12. Source Organization
 
-The current Gradle build contains an `app-desktop` module for the Compose
-desktop shell. The `core` and `infrastructure` modules in the example below
-describe the intended organization and are not implemented.
+The current Gradle build contains `app-desktop` for the Compose desktop shell
+and `infrastructure`, a Kotlin/JVM module without UI dependencies.
+`app-desktop` depends on `infrastructure`. The `core` module in the example
+below describes intended organization and is not implemented.
 
 ### Desktop UI package responsibilities
 
@@ -875,8 +980,8 @@ grbl-commander/
 │                   ├── MdiMode.kt
 │                   └── Welcome.kt
 │
+├── infrastructure/                        # transports, GRBL protocol and session
 ├── core/                                  # intended; not implemented
-├── infrastructure/                        # intended; not implemented
 └── docs/
     └── architecture.md
 ```
@@ -904,7 +1009,24 @@ The test strategy includes:
   desktop integrations.
 - Platform-native packaging smoke tests.
 
-The simulated controller should support configurable delays, missing responses,
+The implemented `:infrastructure:test` suite covers GRBL framing/parsing,
+TCP loopback lifecycle, serial lifecycle via an injected native adapter, native
+serial library loading/enumeration, and in-memory session correlation/failure
+behavior on Linux and Windows. Serial hardware and virtual-PTY integration are
+not verified.
+
+The opt-in Linux `:infrastructure:simulatorTest` task starts the official grblHAL
+Simulator pinned by `scripts/build-grblhal-simulator.sh`, including its recorded
+core/SD-card submodules. It uses an isolated EEPROM/working directory and raw TCP
+`-p <port>`, connects with production `TcpTransport`/`GrblMachineSession` under a
+readiness deadline, verifies `$I`, `?` and `$G`, and tests peer disconnection.
+The process is terminated with bounded graceful/forced cleanup in `finally`,
+including assertion failures. CI runs it separately from the Linux/Windows
+build/test matrix. Setup and commands are in the [README](../README.md).
+Simulator timing is approximate and its implementation experimental; these tests
+neither exercise physical ports nor establish physical-machine safety.
+
+The planned application-level simulated controller should support configurable delays, missing responses,
 errors, alarms, disconnections, and tool-change pauses.
 
 Existing grblHAL macro repositories can serve as regression fixtures for macro
