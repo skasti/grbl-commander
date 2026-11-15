@@ -340,12 +340,20 @@ connecting session requires explicit interruption confirmation. Save cannot
 reconfigure an active session. Connect saves only after successful handshake;
 a subsequent storage failure leaves connected health visible. Cancellation during
 handshake closes the unfinished attempt; disconnect remains available during it.
+The settings screen tracks its one active job as Save, Connect or Disconnect.
+The application reports handshake completion before persistence begins, so this
+phase does not depend on later connection-health changes. Disconnect can replace
+only Connect, awaiting cancellation/cleanup of an unfinished
+handshake, or awaiting its settings save if handshake has completed. Save and a
+running Disconnect cannot be cancelled by another Disconnect action. Workspace
+buttons and softkeys share the same enabled predicate, and callbacks also guard
+against repeated activation. Interruption still requires explicit confirmation.
 There is no automatic retry, reset, machine command replay or auto-connect.
 
 The Util mode owns one persistent stack rooted at `UtilMode`, an empty workspace
 with a connection-settings button. `ControllerConnectionSettings : Screen<Unit>`
-opens above that root using the explicit parent contract; F6 returns to Util and
-F7 selects Connection. The root is reserved for the terminal in
+opens above that root using the explicit parent contract; F7 returns to Util and
+F8 selects Connection. F6 is unassigned. The root is reserved for the terminal in
 [#22](https://github.com/skasti/grbl-commander/issues/22). Settings uses its own
 right bank, without inheriting future terminal filters. The form owns draft,
 validation/error display and local interruption confirmation, never a session.

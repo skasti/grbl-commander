@@ -295,9 +295,10 @@ screen is pushed onto Program, Manual or MDI stacks.
 
 Util owns a persistent `ScreenStack(UtilMode(...))`. Its initial root is an empty
 workspace containing **Controller connection**; the terminal root is planned in
-[#22](https://github.com/skasti/grbl-commander/issues/22). F6 **⌨ Util** selects the
-root; F7 **🔗 Connection** opens `ControllerConnectionSettings` above it using the
-root as explicit parent. F7 while settings is active cannot create another screen.
+[#22](https://github.com/skasti/grbl-commander/issues/22). F7 **⌨ Util** selects the
+root; F8 **🔗 Connection** opens `ControllerConnectionSettings` above it using the
+root as explicit parent. F6 is unassigned. F8 while settings is active cannot
+create another screen.
 These slots show selected view, independently of actual controller health. Closing
 settings returns to the same root. Each screen owns its banks; settings does not
 inherit the right bank, so future terminal filters are covered automatically.
@@ -309,8 +310,9 @@ Advanced exposes bits, parity, stop bits, flow control and DTR/RTS. Manual entry
 remains enabled when discovery is empty or fails. Defaults are 115200, 8N1, no
 flow control, DTR/RTS false. Edits never change the current endpoint/session.
 
-F1 **Save**, F2 **Connect**, F3 **Disconnect**, F6 **Util**, F7 **Connection** and F8
-**Close** use the existing guarded softkey activation. Matching workspace actions
+F1 **Save**, F2 **Connect**, F3 **Disconnect**, F7 **Util** and F8 **Connection**
+use the existing guarded softkey activation. Close remains a workspace button;
+there is no separate Close softkey. Matching workspace actions
 use the same screen callbacks. Invalid values show validation errors before any
 transport is created. Save persists without connecting; Connect awaits the status
 handshake before saving and reporting success. Progress/errors, current endpoint,
@@ -321,7 +323,12 @@ in the header; the UI does not add status polling.
 Replacing/disconnecting an active or connecting session requires a screen-local
 confirmation describing interruption and uncertain pending command outcomes. It
 never resets/stops/replays machine work implicitly. Disconnect can interrupt a
-handshake. Close cancels unfinished form work but keeps a completed connection.
+handshake. Disconnect is disabled during Save and a running Disconnect; repeated
+callbacks cannot start competing operations. A confirmed Disconnect reserves the
+single operation slot before awaiting Connect cancellation and cleanup. If the
+handshake has completed, it waits for Connect's persistence instead of cancelling
+that save. Workspace buttons and softkeys use the same enabled condition.
+Close cancels unfinished form work but keeps a completed connection.
 Switching modes retains the form, its current operation and scroll state. Saving
 and discovery failures remain visible without claiming false connection health.
 

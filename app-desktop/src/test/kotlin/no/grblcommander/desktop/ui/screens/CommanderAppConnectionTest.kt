@@ -35,7 +35,7 @@ class CommanderAppConnectionTest {
             onNodeWithText("Program", substring = true).performClick()
             onNodeWithContentDescription("Util").performClick()
             onNodeWithText("controller.example").assertExists()
-            onRoot().performKeyInput { pressKey(Key.F6) }
+            onRoot().performKeyInput { pressKey(Key.F7) }
             onNodeWithText("Controller connection").assertExists()
             onNodeWithText("Hostname / IP address").assertDoesNotExist()
             runOnIdle { assertEquals(0, opened) }

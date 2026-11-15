@@ -31,14 +31,16 @@ class UtilModeTest {
             setContent { ScreenStackHost(listOf(util, program), active) }
             onNodeWithText("Controller connection").assertExists()
             runOnIdle {
-                assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F6)!!.active())
-                activateSoftKey({ util }, BottomSoftKeySlot.F7)
-                assertIs<ControllerConnectionSettings>(util.top)
+                assertNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
                 assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F7)!!.active())
-                assertFalse(util.softKeyDefinition(BottomSoftKeySlot.F6)!!.active())
+                activateSoftKey({ util }, BottomSoftKeySlot.F8)
+                assertIs<ControllerConnectionSettings>(util.top)
+                assertNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
+                assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F8)!!.active())
+                assertFalse(util.softKeyDefinition(BottomSoftKeySlot.F7)!!.active())
                 assertTrue(util.effectiveRightKeys.isEmpty())
                 assertEquals(2, util.size)
-                activateSoftKey({ util }, BottomSoftKeySlot.F7)
+                activateSoftKey({ util }, BottomSoftKeySlot.F8)
                 assertEquals(2, util.size)
             }
             waitUntil(timeoutMillis = 5_000) {
@@ -56,10 +58,11 @@ class UtilModeTest {
             }
             onNodeWithText("Controller connection").assertExists()
             runOnIdle {
-                activateSoftKey({ util }, BottomSoftKeySlot.F6)
+                activateSoftKey({ util }, BottomSoftKeySlot.F7)
                 assertSame(root, util.top)
-                assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F6)!!.active())
-                assertFalse(util.softKeyDefinition(BottomSoftKeySlot.F7)!!.active())
+                assertNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
+                assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F7)!!.active())
+                assertFalse(util.softKeyDefinition(BottomSoftKeySlot.F8)!!.active())
                 assertNull(owner.state.value.endpoint)
             }
         } finally {

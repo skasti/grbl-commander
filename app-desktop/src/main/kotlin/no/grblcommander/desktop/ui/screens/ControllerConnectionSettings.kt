@@ -35,6 +35,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import no.grblcommander.desktop.connection.ControllerEndpointDraft
@@ -52,7 +53,8 @@ import no.grblcommander.machine.transport.SerialPortDiscovery
 class ControllerConnectionSettings(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
     internal var draft by mutableStateOf(ControllerEndpointDraft())
     private var loaded by mutableStateOf(false)
-    private var operation by mutableStateOf<Job?>(null)
+    private var operation by mutableStateOf<Operation?>(null)
+    private var handshakeComplete = false
     private var scope: CoroutineScope? = null
     private var message by mutableStateOf<String?>(null)
     private var error by mutableStateOf<String?>(null)
@@ -63,23 +65,26 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
     private var confirmation by mutableStateOf<Action?>(null)
     private var confirmedDraft: ControllerEndpointDraft? = null
     private val discovery = SerialPortDiscovery()
-    private enum class Action { CONNECT, DISCONNECT }
+    private enum class Action { SAVE, CONNECT, DISCONNECT }
+    private data class Operation(val action: Action, val job: Job)
     private val busy get() = !loaded || operation != null
+    private val canDisconnect get() = loaded && confirmation == null &&
+        (operation == null || operation?.action == Action.CONNECT)
 
     override val bottomKeys = mapOf(
         BottomSoftKeySlot.F1 to SoftKeyDefinition("Save", action = ::save, enabled = { !busy && confirmation == null }),
         BottomSoftKeySlot.F2 to SoftKeyDefinition("Connect", action = { request(Action.CONNECT) }, enabled = { !busy && confirmation == null }),
-        BottomSoftKeySlot.F3 to SoftKeyDefinition("Disconnect", action = { request(Action.DISCONNECT) }, enabled = { loaded && confirmation == null }),
-        BottomSoftKeySlot.F6 to SoftKeyDefinition("⌨\nUtil", action = ::close),
-        BottomSoftKeySlot.F7 to SoftKeyDefinition("🔗\nConnection", action = {}, active = { true }),
-        BottomSoftKeySlot.F8 to SoftKeyDefinition("Close", action = ::close),
+        BottomSoftKeySlot.F3 to SoftKeyDefinition("Disconnect", action = { request(Action.DISCONNECT) }, enabled = { canDisconnect }),
+        BottomSoftKeySlot.F7 to SoftKeyDefinition("⌨\nUtil", action = ::close, enabled = { confirmation == null }),
+        BottomSoftKeySlot.F8 to SoftKeyDefinition("🔗\nConnection", action = {}, active = { true }),
     )
     // No right-key inheritance: future Terminal traffic filters are inactive while this screen is topmost.
 
     private fun close() { if (confirmation == null) finish(Unit) }
 
-    private fun perform(block: suspend () -> Unit) {
-        if (operation != null) return
+    private fun perform(action: Action, block: suspend () -> Unit) {
+        if (operation != null && !(action == Action.DISCONNECT && canDisconnect)) return
+        if (action == Action.CONNECT) handshakeComplete = false
         error = null
         message = null
         val job = scope?.launch(start = CoroutineStart.LAZY) {
@@ -95,24 +100,25 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
                 }
             } catch (failure: LinkageError) {
                 error = "Serial driver unavailable. Check the jSerialComm native library and device drivers. ${failure.message.orEmpty()}"
-            } finally { if (operation === currentCoroutineContext()[Job]) operation = null }
+            } finally { if (operation?.job === currentCoroutineContext()[Job]) operation = null }
         }
-        operation = job
+        operation = job?.let { Operation(action, it) }
         job?.start()
     }
 
     private fun save() {
         if (busy || confirmation != null) return
         val entered = draft
-        perform { settings.save(entered); message = "Settings saved. The current connection is unchanged." }
+        perform(Action.SAVE) { settings.save(entered); message = "Settings saved. The current connection is unchanged." }
     }
 
     private fun request(action: Action) {
-        if (!loaded || confirmation != null || (busy && action == Action.CONNECT)) return
+        if (!loaded || confirmation != null || (busy && action == Action.CONNECT) ||
+            (action == Action.DISCONNECT && !canDisconnect)) return
         if (action == Action.CONNECT) {
             try { draft.endpoint() } catch (failure: IllegalArgumentException) { error = failure.message; return }
         }
-        if (settings.requiresInterruptionConfirmation) {
+        if (settings.requiresInterruptionConfirmation || operation?.action == Action.CONNECT) {
             confirmedDraft = draft
             confirmation = action
         } else execute(action, draft, false)
@@ -120,13 +126,19 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
 
     private fun execute(action: Action, entered: ControllerEndpointDraft, confirmed: Boolean) {
         if (action == Action.DISCONNECT) {
+            if (!canDisconnect) return
             // Disconnect must be able to interrupt a pending connect/handshake rather than queue behind it.
-            val pending = operation
-            pending?.cancel()
-            operation = null
-            perform { pending?.join(); settings.disconnect(confirmed); message = "Disconnected." }
-        } else perform {
-            settings.connect(entered, confirmed)
+            val pending = operation?.job
+            perform(Action.DISCONNECT) {
+                // After handshake, Connect may be saving. Let that save finish without cancellation.
+                if (handshakeComplete)
+                    pending?.join()
+                else pending?.cancelAndJoin()
+                settings.disconnect(confirmed)
+                message = "Disconnected."
+            }
+        } else perform(Action.CONNECT) {
+            settings.connect(entered, confirmed, onHandshakeComplete = { handshakeComplete = true })
             message = "Controller connected and settings saved."
         }
     }
@@ -213,7 +225,7 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(onClick = ::save, enabled = editable) { Text("Save") }
                     Button(onClick = { request(Action.CONNECT) }, enabled = editable) { Text("Connect") }
-                    Button(onClick = { request(Action.DISCONNECT) }, enabled = loaded && confirmation == null) { Text("Disconnect") }
+                    Button(onClick = { request(Action.DISCONNECT) }, enabled = canDisconnect) { Text("Disconnect") }
                     TextButton(onClick = ::close, enabled = confirmation == null) { Text("Close") }
                 }
             }

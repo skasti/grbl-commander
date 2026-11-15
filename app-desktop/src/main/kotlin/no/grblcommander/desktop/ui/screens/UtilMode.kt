@@ -16,8 +16,8 @@ import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
 /** Empty utility root; the communication terminal is owned by issue #22. */
 class UtilMode(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
     override val bottomKeys = mapOf(
-        BottomSoftKeySlot.F6 to SoftKeyDefinition("⌨\nUtil", action = {}, active = { true }),
-        BottomSoftKeySlot.F7 to SoftKeyDefinition("🔗\nConnection", action = ::openConnection),
+        BottomSoftKeySlot.F7 to SoftKeyDefinition("⌨\nUtil", action = {}, active = { true }),
+        BottomSoftKeySlot.F8 to SoftKeyDefinition("🔗\nConnection", action = ::openConnection),
     )
 
     fun openConnection() {

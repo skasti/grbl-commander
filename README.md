@@ -46,10 +46,10 @@ are application APIs; reconfiguration alone does not connect. All retained modes
 share this owner through `LocalControllerConnection`; the header observes its
 actual connection health. No endpoint is selected or connected automatically.
 
-Select **⚙ Util**, then **Controller connection** or **F7 Connection** to configure
+Select **⚙ Util**, then **Controller connection** or **F8 Connection** to configure
 TCP/network or Serial/USB. Util has one persistent stack and an otherwise empty
 root; its terminal is planned in [#22](https://github.com/skasti/grbl-commander/issues/22).
-**F6 Util** and **F8 Close** return to that root. F7 highlights the settings view;
+**F7 Util** returns to that root, and F8 highlights the settings view. F6 is free;
 connection health remains a separate shared header indicator. Switching modes
 retains an open form and never disconnects the shared session.
 
@@ -62,7 +62,9 @@ permission failures do not prevent manual entry.
 **Save** stores the selected transport/settings in per-user JVM preferences without
 changing the active connection. **Connect** validates, connects through the shared
 owner, waits for a controller status handshake and then saves. **Disconnect** can
-cancel a pending handshake. Replacing/disconnecting an active or connecting session
+cancel a pending handshake, but is disabled during Save or an ongoing Disconnect.
+After a successful handshake it waits for Connect's settings save before disconnecting.
+Replacing/disconnecting an active or connecting session
 requires confirmation; this does not stop physical motion or replay commands.
 Close cancels an unfinished form action; it does not disconnect a completed session.
 Storage errors are displayed separately from actual connection health. Settings

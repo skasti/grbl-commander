@@ -26,10 +26,16 @@ class ControllerSettings(
         )
     }
 
-    suspend fun connect(draft: ControllerEndpointDraft, interruptionConfirmed: Boolean = false) {
+    /** Reports successful handshake in the caller's context before persisting the endpoint. */
+    suspend fun connect(
+        draft: ControllerEndpointDraft,
+        interruptionConfirmed: Boolean = false,
+        onHandshakeComplete: () -> Unit = {},
+    ) {
         val endpoint = draft.endpoint() // Validate before any connection lifecycle action.
         check(interruptionConfirmed || !requiresInterruptionConfirmation) { "Confirm interruption of the current connection first" }
         connection.connect(endpoint)
+        onHandshakeComplete()
         // The handshake has completed. A storage failure must not hide actual connected health.
         try { withContext(Dispatchers.IO) { preferences.save(endpoint) } }
         catch (cancelled: CancellationException) { throw cancelled }
