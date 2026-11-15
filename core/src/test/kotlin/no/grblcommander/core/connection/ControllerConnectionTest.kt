@@ -230,13 +230,19 @@ class ControllerConnectionTest {
         withTimeout(5_000) {
             for (cancelParent in listOf(false, true)) {
                 val parent = SupervisorJob()
-                val transport = ConnectionTestTransport().apply { autoStatus = false }
+                val firstStatusWrite = CompletableDeferred<Unit>()
+                val transport = ConnectionTestTransport().apply {
+                    autoStatus = false
+                    // Hold a known in-flight handshake write instead of racing its admission.
+                    onWrite = { firstStatusWrite.complete(Unit); awaitCancellation() }
+                }
                 val owner = ControllerConnection(CoroutineScope(parent + Dispatchers.Default), { _, child ->
                     GrblMachineSession(transport, child)
                 })
                 try {
                     val connecting = async { runCatching { owner.connect(tcp) } }
                     owner.state.first { it.snapshot.connection == Connection.CONNECTING }
+                    firstStatusWrite.await()
                     if (cancelParent) parent.cancel() else owner.close()
                     owner.awaitClosed()
                     assertTrue(connecting.await().isFailure)
