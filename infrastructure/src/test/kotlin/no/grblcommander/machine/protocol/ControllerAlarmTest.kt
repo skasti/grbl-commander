@@ -29,6 +29,16 @@ class ControllerAlarmTest {
         }
     }
 
+    @Test fun `blocking loop flag is independent of retained critical alarm code`() {
+        val blocking = assertIs<GrblMessage.Status>(GrblProtocol.parse("<Alarm:1|FW:grblHAL|\$C:1>")).report
+        val afterReset = assertIs<GrblMessage.Status>(GrblProtocol.parse("<Alarm:1|FW:grblHAL>")).report
+        assertEquals(1, blocking.alarmCode)
+        assertEquals(1, afterReset.alarmCode)
+        assertEquals(true, blocking.blockingCriticalEvent)
+        assertEquals(false, afterReset.blockingCriticalEvent)
+        assertNull(assertIs<GrblMessage.Status>(GrblProtocol.parse("<Alarm:1>")).report.blockingCriticalEvent)
+    }
+
     @Test fun `controller enumeration preserves extension descriptions`() {
         assertEquals(GrblMessage.AlarmDescription(200, "Driver fault | details"),
             GrblProtocol.parse("[ALARMCODE:200||Driver fault | details]"))

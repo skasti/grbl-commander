@@ -21,6 +21,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import no.grblcommander.machine.protocol.ControllerStatus
+import no.grblcommander.machine.protocol.ControllerAlarm
 import no.grblcommander.machine.protocol.GrblLineDecoder
 import no.grblcommander.machine.protocol.GrblMessage
 import no.grblcommander.machine.protocol.GrblProtocol
@@ -42,6 +43,12 @@ class GrblMachineSession(
         var abandoned = false
     }
 
+    private class ResetAttempt(val alarmCodeBeforeReset: Int? = null) {
+        var invalidated = false
+        var bannerReportSequence: Long? = null
+        var abandoned = false
+    }
+
     private val gate = Any()
     private val started = AtomicBoolean()
     private val owner = SupervisorJob(parentScope.coroutineContext[Job])
@@ -53,6 +60,12 @@ class GrblMachineSession(
     private val writes = Mutex()
     private var pending: Pending? = null
     private var commandEpoch = 0L
+    private var blockingAlarmLatched = false
+    private var resetClearedAlarmCode: Int? = null
+    private var resetBoundaryEstablished = false
+    private var unownedAcknowledgment = false
+    private var resetAttempt: ResetAttempt? = null
+    private val alarmDescriptions = mutableMapOf<Int, String>()
 
     init {
         owner.invokeOnCompletion { cause ->
@@ -128,6 +141,7 @@ class GrblMachineSession(
     }
 
     override suspend fun sendRealtime(command: RealtimeCommand) {
+        if (command == RealtimeCommand.SOFT_RESET) return reset()
         var attempted = false
         try {
             writes.withLock {
@@ -136,19 +150,84 @@ class GrblMachineSession(
                 attempted = true
                 transport.write(byteArrayOf(command.byte))
                 synchronized(gate) { mutableState.value = state.value.copy(lastRealtimeFailure = null) }
-                if (command == RealtimeCommand.SOFT_RESET) {
-                    terminate(IOException("Controller reset; command outcomes are uncertain"))
-                }
             }
         } catch (error: Throwable) {
             if (attempted) {
-                if (!transport.isConnected || (command == RealtimeCommand.SOFT_RESET && error !is IllegalArgumentException)) {
-                    terminate(error)
-                }
+                if (!transport.isConnected) terminate(error)
                 else recordRealtimeFailure("$command", error)
             }
             throw error
         }
+    }
+
+    override suspend fun reset() {
+        var request: ResetAttempt? = null
+        try {
+            withTimeout(handshakeTimeoutMillis) {
+                writes.withLock {
+                    currentCoroutineContext().ensureActive()
+                    val attempt = synchronized(gate) {
+                        checkUsable()
+                        if (resetAttempt?.abandoned == false) throw IOException("Reset already in progress")
+                        ResetAttempt(state.value.alarmCode).also { resetAttempt = it; request = it }
+                    }
+                    // Arm banner observation before I/O: a fast peer may reply before write returns.
+                    transport.write(byteArrayOf(RealtimeCommand.SOFT_RESET.byte))
+                    synchronized(gate) { invalidateForReset(attempt) }
+                }
+                val attempt = checkNotNull(request)
+                while (true) {
+                    sendRealtime(RealtimeCommand.STATUS_QUERY)
+                    withTimeoutOrNull(150) {
+                        state.first { snapshot ->
+                            isTerminal(snapshot.connection) || synchronized(gate) { resetReady(attempt) }
+                        }
+                    }
+                    currentCoroutineContext().ensureActive()
+                    val ready = synchronized(gate) {
+                        checkUsable()
+                        if (resetReady(attempt)) {
+                            resetAttempt = null
+                            refreshSynchronization()
+                            true
+                        } else false
+                    }
+                    if (ready) break
+                }
+            }
+        } catch (error: Throwable) {
+            request?.let { attempt ->
+                if (!transport.isConnected) terminate(error)
+                else synchronized(gate) {
+                    if (resetAttempt === attempt) {
+                        if (error is IllegalArgumentException && !attempt.invalidated) {
+                            resetAttempt = null // known local rejection, no reset bytes sent
+                        } else {
+                            invalidateForReset(attempt)
+                            attempt.abandoned = true
+                        }
+                        refreshSynchronization()
+                    }
+                }
+                recordRealtimeFailure("SOFT_RESET", error)
+            }
+            throw error
+        }
+    }
+
+    private fun resetReady(attempt: ResetAttempt): Boolean {
+        val sequence = attempt.bannerReportSequence ?: return false
+        return resetAttempt === attempt && state.value.status != null && state.value.reportSequence > sequence
+    }
+
+    private fun invalidateForReset(attempt: ResetAttempt) {
+        if (!attempt.invalidated) {
+            attempt.invalidated = true
+            commandEpoch++
+            discardPending(CommandCorrelationException("Controller reset; previous line outcome unknown"))
+            mutableState.value = state.value.copy(status = null, reportedAt = null)
+        }
+        refreshSynchronization()
     }
 
     override suspend fun queryStatus(): ControllerStatus = statusQueries.withLock {
@@ -156,7 +235,7 @@ class GrblMachineSession(
         try {
             withTimeout(commandTimeoutMillis) {
                 sendRealtime(RealtimeCommand.STATUS_QUERY)
-                val observed = state.first { it.reportSequence > sequence || isTerminal(it.connection) }
+                val observed = state.first { (it.reportSequence > sequence && it.status != null) || isTerminal(it.connection) }
                 synchronized(gate) { checkUsable() }
                 checkNotNull(observed.status)
             }
@@ -197,41 +276,119 @@ class GrblMachineSession(
         if (terminal()) return@synchronized
         when (val message = GrblProtocol.parse(line)) {
             is GrblMessage.Status -> {
-                mutableState.value = state.value.copy(
+                val previous = state.value
+                val wasAlarm = previous.alarmCode != null || previous.status?.isAlarm == true
+                val code = if (message.report.isAlarm) message.report.alarmCode ?: previous.alarmCode else null
+                val observed = previous.copy(
                     status = message.report, reportedAt = Instant.now(),
-                    reportSequence = state.value.reportSequence + 1,
-                    alarmCode = state.value.alarmCode.takeIf { message.report.executionState.substringBefore(':') == "Alarm" },
+                    reportSequence = previous.reportSequence + 1, alarmCode = code,
+                    alarmDescription = code?.let { alarmDescriptions[it] },
                 )
+                if (message.report.blockingCriticalEvent == true && !blockingAlarmLatched) {
+                    blockingAlarmLatched = true
+                    resetBoundaryEstablished = false
+                    commandEpoch++
+                    discardPending(CommandCorrelationException("Controller reports a blocking critical event; reset required"))
+                } else if (message.report.isAlarm && (!wasAlarm || code != previous.alarmCode)) {
+                    observeAlarm(code, fromStatus = true, blockingEvent = message.report.blockingCriticalEvent)
+                }
+                if (!message.report.isAlarm) resetClearedAlarmCode = null
+                refreshSynchronization(observed)
             }
             GrblMessage.Ok -> acknowledge(null)
             is GrblMessage.Error -> acknowledge(message.code)
             is GrblMessage.Alarm -> {
-                mutableState.value = state.value.copy(
+                val observed = state.value.copy(
                     lastMessage = line, status = null, reportedAt = null, alarmCode = message.code,
+                    alarmDescription = alarmDescriptions[message.code],
                 )
-                // ALARM is not an acknowledgment. Never free its line's response slot
-                // for a new command until the expected ok/error has been drained.
-                commandEpoch++
-                pending?.let { abandon(it, CommandCorrelationException("Controller alarm ${message.code}; line outcome unknown")) }
+                observeAlarm(message.code)
+                refreshSynchronization(observed)
             }
             is GrblMessage.Startup -> {
-                mutableState.value = state.value.copy(lastMessage = line, status = null, reportedAt = null)
-                if (state.value.connection == Connection.CONNECTED) {
-                    terminate(IOException("Controller restarted; command correlation lost"))
+                val attempt = resetAttempt ?: if (state.value.connection == Connection.CONNECTING) null else {
+                    // An external reset is a new boundary, but never resumes application work.
+                    ResetAttempt().also { it.abandoned = true; resetAttempt = it }
                 }
-            }
-            is GrblMessage.AlarmDescription, is GrblMessage.Information -> {
-                mutableState.value = state.value.copy(lastMessage = line)
-                pending?.takeUnless { it.abandoned }?.let {
-                    if (it.lines.size >= 256) {
-                        abandon(it, CommandCorrelationException("Response line limit exceeded; awaiting the line acknowledgment"))
-                    } else it.lines.add(line)
+                if (attempt != null) {
+                    resetClearedAlarmCode = state.value.alarmCode ?: attempt.alarmCodeBeforeReset
+                    resetBoundaryEstablished = !attempt.abandoned
+                    invalidateForReset(attempt)
+                    attempt.bannerReportSequence = state.value.reportSequence
                 }
+                blockingAlarmLatched = false
+                unownedAcknowledgment = false
+                mutableState.value = state.value.copy(
+                    lastMessage = line, status = null, reportedAt = null, alarmCode = null, alarmDescription = null,
+                )
+                refreshSynchronization()
             }
+            is GrblMessage.AlarmDescription -> {
+                if (message.code in alarmDescriptions || alarmDescriptions.size < 512) {
+                    alarmDescriptions[message.code] = message.description
+                }
+                if (state.value.alarmCode == message.code) {
+                    mutableState.value = state.value.copy(alarmDescription = message.description)
+                }
+                collectInformation(line)
+            }
+            is GrblMessage.Information -> collectInformation(line)
         }
     }
 
+    private fun observeAlarm(code: Int?, fromStatus: Boolean = false, blockingEvent: Boolean? = null) {
+        // Critical core events may discard the line entirely. Unknown numeric
+        // extension alarms get the same conservative reset barrier, not a critical label.
+        val retainedAfterReset = fromStatus && resetBoundaryEstablished &&
+            (code != null && code == resetClearedAlarmCode || blockingEvent == false)
+        // Learning the retained post-reset code is not a new event and must not
+        // interrupt an operator's already pending unlock/homing request.
+        if (retainedAfterReset) return
+        commandEpoch++
+        if (code != null && ControllerAlarm.fromCode(code).isCritical != false) {
+            blockingAlarmLatched = true
+            resetBoundaryEstablished = false
+        }
+        if (code == null && !(fromStatus && resetAttempt?.bannerReportSequence != null)) {
+            resetBoundaryEstablished = false
+        }
+        val error = CommandCorrelationException("Controller alarm ${code ?: "unknown"}; line outcome unknown")
+        if (blockingAlarmLatched) discardPending(error)
+        else pending?.let { abandon(it, error) }
+        refreshSynchronization()
+    }
+
+    private fun collectInformation(line: String) {
+        mutableState.value = state.value.copy(lastMessage = line)
+        pending?.takeUnless { it.abandoned }?.let {
+            if (it.lines.size >= 256) {
+                abandon(it, CommandCorrelationException("Response line limit exceeded; acknowledgment unresolved"))
+            } else it.lines.add(line)
+        }
+    }
+
+    private fun discardPending(error: Throwable) {
+        pending?.let { it.abandoned = true; it.response.completeExceptionally(error) }
+        pending = null
+    }
+
+    /** Derive protocol availability separately from transport health and alarm presentation. */
+    private fun refreshSynchronization(snapshot: MachineSnapshot = state.value) {
+        val unknownAlarm = (snapshot.alarmCode != null || snapshot.status?.isAlarm == true) &&
+            snapshot.alarm?.isCritical == null && !resetBoundaryEstablished
+        val reset = resetAttempt?.takeIf { it.invalidated }
+        val resetRequired = blockingAlarmLatched || unownedAcknowledgment || unknownAlarm ||
+            (reset != null && (reset.abandoned || reset.bannerReportSequence == null))
+        mutableState.value = snapshot.copy(
+            resetRequired = resetRequired,
+            resetInProgress = reset != null && !reset.abandoned,
+            normalCommandsSynchronized = !resetRequired && reset == null && pending?.abandoned != true,
+        )
+    }
+
     private fun acknowledge(errorCode: Int?) {
+        // No acknowledgment can clear a critical/reset boundary requirement.
+        if (blockingAlarmLatched || resetAttempt?.invalidated == true) return
         val request = pending ?: run {
             if (state.value.connection == Connection.CONNECTING) {
                 // Firmware may emit startup-block acknowledgments or NVS diagnostics.
@@ -240,11 +397,12 @@ class GrblMachineSession(
                 return
             }
             commandEpoch++
-            mutableState.value = state.value.copy(normalCommandsSynchronized = false)
+            unownedAcknowledgment = true
+            refreshSynchronization()
             return
         }
         pending = null
-        mutableState.value = state.value.copy(normalCommandsSynchronized = true)
+        refreshSynchronization()
         request.response.complete(CommandAcknowledgment(errorCode, Collections.unmodifiableList(request.lines.toList())))
     }
 
@@ -254,18 +412,20 @@ class GrblMachineSession(
         request.abandoned = true
         if (request.transmissionStarted && !knownNotSent) {
             commandEpoch++
-            mutableState.value = state.value.copy(normalCommandsSynchronized = false)
         } else {
             pending = null
-            mutableState.value = state.value.copy(normalCommandsSynchronized = true)
         }
         request.response.completeExceptionally(error)
+        refreshSynchronization()
     }
 
     private fun checkNormalCommands() {
         checkUsable()
         if (!state.value.normalCommandsSynchronized) {
-            throw CommandCorrelationException("Normal command correlation unresolved; real-time/status remain available")
+            throw CommandCorrelationException(
+                if (state.value.resetRequired) "Explicit reset required; transport and status remain available"
+                else "Normal command correlation unresolved; drain the old response or explicitly reset",
+            )
         }
     }
 
@@ -285,8 +445,9 @@ class GrblMachineSession(
             try { transport.close() } catch (cleanup: Throwable) { error.addSuppressed(cleanup) }
             mutableState.value = state.value.copy(
                 connection = connection, failure = error.message ?: error.javaClass.simpleName,
-                normalCommandsSynchronized = false,
+                normalCommandsSynchronized = false, resetInProgress = false, resetRequired = true,
             )
+            resetAttempt = null
             pending?.response?.completeExceptionally(error)
             pending = null
             owner.cancel(CancellationException("Session terminated", error))

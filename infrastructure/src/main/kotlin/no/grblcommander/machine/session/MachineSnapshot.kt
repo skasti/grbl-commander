@@ -2,6 +2,7 @@ package no.grblcommander.machine.session
 
 import java.time.Instant
 import no.grblcommander.machine.protocol.ControllerStatus
+import no.grblcommander.machine.protocol.ControllerAlarm
 
 data class MachineSnapshot(
     val connection: Connection = Connection.DISCONNECTED,
@@ -11,12 +12,18 @@ data class MachineSnapshot(
     val reportSequence: Long = 0,
     val lastMessage: String? = null,
     val failure: String? = null,
-    /** Latest ALARM code; cleared only by a subsequent non-Alarm status report. */
+    /** Latest ALARM/status code; reset invalidates it, and non-Alarm reports clear it. */
     val alarmCode: Int? = null,
-    /** False while an abandoned line's acknowledgment is outstanding or correlation is lost. */
+    val alarmDescription: String? = null,
+    /** Protocol restriction, independent of transport health and the visible alarm. */
+    val resetRequired: Boolean = false,
+    val resetInProgress: Boolean = false,
+    /** False while a line response, reset boundary or critical event remains unresolved. */
     val normalCommandsSynchronized: Boolean = true,
     /** Local write/query diagnostic, separate from controller messages and fatal failure. */
     val lastRealtimeFailure: String? = null,
 ) {
+    val alarm: ControllerAlarm? get() = alarmCode?.let { ControllerAlarm.fromCode(it, alarmDescription) }
+
     enum class Connection { DISCONNECTED, CONNECTING, CONNECTED, FAILED, CLOSED }
 }

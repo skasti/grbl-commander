@@ -77,30 +77,34 @@ names such as `COM3`. USB/serial drivers and line-control behavior still require
 verification on the target hardware.
 
 A connection awaits a controller status report without reset/unlock. Normal
-commands return acknowledgments, not proof that an operation finished. Real-time
-commands bypass queued normal lines, including during an alarm or uncertain
-normal-command outcome. `ALARM:n` is exposed as `state.alarmCode` and keeps
-communication available; no unlock, homing or reset happens automatically.
+commands return acknowledgments, not proof of completed operations. Alarms keep
+the transport/control connection available. `state.alarmCode` accepts both
+`ALARM:n` and `Alarm:n` status reports; `state.alarm` classifies known alarms and
+uses optional controller-provided descriptions from explicitly requested `$EA`.
 
-An interrupted transmitted line retains its response slot, and
-`state.normalCommandsSynchronized` is false until its late `ok`/`error` has been
-drained. Queued lines invalidated by an alarm/uncertainty are rejected, never
-replayed; explicitly submit any subsequent recovery command. Status alone does
-not restore line correlation. If the old acknowledgment never arrives, normal
-traffic stays blocked until an explicitly requested reset/re-established session;
-real-time/status access remains available. A regular `error:n` rejects only its
-own command.
+Core-critical alarms (1, 2, 10, 17, 20) may discard a line without acknowledgment:
+`state.resetRequired` blocks normal writes without expecting a late `ok`.
+Non-critical alarms retain an unresolved transmitted line's response slot until
+its own `ok`/`error` is consumed. Status cannot acknowledge a line. An alarm with
+no outstanding line creates no phantom response expectation; alarm 11 permits
+operator-requested `$H`. Nothing unlocks, homes or repeats motion automatically.
 
-Local errors and write cancellation preserve a usable transport; an attempted
-real-time write may have an unknown outcome and is never automatically retried.
-`state.lastRealtimeFailure` records recoverable real-time/query diagnostics.
-Actual transport loss marks the session FAILED. Post-connection controller
-restart or a successfully/uncertainly transmitted explicit soft reset also
-requires a fresh session; local reset rejection before I/O preserves it.
-Observe `session.state` (`StateFlow`), checking connection health and report
-timestamps before treating retained observations as live. Only a non-Alarm
-status report clears a reported alarm code. Close and await
-`session.awaitClosed()` when disposing the owning service.
+If correlation cannot be restored, explicitly call `session.reset()` (or send
+`SOFT_RESET`). It resets once, keeps the transport open and awaits an
+initialization banner plus fresh status before admitting new normal work.
+Pending/queued lines fail and are never replayed. Check `resetInProgress`,
+`resetRequired` and actual controller state afterward; reset alone does not prove
+that an alarm cause is gone or that a machine is homed. A retained critical code
+after reset is not itself another blocking event. Optional grblHAL all-fields
+status (`STATUS_QUERY_ALL`) exposes alarm codes and the active critical-loop flag.
+
+Real-time/status access remains available during unresolved correlation or reset
+failure, subject to controller behavior. Recoverable local/write errors propagate
+and populate `lastRealtimeFailure`; known transport loss marks the connection
+FAILED. A timed-out reset is not retried automatically. Observe `session.state`
+(`StateFlow`), checking connection health and report timestamps for freshness.
+Close and await `session.awaitClosed()` when disposing the owning service.
+See [alarm protocol and source findings](docs/grbl-alarms.md) for recovery limits.
 
 Hardware-free transport/parser/session tests run on Linux and Windows:
 
@@ -122,8 +126,9 @@ Alternatively pass `-PgrblhalSimulator=/absolute/path/to/grblHAL_sim`.
 The opt-in `simulatorTest` task is separate from `test`/`check` and fails if its
 binary is missing. Each test process gets an isolated working directory/EEPROM,
 uses `-p <port>` for raw TCP, waits for readiness with a deadline and is terminated
-on success or failure. Tests cover `$I` identification, parsed `?` status, `$G`
-(non-motion modal reporting), command rejection followed by further communication, peer disconnection and process cleanup. Linux CI
+on success or failure. Tests cover `$I`, parsed `?` status, `$G`, command rejection, peer disconnection,
+process cleanup and a hard-limit alarm during an outstanding dwell followed by
+explicit reset and unlock on the same TCP session. Linux CI
 runs this as a separate job. Native serial library loading/enumeration and the
 serial adapter contract are tested on both desktop platforms; physical serial
 ports, virtual-PTY simulator integration and controller hardware are not tested.

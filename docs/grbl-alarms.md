@@ -23,7 +23,10 @@ Only 1, 2, 10, 17 and 20 are critical under `alarm_is_critical()`; unknown codes
 have unknown criticality, rather than being labelled critical. `ControllerStatus`
 extracts optional codes from `Alarm:n` without interpreting Hold/Run substates as
 alarms. `GrblProtocol` recognizes optional `[ALARMCODE:n||description]` metadata.
-The session-specific recovery rules are described in [architecture.md](architecture.md).
+The session exposes `alarmCode`, the computed `alarm` descriptor and optional
+controller-provided `alarmDescription`. Alarm presentation is independent of
+`connection`, `normalCommandsSynchronized`, `resetRequired` and `resetInProgress`.
+The session-specific recovery contract is described in [architecture.md](architecture.md).
 
 ## Source findings
 
@@ -33,6 +36,7 @@ The session-specific recovery rules are described in [architecture.md](architect
 - `protocol_main_loop()` checks real-time events before executing a completed line and can exit on abort before reporting `ok`/`error`. A critical event can therefore discard a line without acknowledgment. Non-critical alarms can be followed by an acknowledgment, but no general acknowledgment guarantee exists for every abort/plugin path.
 - [system.c](https://github.com/grblHAL/core/blob/23bf87570365a8daa33a735a98d42808a3266dbb/system.c), `disable_lock()`, `check_status()` and `go_home()`: unlock and homing enforce controller checks. In particular homing-required state is not a reason to automatically send `$X`.
 - [report.c](https://github.com/grblHAL/core/blob/23bf87570365a8daa33a735a98d42808a3266dbb/report.c): status can include `Alarm:n` when alarm substatus/all-fields reporting is enabled; `$EA` emits alarm descriptions.
+- [state_machine.c](https://github.com/grblHAL/core/blob/23bf87570365a8daa33a735a98d42808a3266dbb/state_machine.c): alarm codes are retained in Alarm/E-stop and cleared when leaving those states.
 - [grbllib.c](https://github.com/grblHAL/core/blob/23bf87570365a8daa33a735a98d42808a3266dbb/grbllib.c): reset clears the receive buffer and parser before emitting the initialization banner.
 - [System command reference](https://github.com/grblHAL/grblhal_docs/blob/main/content/markdown/04-Reference/01-system-commands-reference.md): reset, `$H`, `$X`, status and `$EA` commands.
 
@@ -44,3 +48,43 @@ explicit synchronization boundary. Critical alarms must not rely on receiving
 that response at all. Reset does not establish a safe position, successful
 homing, cleared inputs or completed operation. No protocol action is a substitute
 for physical-machine verification.
+
+## Explicit reset boundary
+
+`reset()` sends 0x18 exactly once on the same transport. Pending/queued normal
+work is invalidated, not replayed. Normal admission stays closed until an
+initialization banner and a fresh subsequent report establish the new parser
+boundary. Reset waits under a deadline; E-stop/motor-fault inputs may prevent it
+from taking effect. Failure/cancellation preserves a usable connection for
+status and another operator-requested reset; it never clears uncertainty by
+waiting an arbitrary duration or by sending a new diagnostic line.
+
+Core can retain a critical alarm code after reset while leaving the blocking
+loop. `report.c` emits `$C:1` in its all-fields `FW:grblHAL` report while
+`sys.blocking_event` is active. This flag is distinct from the alarm code, and
+absence in an ordinary partial report does not prove it is false. A retained
+code after a witnessed reset does not itself require repeated resets; a new
+alarm event or reported blocking flag does. Unlock or homing remains a separate,
+explicit Application/operator action subject to `system.c` checks. Reset during
+motion can also produce an interrupted-cycle/homing alarm and lose position.
+
+## Verification coverage
+
+Hardware-free tests cover exact criticality for codes 1–22, optional/unknown
+codes and descriptions, critical alarms without acknowledgments, non-critical
+late `ok`/`error`, alarm after an earlier acknowledgment, empty queues,
+homing-required with explicitly requested `$H`, status-only alarms, repeated
+status during recovery, preserved real-time access, reset timeout/failure,
+pre-banner stale replies and post-reset synchronization without replay.
+
+The official Linux Simulator test enables hard limits only in its isolated NVS,
+starts a non-motion dwell and toggles the simulator's documented X-limit input
+through stdin. It verifies the discarded dwell response, continued critical
+status reporting, released input, explicit reset on the same production TCP
+session, retained Alarm:1 with no blocking flag, and subsequent explicit `$X`
+and identification. The simulator's default driver does not expose an E-stop
+interrupt through its control mask; E-stop, motor, expander, soft-limit, homing,
+probing and extension alarm variants are tested with in-memory protocol messages,
+not physical hardware. No probing or homing is automatically started by these
+integration tests. Simulator timing is approximate and cannot establish
+physical-machine safety.

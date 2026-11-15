@@ -33,8 +33,8 @@ class GrblMachineSessionRecoveryTest {
             val transport = InMemoryTransport()
             val session = connected(this, transport)
             try {
-                transport.emit("ALARM:1\n")
-                session.state.first { it.alarmCode == 1 }
+                transport.emit("ALARM:4\n")
+                session.state.first { it.alarmCode == 4 }
                 assertEquals(Connection.CONNECTED, session.state.value.connection)
                 assertNull(session.state.value.status) // stale Idle report invalidated
                 assertNull(session.state.value.failure)
@@ -48,7 +48,7 @@ class GrblMachineSessionRecoveryTest {
                 assertEquals("\$X\n", transport.writes.receive())
                 transport.emit("ok\n")
                 assertTrue(unlock.await().accepted)
-                assertEquals(1, session.state.value.alarmCode) // ok is not confirmed state recovery
+                assertEquals(4, session.state.value.alarmCode) // ok is not confirmed state recovery
                 transport.statusReport = "<Idle|MPos:0,0,0>"
                 session.queryStatus()
                 assertNull(session.state.value.alarmCode)
@@ -68,7 +68,7 @@ class GrblMachineSessionRecoveryTest {
                         assertEquals("G4 P0\n", transport.writes.receive())
                         val queued = async { session.executeLine("\$I") }
                         yield()
-                        transport.emit("ALARM:2\n")
+                        transport.emit("ALARM:4\n")
                         assertFailsWith<CommandCorrelationException> { first.await() }
                         assertFailsWith<CommandCorrelationException> { queued.await() }
                         assertEquals(Connection.CONNECTED, session.state.value.connection)
@@ -332,14 +332,22 @@ class GrblMachineSessionRecoveryTest {
         }
     }
 
-    @Test fun `uncertain explicitly requested reset still invalidates the session`() = runBlocking<Unit> {
+    @Test fun `uncertain explicit reset requires recovery but retains the transport`() = runBlocking<Unit> {
         withTimeout(5_000) {
             val transport = InMemoryTransport()
             val session = connected(this, transport)
             transport.onWrite = { throw IOException("reset may have arrived") }
-            assertFailsWith<IOException> { session.sendRealtime(RealtimeCommand.SOFT_RESET) }
-            session.awaitClosed()
-            assertEquals(Connection.FAILED, session.state.value.connection)
+            try {
+                assertFailsWith<IOException> { session.sendRealtime(RealtimeCommand.SOFT_RESET) }
+                assertEquals(Connection.CONNECTED, session.state.value.connection)
+                assertTrue(session.state.value.resetRequired)
+                assertFalse(session.state.value.normalCommandsSynchronized)
+                transport.onWrite = null
+                assertEquals("Idle", session.queryStatus().executionState)
+                assertTrue(session.state.value.resetRequired)
+                session.reset()
+                assertFalse(session.state.value.resetRequired)
+            } finally { session.close(); session.awaitClosed() }
         }
     }
 }

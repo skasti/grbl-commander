@@ -166,18 +166,22 @@ class GrblMachineSessionTest {
         }
     }
 
-    @Test fun `restart and explicit reset terminate the session`() = runBlocking<Unit> {
+    @Test fun `external restart requires explicit recovery without closing the transport`() = runBlocking<Unit> {
         withTimeout(5_000) {
-            for (notification in listOf("GrblHAL 1.1f ['$' for help]\n", "reset")) {
-                val transport = InMemoryTransport()
-                val session = connected(this, transport)
-                if (notification == "reset") session.sendRealtime(RealtimeCommand.SOFT_RESET)
-                else transport.emit(notification)
-                session.state.first { it.connection == Connection.FAILED }
-                session.awaitClosed()
-                assertTrue(transport.closed)
-                assertFailsWith<IOException> { session.executeLine("\$I") }
-            }
+            val transport = InMemoryTransport()
+            val session = connected(this, transport)
+            try {
+                transport.emit("GrblHAL 1.1f ['$' for help]\n")
+                session.state.first { it.resetRequired }
+                assertEquals(Connection.CONNECTED, session.state.value.connection)
+                assertFalse(transport.closed)
+                assertFailsWith<CommandCorrelationException> { session.executeLine("\$I") }
+                session.sendRealtime(RealtimeCommand.SOFT_RESET)
+                assertEquals(Connection.CONNECTED, session.state.value.connection)
+                assertTrue(session.state.value.normalCommandsSynchronized)
+                assertFalse(session.state.value.resetRequired)
+                assertEquals(1, transport.connectCount)
+            } finally { session.close(); session.awaitClosed() }
         }
     }
 

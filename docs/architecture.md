@@ -228,55 +228,73 @@ operation-completion result. Real-time writes bypass normal admission and its
 acknowledgment wait; writes are serialized per bounded line/real-time byte,
 without holding the write lock during the acknowledgment wait.
 
-An `ALARM:n` notification keeps the session connected and exposes `alarmCode`,
-invalidating the older status report. The code remains until a subsequent
-non-Alarm status report confirms recovery; `ok` from `$X` alone does not clear
-it. There is no automatic unlock, homing, reset or retry. With no outstanding
-line, application services may submit explicitly requested recovery commands.
+Alarm state, transport health and ordinary command correlation are independent.
+`ALARM:n` and optional `Alarm:n` status substates populate `alarmCode` and the
+computed `alarm` descriptor (category, exact core criticality and guidance).
+Unknown numeric codes retain unknown criticality. Explicit `$EA` output supplies
+controller/extension descriptions when available; the metadata cache is bounded
+to 512 entries. No catalog query, unlock, homing or reset is automatic.
 
-An alarm interrupts the active line and invalidates already queued normal
-commands (`CommandCorrelationException`). If transmission began, the session
-retains that line's response slot and sets `normalCommandsSynchronized = false`.
-New normal lines are rejected until the expected late `ok`/`error` has been
-consumed; it cannot acknowledge a later recovery command. The same rule applies
-to normal-command timeout, cancellation, response-collection limit overflow,
-or an uncertain write on a usable transport. Cancellation before write admission or local argument rejection needs
-no response drain and does not invalidate other queued lines. A completed
-`error:n` acknowledgment rejects only its line
-and preserves subsequent communication.
+Core-critical codes are exactly 1, 2, 10, 17 and 20. A critical event can discard
+a line without acknowledgment. The session fails active/queued normal work and
+sets `resetRequired`, without waiting for a late `ok` and without closing a usable
+transport. Ordinary writes remain prohibited even if an unrelated acknowledgment
+or a status report arrives. Unknown numeric extension alarms require the same
+conservative reset boundary, without being labelled core-critical. A bare Alarm
+with no known code blocks normal writes until identified or explicitly reset.
 
-Status queries and real-time commands remain available while normal correlation
-is unresolved. A status report is not a line acknowledgment and cannot clear
-that uncertainty. If the abandoned line never responds (including a partial
-line without a terminator), normal traffic remains blocked: the operator must
-explicitly reset/re-establish the session. An unsolicited acknowledgment with no
-outstanding line also blocks normal traffic until explicit reset/reconnection;
-the session does not guess how many responses to discard. There is no replay of
-interrupted work, and invalidated queued lines require explicit resubmission.
+Non-critical alarms interrupt an active line and invalidate already queued lines.
+A transmitted line retains its response slot: `normalCommandsSynchronized` is
+false until that line's late `ok`/`error` is consumed. The same applies to a
+normal-command timeout, cancellation, response-collection overflow or uncertain
+write. If no response arrives, `reset()` provides an explicit recovery path.
+An alarm with no outstanding line creates no response expectation; a
+non-critical alarm such as homing-required (11) permits explicitly requested
+`$H` through the normal API. Repeated reports of the same Alarm state do not
+interrupt that request. An `ok` does not establish homing or operation completion.
+Local rejection/cancellation before write admission preserves other queued work.
+A regular `error:n` rejects only its own line.
 
-`sendRealtime()` distinguishes cancellation before write admission (no bytes
-sent), local argument rejection, and attempted writes with potentially unknown
-outcomes. The original exception propagates. If the transport remains usable,
-the session records `lastRealtimeFailure` separately from controller messages
-and fatal `failure`, without disabling normal or other real-time traffic. No
-failed real-time command is retried. A missing status response alone also leaves
-transport/control access available; consumers must check observation freshness.
+`reset()` (also used by `sendRealtime(SOFT_RESET)`) sends one explicit reset byte
+on the existing transport, invalidates pending/queued work and waits under a
+bounded deadline for the initialization banner and a subsequent status report.
+Pre-banner statuses and acknowledgments cannot restore synchronization. The
+banner is the core's parser/input-buffer reset boundary; it discards old response
+expectations without replay. The session never opens another transport, retries
+the reset, unlocks or homes. `resetInProgress` describes this handshake separately
+from `connection`. A timeout or uncertain reset write leaves control/status
+available but normal work blocked; the operator may clear the cause and request
+another reset. A known unsent local reset rejection preserves existing work.
+Unexpected initialization also preserves transport/control but requires explicit
+session recovery before admitting normal work.
 
-Known transport loss, reader/framing failure and post-connection startup end the
-session. An explicitly requested soft reset also ends it after successful or uncertain
-transmission, since it may invalidate controller state and correlation.
-Cancellation before reset admission and local rejection before I/O do not reset
-or invalidate the session.
-No automatic reset/reconnect occurs. Close cancels owned coroutines;
-`awaitClosed()` joins them. The session is a child of its supplied application
-scope and closes on parent cancellation.
+A critical alarm code may remain reported after reset has exited the blocking
+loop. Therefore alarm criticality is not equivalent to `resetRequired`. A
+retained code after a confirmed reset boundary does not itself demand a second
+reset. New `ALARM:n` events or critical-blocking status reassert the restriction.
+In grblHAL all-fields reports, `FW:grblHAL` identifies the report that includes
+`$C:1` while the blocking event is active; `ControllerStatus.blockingCriticalEvent`
+exposes this observation when available. `STATUS_QUERY_ALL` (0x87) requests these
+fields as a grblHAL extension. Ordinary `?` status remains supported without
+assuming that extension exists on every GRBL-compatible controller.
 
-Snapshots retain the last report on communication loss with FAILED/CLOSED health;
-a controller alarm/restart clears the invalid report. Consumers must check
-connection health and `reportedAt` for freshness. No polling or operation
-coordinator is implicit. `queryStatus()` awaits a subsequent report independently
-of normal commands. Capability discovery, streaming and application workflows
-remain planned.
+Status and real-time writes bypass normal admission and acknowledgment waits;
+the controller determines which controls it processes in each state. Critical
+loops continue status/reset handling but must not be assumed to execute Feed
+Hold, Cycle Start or overrides normally. No real-time error is retried.
+Recoverable/local errors and cancellation preserve a usable transport and are
+reported separately in `lastRealtimeFailure`; actual I/O loss and reader/framing
+failure mark the connection FAILED. A missed status response alone does not
+close a usable transport. Consumers must check `reportedAt` and connection health
+before treating retained observations as live. Close cancels owned coroutines;
+`awaitClosed()` joins them. Parent cancellation closes the owned session.
+
+There is no generic resynchronization guarantee from status, an empty line or a
+diagnostic request: ordinary responses have no request IDs. Unsolicited
+acknowledgments with no owner require explicit reset. See
+[grblHAL alarm protocol](grbl-alarms.md) for categories, recovery considerations,
+pinned source findings and simulator versus in-memory verification coverage.
+Capability discovery, streaming and application operation workflows remain planned.
 
 ## 4. Application Operations
 
