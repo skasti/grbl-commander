@@ -63,7 +63,7 @@ flowchart TB
     UI["Compose Desktop UI"]
 
     subgraph APP["Application"]
-        MC["Machine Session"]
+        MC["Controller Connection"]
         OPS["Operation Coordinator"]
         PROG["Program Service"]
         MAC["Macro Service"]
@@ -78,6 +78,7 @@ flowchart TB
     end
 
     subgraph INFRA["Infrastructure"]
+        SESSION["Machine Session"]
         PROTO["GRBL Protocol"]
         SERIAL["Serial Transport"]
         TCP["TCP Transport"]
@@ -95,7 +96,8 @@ flowchart TB
     PROG --> PATH
     MAC --> META
     TOOLS --> META
-    MC --> PROTO
+    MC --> SESSION
+    SESSION --> PROTO
     PROTO --> SERIAL
     PROTO --> TCP
     PROG --> FILES
@@ -303,10 +305,11 @@ Capability discovery, streaming and application operation workflows remain plann
 
 ### 3.6 Application connection ownership
 
-`desktop.connection.ControllerConnection` is the UI-independent application
-boundary in `:app-desktop`; no additional core module is required. `Main` creates
-one owner above the window/mode stacks and explicitly closes and awaits it when
-the application exits. `CommanderApp` supplies the same owner to every retained
+`core.connection.ControllerConnection` is the UI-independent application
+boundary in `:core`. `Main` in `:app-desktop` creates one connection owner and
+one `ControllerSettings` instance above the window/mode stacks, passes them into
+presentation, and explicitly closes and awaits the connection when the
+application exits. `CommanderApp` supplies the same owner to every retained
 mode through `LocalControllerConnection`, and displays its connection health in
 the header. Screens never construct sessions or transports.
 
@@ -319,20 +322,32 @@ or I/O. TCP uses an explicitly entered port (1–65535); serial retains the exis
 defaults and permits manual Windows port names and Linux device paths, including
 devices absent from discovery.
 
-`ControllerEndpointPreferences` stores only the selected typed endpoint and its
-editable settings using JVM per-user preferences. A single versioned record
-contains the transport and all serial options; missing, incomplete, invalid or
-unsupported records leave the endpoint unselected. Preference access/flush
-failures propagate so callers can report a failed load/save. Call storage on an
-I/O dispatcher. Saving never calls `reconfigure`, closes an active session or
-connects. The form loads saved settings on opening; application startup does not connect
-an endpoint.
+`ControllerSettings` in core owns the observable saved `configuration`, separate
+from the active session endpoint and a screen's unsaved draft. Its load/save
+workflows serialize configuration access, validate loaded/edited values and
+publish configuration after a successful read/write. Loading occurs through the
+core operation when the form opens; startup never connects an endpoint.
+Connect validates and awaits handshake before persisting its endpoint inside
+core; presentation invokes user intentions and never performs this internal save.
+
+`ControllerEndpointRecord` in core maps typed endpoints to/from the versioned
+Properties text. Missing, incomplete, invalid or unsupported records leave the
+endpoint unselected and retain normal serial defaults. Infrastructure's
+`configuration.ControllerEndpointPreferences` reads/writes that opaque text using
+JVM per-user preferences, at node `no/grblcommander/controller`, key `endpoint`.
+The v1 field names and representation are stable; storage does not interpret or
+validate endpoint models. This small string boundary keeps infrastructure
+independent of core without duplicating models or introducing a repository
+framework. Storage/flush failures propagate through core; core dispatches storage
+I/O and saving never reconfigures or connects a session.
 
 `SerialPortDiscovery` in `:infrastructure` enumerates jSerialComm ports on the I/O
 dispatcher, returning device paths/names and descriptive labels without opening
 ports or changing control lines. Empty discovery and native/permission failures
 are distinct results; cancellation propagates. Discovery is advisory, so manual
-device entry remains valid independently of its result.
+device entry remains valid independently of its result. Presentation requests
+discovery through `ControllerSettings.discoverSerialPorts()`; the native adapter
+and enumeration remain in infrastructure.
 
 `ControllerSettings` validates and orchestrates explicit load/save/connect/disconnect
 requests through the existing owner. Replacing or disconnecting a connected or
@@ -551,7 +566,7 @@ state. The window icon and header show the supplied app logo. Softkey slots
 render screen-owned labels/icons, reactive enabled/active state, and safe
 in-memory navigation actions. Pointer and keyboard input share guarded slot
 activation. DRO, real mode operations and live machine-status presentation are not
-implemented. A shared application-owned connection uses `:infrastructure`; the
+implemented. A shared core-owned connection coordinates `:infrastructure`; the
 header observes its real health and report freshness. It starts disconnected;
 Util owns explicit connection settings/actions. The shared slot layout is described
 in [UI layout](ui-layout.md).
@@ -1049,11 +1064,37 @@ transport-specific libraries, or operating-system-specific APIs.
 
 ## 12. Source Organization
 
-The current Gradle build contains `app-desktop` for the Compose desktop shell
-and `infrastructure`, a Kotlin/JVM module without UI dependencies.
-`app-desktop` depends on `infrastructure`. The `core` module in the example
-below describes intended organization and is not implemented. The logical
-application connection contracts live in `desktop.connection`, outside UI packages.
+The Gradle build contains three modules with dependency direction
+**app-desktop → core → infrastructure**:
+
+| Module | Responsibility | Dependency |
+| --- | --- | --- |
+| `:app-desktop` | Compose presentation, screens, navigation, AppShell/softkeys, draft/UI state, startup and composition | `:core` |
+| `:core` | Application connection/settings workflows, lifecycle, endpoint/configuration models, validation and shared application state | `:infrastructure` |
+| `:infrastructure` | TCP/serial I/O, protocol, `GrblMachineSession`, machine snapshots/events, serial discovery and JVM Preferences storage | No dependency on core or presentation |
+
+Core is Kotlin/JVM without Compose or another UI framework. Its
+`no.grblcommander.core.connection` package contains `ControllerConnection`,
+`ControllerConnectionState`, `ControllerSettings`, typed endpoint/draft models,
+record mapping, traffic history and the production session factory. Session and
+transport construction is confined to this core composition boundary; their
+implementations and protocol semantics remain in infrastructure. Future shared
+machine-operation coordination and application/domain models belong in core.
+Application-owned connection work, including any future automatic polling,
+belongs to this lifetime rather than a screen. No automatic status poller is
+implemented in the current source.
+
+Infrastructure does not import core configuration models. Its preferences adapter
+stores a text record supplied by core; core owns its schema, validation and
+load/save policy. Core re-exports the existing infrastructure API because its
+public contracts use immutable `MachineSnapshot`, communication and serial-option
+models. Presentation may render those shared values without constructing sessions,
+transports or storage adapters. It has no direct Gradle infrastructure dependency.
+
+`Main` composes one shared connection/settings pair for the application. Screens
+use core operations such as load, Save, Connect, Disconnect and discovery. A UI
+mode or screen cannot establish a parallel controller session or decide to save
+as a hidden consequence of Connect. Core performs that workflow itself.
 
 ### Desktop UI package responsibilities
 
@@ -1092,50 +1133,22 @@ Start with a small number of Gradle modules. Use packages to establish component
 boundaries. The same JVM modules are shared by Linux and Windows;
 platform-specific integrations can remain isolated within infrastructure.
 
-Suggested initial structure:
+Implemented source ownership:
 
-```text
-grbl-commander/
-├── app-desktop/                         # implemented
-│   └── src/main/
-│       ├── composeResources/drawable/
-│       └── kotlin/no/grblcommander/desktop/
-│           ├── Main.kt
-│           └── ui/
-│               ├── CommanderApp.kt
-│               ├── layout/
-│               │   ├── AppShell.kt
-│               │   ├── BottomSoftkeys.kt
-│               │   ├── RightSoftkeys.kt
-│               │   ├── ShellHeader.kt
-│               │   ├── ShellState.kt
-│               │   └── SoftkeyTile.kt
-│               ├── navigation/
-│               │   ├── NavigationParent.kt
-│               │   ├── Screen.kt
-│               │   ├── ScreenStack.kt
-│               │   ├── ScreenStackHost.kt
-│               │   ├── SoftKey.kt
-│               │   ├── SoftKeyActivation.kt
-│               │   └── SoftKeyOverrides.kt
-│               └── screens/
-│                   ├── Editor.kt
-│                   ├── FileExplorer.kt
-│                   ├── ManualMode.kt
-│                   ├── MdiMode.kt
-│                   └── Welcome.kt
-│
-├── infrastructure/                        # transports, GRBL protocol and session
-├── core/                                  # intended; not implemented
-└── docs/
-    └── architecture.md
-```
+| Location | Contents |
+| --- | --- |
+| `app-desktop/src/main/kotlin/no/grblcommander/desktop/Main.kt` | Application composition and shutdown |
+| `app-desktop/src/main/kotlin/no/grblcommander/desktop/ui/` | Presentation infrastructure and concrete screens |
+| `core/src/main/kotlin/no/grblcommander/core/connection/` | Application services and connection/configuration models |
+| `core/src/test/` | UI-independent application tests |
+| `core/src/testFixtures/` | Shared simulated transport used by core and UI tests |
+| `infrastructure/src/main/kotlin/no/grblcommander/machine/` | Technical machine communication and discovery |
+| `infrastructure/src/main/kotlin/no/grblcommander/configuration/` | JVM Preferences record storage |
 
 Additional Gradle modules should be introduced when there is a concrete benefit,
 such as independent testing, dependency isolation, or separate reuse.
 
-The package layout is illustrative, not a requirement to create every package
-immediately.
+Additional domain/feature packages should follow concrete application responsibilities.
 
 ## 13. Testing
 
@@ -1153,6 +1166,14 @@ The test strategy includes:
 - Cross-platform CI on Linux and Windows for shared functionality and relevant
   desktop integrations.
 - Platform-native packaging smoke tests.
+
+`gradle :core:build --configure-on-demand` builds and tests application services
+without compiling or testing Compose. Core tests preserve controller lifecycle,
+handshake, cancellation, diagnostics and settings contracts; they also cover
+legacy record compatibility, shared configuration state and simulated restarts.
+Core and desktop tests share one simulated transport through Gradle test fixtures.
+Desktop tests retain navigation, confirmation and concurrent-form coverage.
+Linux/Windows CI runs `:infrastructure:build :core:build :app-desktop:build`.
 
 The implemented `:infrastructure:test` suite covers GRBL framing/parsing,
 TCP loopback lifecycle, serial lifecycle via an injected native adapter, native

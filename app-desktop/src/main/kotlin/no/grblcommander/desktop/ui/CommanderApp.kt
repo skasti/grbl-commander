@@ -19,9 +19,9 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import no.grblcommander.desktop.connection.ControllerConnection
-import no.grblcommander.desktop.connection.ControllerSettings
-import no.grblcommander.desktop.connection.description
+import no.grblcommander.core.connection.ControllerConnection
+import no.grblcommander.core.connection.ControllerSettings
+import no.grblcommander.core.connection.description
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.screens.ManualMode
@@ -37,10 +37,9 @@ private enum class OperatorMode(val label: String) {
 }
 
 @Composable
-fun CommanderApp(connection: ControllerConnection) {
+fun CommanderApp(connection: ControllerConnection, settings: ControllerSettings) {
     val connectionState by connection.state.collectAsState()
     val now = rememberCurrentTime()
-    val settings = remember(connection) { ControllerSettings(connection) }
     // Each application window owns one persistent ScreenStack for each UI mode.
     val stacks = remember(connection) {
         mapOf(

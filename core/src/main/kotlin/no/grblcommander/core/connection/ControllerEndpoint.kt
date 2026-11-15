@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.connection
+package no.grblcommander.core.connection
 
 import java.net.URI
 import no.grblcommander.machine.transport.SerialConfiguration

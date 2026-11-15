@@ -7,7 +7,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
-import no.grblcommander.desktop.connection.ControllerConnection
+import no.grblcommander.core.connection.ControllerConnection
+import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.desktop.ui.CommanderApp
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,7 +21,8 @@ class CommanderAppConnectionTest {
         var opened = 0
         val owner = ControllerConnection(scope, { _, _ -> opened++; error("Invalid form must not open transport") })
         try {
-            setContent { CommanderApp(owner) }
+            val settings = ControllerSettings(owner)
+            setContent { CommanderApp(owner, settings) }
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
             onNodeWithText("Controller connection").performClick()
             waitUntil(timeoutMillis = 5_000) {

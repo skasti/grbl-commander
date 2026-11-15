@@ -11,9 +11,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
-import no.grblcommander.desktop.connection.ControllerConnection
-import no.grblcommander.desktop.connection.ControllerSettings
-import no.grblcommander.desktop.connection.ControllerEndpointPreferences
+import no.grblcommander.core.connection.ControllerConnection
+import no.grblcommander.core.connection.ControllerSettings
+import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.desktop.ui.navigation.*
 import kotlin.test.*
 

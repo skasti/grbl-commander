@@ -70,7 +70,7 @@ jobs:
       - name: Build, test, and package
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-        run: gradle :app-desktop:build ${{ matrix.gradle-tasks }} --no-daemon --stacktrace
+        run: gradle :infrastructure:build :core:build :app-desktop:build ${{ matrix.gradle-tasks }} --no-daemon --stacktrace
       - name: Upload native installers
         uses: actions/upload-artifact@v4
         with:

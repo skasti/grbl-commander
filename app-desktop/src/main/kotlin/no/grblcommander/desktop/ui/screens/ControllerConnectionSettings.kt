@@ -38,16 +38,15 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
-import no.grblcommander.desktop.connection.ControllerEndpointDraft
-import no.grblcommander.desktop.connection.ControllerSettings
-import no.grblcommander.desktop.connection.description
+import no.grblcommander.core.connection.ControllerEndpointDraft
+import no.grblcommander.core.connection.ControllerSettings
+import no.grblcommander.core.connection.description
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.desktop.ui.navigation.Screen
 import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
 import no.grblcommander.machine.transport.DiscoveredSerialPort
 import no.grblcommander.machine.transport.SerialConfiguration
-import no.grblcommander.machine.transport.SerialPortDiscovery
 
 /** Form and screen-local confirmations; all lifecycle actions use the shared application owner. */
 class ControllerConnectionSettings(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
@@ -64,7 +63,6 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
     private var refreshing by mutableStateOf(false)
     private var confirmation by mutableStateOf<Action?>(null)
     private var confirmedDraft: ControllerEndpointDraft? = null
-    private val discovery = SerialPortDiscovery()
     private enum class Action { SAVE, CONNECT, DISCONNECT }
     private data class Operation(val action: Action, val job: Job)
     private val busy get() = !loaded || operation != null
@@ -148,7 +146,7 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
         refreshing = true
         scope?.launch {
             try {
-                discovery.discover().fold(
+                settings.discoverSerialPorts().fold(
                     onSuccess = { ports = it; discoveryError = null },
                     onFailure = { ports = emptyList(); discoveryError = "Port discovery unavailable: ${it.message}. Enter the device manually." },
                 )

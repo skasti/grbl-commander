@@ -1,24 +1,44 @@
-package no.grblcommander.desktop.connection
+package no.grblcommander.core.connection
 
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.machine.session.MachineSnapshot
+import no.grblcommander.machine.transport.SerialPortDiscovery
 
 /** UI-independent explicit settings actions, using the application-owned connection. */
 class ControllerSettings(
     val connection: ControllerConnection,
     private val preferences: ControllerEndpointPreferences = ControllerEndpointPreferences(),
 ) {
-    suspend fun load(): ControllerEndpointDraft = withContext(Dispatchers.IO) {
-        preferences.load()?.let(ControllerEndpointDraft::from) ?: ControllerEndpointDraft()
+    private val configurationLock = Mutex()
+    private val mutableConfiguration = MutableStateFlow<ControllerEndpoint?>(null)
+    /** Saved configuration, independent of the endpoint of an active session and the UI's draft. */
+    val configuration = mutableConfiguration.asStateFlow()
+    private val serialPorts = SerialPortDiscovery()
+
+    suspend fun load(): ControllerEndpointDraft = configurationLock.withLock {
+        val endpoint = withContext(Dispatchers.IO) { ControllerEndpointRecord.decode(preferences.load()) }
+        mutableConfiguration.value = endpoint
+        endpoint?.let(ControllerEndpointDraft::from) ?: ControllerEndpointDraft()
     }
 
     suspend fun save(draft: ControllerEndpointDraft) {
-        val endpoint = draft.endpoint()
-        withContext(Dispatchers.IO) { preferences.save(endpoint) }
+        persist(draft.endpoint())
     }
+
+    private suspend fun persist(endpoint: ControllerEndpoint) = configurationLock.withLock {
+        withContext(Dispatchers.IO) { preferences.save(ControllerEndpointRecord.encode(endpoint)) }
+        mutableConfiguration.value = endpoint
+    }
+
+    suspend fun discoverSerialPorts() = serialPorts.discover()
 
     val requiresInterruptionConfirmation: Boolean get() = connection.state.value.let {
         it.closing || it.snapshot.connection in setOf(
@@ -37,7 +57,7 @@ class ControllerSettings(
         connection.connect(endpoint)
         onHandshakeComplete()
         // The handshake has completed. A storage failure must not hide actual connected health.
-        try { withContext(Dispatchers.IO) { preferences.save(endpoint) } }
+        try { persist(endpoint) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (error: Exception) { throw IOException("Controller connected, but settings could not be saved: ${error.message}", error) }
     }

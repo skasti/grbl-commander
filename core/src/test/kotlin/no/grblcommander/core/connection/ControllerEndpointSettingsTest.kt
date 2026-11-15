@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.connection
+package no.grblcommander.core.connection
 
 import java.util.UUID
 import java.util.prefs.Preferences
@@ -7,6 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.machine.transport.SerialConfiguration
 
 class ControllerEndpointSettingsTest {
@@ -16,13 +17,13 @@ class ControllerEndpointSettingsTest {
     }
 
     @Test fun `TCP settings survive a fresh preferences instance without a fixed port`() = preferences { node ->
-        assertNull(ControllerEndpointPreferences(node).load())
+        assertNull(ControllerEndpointRecord.decode(ControllerEndpointPreferences(node).load()))
         for (port in listOf(1, 65535, 4321)) {
             val endpoint = ControllerEndpoint.Tcp("controller.local", port)
-            ControllerEndpointPreferences(node).save(endpoint)
+            ControllerEndpointPreferences(node).save(ControllerEndpointRecord.encode(endpoint))
             node.sync()
             val reopened = Preferences.userRoot().node(node.absolutePath())
-            assertEquals(endpoint, ControllerEndpointPreferences(reopened).load())
+            assertEquals(endpoint, ControllerEndpointRecord.decode(ControllerEndpointPreferences(reopened).load()))
         }
     }
 
@@ -34,9 +35,9 @@ class ControllerEndpointSettingsTest {
                         val endpoint = ControllerEndpoint.Serial(SerialConfiguration(
                             "COM987", 230400, 7, stop, parity, flow, dtr = line, rts = !line,
                         ))
-                        ControllerEndpointPreferences(node).save(endpoint)
+                        ControllerEndpointPreferences(node).save(ControllerEndpointRecord.encode(endpoint))
                         node.sync()
-                        assertEquals(endpoint, ControllerEndpointPreferences(node).load())
+                        assertEquals(endpoint, ControllerEndpointRecord.decode(ControllerEndpointPreferences(node).load()))
                     }
                 }
             }
@@ -45,8 +46,8 @@ class ControllerEndpointSettingsTest {
         assertEquals(ControllerEndpoint.Serial(SerialConfiguration("/dev/absent-device")), defaults)
         assertFalse((defaults as ControllerEndpoint.Serial).configuration.dtr)
         assertFalse(defaults.configuration.rts)
-        ControllerEndpointPreferences(node).save(defaults)
-        assertEquals(defaults, ControllerEndpointPreferences(node).load())
+        ControllerEndpointPreferences(node).save(ControllerEndpointRecord.encode(defaults))
+        assertEquals(defaults, ControllerEndpointRecord.decode(ControllerEndpointPreferences(node).load()))
     }
 
     @Test fun `invalid stored records leave endpoint unselected`() = preferences { node ->
@@ -64,7 +65,7 @@ class ControllerEndpointSettingsTest {
         )
         for (record in records) {
             node.put("endpoint", record)
-            assertNull(ControllerEndpointPreferences(node).load(), record)
+            assertNull(ControllerEndpointRecord.decode(ControllerEndpointPreferences(node).load()), record)
         }
     }
 

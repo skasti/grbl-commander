@@ -36,15 +36,21 @@ still present. Manual has a local notes screen; MDI has an unsent text buffer.
 These are UI fixtures, not machine functions. They do not access actual program
 files or send commands. The application starts disconnected. Util provides controller connection settings.
 
-The UI-independent `:infrastructure` module provides TCP and serial transports,
-GRBL parsing and a shared machine-session API with observable controller state.
-The application owns one `ControllerConnection` above every mode/screen lifetime.
-It selects the existing production transport from a typed TCP or serial endpoint,
-creates one fresh session for each explicit connection, and closes/awaits it at
-application exit. `connect(endpoint)`, `disconnect()` and `reconfigure(endpoint)`
-are application APIs; reconfiguration alone does not connect. All retained modes
-share this owner through `LocalControllerConnection`; the header observes its
-actual connection health. No endpoint is selected or connected automatically.
+The module dependency direction is **app-desktop → core → infrastructure**.
+`:app-desktop` contains Compose presentation and startup/composition. The
+UI-independent `:core` module owns `ControllerConnection`, `ControllerSettings`,
+endpoint/configuration models, validation, shared configuration state and
+connection/settings workflows. `:infrastructure` provides transports, protocol,
+`GrblMachineSession`, serial discovery and actual JVM Preferences storage.
+
+`Main` constructs one core connection/settings pair above every mode/screen
+lifetime, and closes/awaits the connection at exit. Core selects the existing
+production transport from a typed endpoint and creates a fresh session per
+explicit connection. All retained modes share this owner; the header observes
+its actual health. Save and Connect remain explicit user intentions, while core
+performs validation and Connect's subsequent persistence internally. Screens
+never instantiate sessions, transports or preferences adapters. No endpoint is
+selected or connected automatically.
 
 Select **⚙ Util**, then **Controller connection** or **F8 Connection** to configure
 TCP/network or Serial/USB. Util has one persistent stack and an otherwise empty
@@ -59,7 +65,7 @@ the optional serial-port list and/or enter a device manually. Serial defaults ar
 Discovery does not open ports or change control lines. Empty discovery or native/
 permission failures do not prevent manual entry.
 
-**Save** stores the selected transport/settings in per-user JVM preferences without
+**Save** asks core to store the selected transport/settings without
 changing the active connection. **Connect** validates, connects through the shared
 owner, waits for a controller status handshake and then saves. **Disconnect** can
 cancel a pending handshake, but is disabled during Save or an ongoing Disconnect.
@@ -73,7 +79,7 @@ fields and normal serial defaults. Nothing automatically connects or retries.
 
 The screen shows the actual endpoint, lifecycle state, last error and stale/unknown
 machine-state warning. Report freshness expires after three seconds; there is no
-background status polling. Hardware-free tests cover validation, persistence,
+background status polling in this source. Hardware-free tests cover validation, persistence,
 serial discovery, confirmation, cancellation, timeout/reconnect and Util navigation.
 Physical controller/USB line behavior remains unverified.
 
@@ -91,10 +97,20 @@ gradle :app-desktop:run
 Build and test:
 
 ```bash
-gradle :infrastructure:build :app-desktop:build
+gradle :infrastructure:build :core:build :app-desktop:build
 ```
 
-GitHub Actions builds and tests on Linux and Windows, the officially supported
+Core can also be built/tested without compiling Compose:
+
+```bash
+gradle :core:build --configure-on-demand
+```
+
+JVM Preferences keeps the `no/grblcommander/controller` node, `endpoint` key and
+v1 Properties record. Existing TCP and advanced serial settings remain readable.
+Core interprets/validates this record; infrastructure only reads/writes its text.
+
+GitHub Actions builds and tests all three modules on Linux and Windows, the officially supported
 desktop platforms. Each merged PR triggers a versioned GitHub Release with
 native Linux (DEB/RPM) and Windows (MSI) installers. macOS is neither tested nor
 packaged and is not an officially supported target; the shared Kotlin/JVM and

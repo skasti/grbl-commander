@@ -24,8 +24,9 @@ sizes and touch targets.
 `AppShell` owns the persistent regions, accepts a Compose content slot for the
 workspace, and exposes an optional header-controls slot for UI-mode selection.
 `ShellState` contains display-only header information, including connection health
-observed from the shared application-owned `ControllerConnection`. All modes
-receive that same owner through `LocalControllerConnection`; it outlives their
+observed from the shared application-owned `ControllerConnection`. The application
+composition root creates one core-owned connection/settings pair. All modes
+receive that same connection owner through `LocalControllerConnection`; it outlives their
 stacks and compositions. Util supplies controller connection settings; a terminal
 command UI is not implemented. Screen instances own
 softkey bindings; the shell reads them from the selected persistent stack. The
@@ -331,6 +332,14 @@ that save. Workspace buttons and softkeys use the same enabled condition.
 Close cancels unfinished form work but keeps a completed connection.
 Switching modes retains the form, its current operation and scroll state. Saving
 and discovery failures remain visible without claiming false connection health.
+
+Presentation depends on `:core`. `ControllerSettings` owns the saved configuration
+and load/validation/save/connect workflows; the screen owns only its editable
+draft, progress, confirmations and navigation. It requests Save or Connect, and
+core performs any persistence internal to those operations. Neither Compose nor
+screens instantiate or refer to the JVM Preferences adapter. Serial discovery is
+requested through core and executed by infrastructure. `Main` supplies the shared
+core services to `CommanderApp`; changing mode never recreates them.
 
 See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the
 repository [AGENTS.md](../AGENTS.md).

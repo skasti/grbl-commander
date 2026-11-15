@@ -1,10 +1,10 @@
-package no.grblcommander.desktop.connection
+package no.grblcommander.core.connection
 
 import java.io.IOException
 import kotlinx.coroutines.channels.Channel
 import no.grblcommander.machine.transport.MachineTransport
 
-internal class ConnectionTestTransport : MachineTransport {
+class ConnectionTestTransport : MachineTransport {
     private val input = Channel<ByteArray>(Channel.UNLIMITED)
     val writes = Channel<String>(Channel.UNLIMITED)
     var closeCount = 0

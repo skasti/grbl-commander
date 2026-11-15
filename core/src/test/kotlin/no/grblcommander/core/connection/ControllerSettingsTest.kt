@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.connection
+package no.grblcommander.core.connection
 
 import java.time.Instant
 import java.util.UUID
@@ -12,8 +12,10 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeout
 import kotlin.test.*
+import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.MachineSnapshot
+import no.grblcommander.machine.transport.SerialConfiguration
 
 class ControllerSettingsTest {
     private class Fixture(val scope: CoroutineScope) {
@@ -120,5 +122,40 @@ class ControllerSettingsTest {
         assertTrue(state.reportIsStale(now.plusSeconds(4)))
         assertTrue(state.copy(snapshot = state.snapshot.copy(connection = MachineSnapshot.Connection.DISCONNECTED)).reportIsStale(now))
         assertTrue(ControllerConnectionState().reportIsStale(now))
+    }
+
+    @Test fun `legacy preference record loads into core configuration and survives an application restart`() = fixture {
+        node.put("endpoint", "version=1\ntransport=SERIAL\ndevice=COM8\nbaud=230400\nbits=7\nstop=TWO\nparity=EVEN\nflow=RTS_CTS\ndtr=true\nrts=false")
+        val legacy = ControllerEndpoint.Serial(SerialConfiguration(
+            "COM8", 230400, 7, SerialConfiguration.StopBits.TWO, SerialConfiguration.Parity.EVEN,
+            SerialConfiguration.FlowControl.RTS_CTS, dtr = true, rts = false,
+        ))
+        assertEquals(legacy, settings.load().endpoint())
+        assertEquals(legacy, settings.configuration.value)
+        settings.save(draft)
+        assertEquals(draft.endpoint(), settings.configuration.value)
+        val restartedConnection = ControllerConnection(scope, { _, _ -> error("Loading settings must not connect") })
+        try {
+            val restarted = ControllerSettings(restartedConnection, ControllerEndpointPreferences(
+                Preferences.userRoot().node(node.absolutePath()),
+            ))
+            assertNull(restarted.configuration.value)
+            assertEquals(draft, restarted.load())
+            assertEquals(draft.endpoint(), restarted.configuration.value)
+            assertNull(restartedConnection.state.value.endpoint)
+        } finally { restartedConnection.close(); restartedConnection.awaitClosed() }
+        assertTrue(transports.isEmpty())
+    }
+
+    @Test fun `invalid loaded data clears configured endpoint and invalid edits leave saved configuration intact`() = fixture {
+        settings.save(draft)
+        val record = node.get("endpoint", null)
+        assertFailsWith<IllegalArgumentException> { settings.save(draft.copy(tcpPort = "0")) }
+        assertEquals(draft.endpoint(), settings.configuration.value)
+        assertEquals(record, node.get("endpoint", null))
+        node.put("endpoint", "version=1\ntransport=TCP\nhost=localhost\nport=0")
+        assertEquals(ControllerEndpointDraft(), settings.load())
+        assertNull(settings.configuration.value)
+        assertTrue(transports.isEmpty())
     }
 }

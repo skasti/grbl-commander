@@ -1,19 +1,14 @@
-package no.grblcommander.desktop.connection
+package no.grblcommander.core.connection
 
 import java.io.StringReader
 import java.io.StringWriter
 import java.util.Properties
-import java.util.prefs.Preferences
 import no.grblcommander.machine.transport.SerialConfiguration
 
-/** Selected endpoint only. Call on an I/O dispatcher; this API never connects or reconfigures. */
-class ControllerEndpointPreferences(
-    preferences: Preferences? = null,
-) {
-    private val preferences by lazy { preferences ?: Preferences.userRoot().node("no/grblcommander/controller") }
-    /** Missing, incomplete, corrupt or unsupported records leave the endpoint unselected. */
-    fun load(): ControllerEndpoint? {
-        val record = preferences.get(KEY, null) ?: return null
+/** Versioned endpoint configuration mapping, independent of the persistence mechanism. */
+internal object ControllerEndpointRecord {
+    fun decode(record: String?): ControllerEndpoint? {
+        if (record == null) return null
         return try {
             val values = Properties().apply { load(StringReader(record)) }
             fun field(name: String) = requireNotNull(values.getProperty(name))
@@ -32,8 +27,7 @@ class ControllerEndpointPreferences(
         } catch (_: IllegalArgumentException) { null }
     }
 
-    /** Flush failures propagate to the caller; a failed save must not be shown as successful. */
-    fun save(endpoint: ControllerEndpoint) {
+    fun encode(endpoint: ControllerEndpoint): String {
         val values = Properties().apply {
             setProperty("version", "1")
             when (endpoint) {
@@ -55,12 +49,6 @@ class ControllerEndpointPreferences(
                 }
             }
         }
-        // One versioned preference prevents partial per-field records when saving.
-        val record = StringWriter().also { values.store(it, null) }.toString()
-        require(record.length <= Preferences.MAX_VALUE_LENGTH) { "Controller settings are too long to save" }
-        preferences.put(KEY, record)
-        preferences.flush()
+        return StringWriter().also { values.store(it, null) }.toString()
     }
-
-    private companion object { const val KEY = "endpoint" }
 }

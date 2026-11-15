@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.connection
+package no.grblcommander.core.connection
 
 import java.io.Closeable
 import java.io.IOException
@@ -31,7 +31,7 @@ import no.grblcommander.machine.session.MachineSnapshot
 import no.grblcommander.machine.session.RealtimeCommand
 
 /** App-lifetime command boundary. Screens never receive a transport or replace its session. */
-class ControllerConnection internal constructor(
+class ControllerConnection(
     parentScope: CoroutineScope,
     private val sessionFactory: (ControllerEndpoint, CoroutineScope) -> MachineSession,
     private val historyCapacity: Int = 5_000,

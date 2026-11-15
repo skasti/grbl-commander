@@ -13,11 +13,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import no.grblcommander.desktop.connection.ConnectionTestTransport
-import no.grblcommander.desktop.connection.ControllerConnection
-import no.grblcommander.desktop.connection.ControllerEndpointDraft
-import no.grblcommander.desktop.connection.ControllerEndpointPreferences
-import no.grblcommander.desktop.connection.ControllerSettings
+import no.grblcommander.core.connection.ConnectionTestTransport
+import no.grblcommander.core.connection.ControllerConnection
+import no.grblcommander.core.connection.ControllerEndpointDraft
+import no.grblcommander.configuration.ControllerEndpointPreferences
+import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
