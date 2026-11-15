@@ -58,6 +58,7 @@ class GrblMachineSession(
     override val state = mutableState.asStateFlow()
     private val traffic = CommunicationEvents(communicationBufferCapacity)
     override val communication = traffic.events
+    override val recentCommunication: List<CommunicationEvent> get() = traffic.recent
     override val droppedCommunicationEvents = traffic.dropped
     private val normalCommands = Mutex()
     private val statusQueries = Mutex()

@@ -316,7 +316,11 @@ request: it closes, cancels and awaits any old session/handshake before creating
 a fresh one-shot session. `disconnect()` can interrupt a pending connection.
 `reconfigure(endpoint)` disposes the existing connection and selects the endpoint
 without opening it. Failed/cancelled handshakes clean up; another connection
-requires an explicit request. There is no implicit reconnect, reset, unlock,
+requires an explicit request. Disposal completes under cancellation protection,
+including clearing the active reference and publishing disconnected health with
+`closing = false` (or closed health during application shutdown). A cancelled
+replacement/reconfiguration cannot leave an inactive owner stuck closing; the
+selected endpoint remains available for a subsequent explicit action. There is no implicit reconnect, reset, unlock,
 homing, command replay or resumption. The owner forwards `executeLine`,
 `sendRealtime`, `reset` and `queryStatus` to its single session without changing
 admission, priority, correlation or uncertainty semantics. Pending lines fail on
@@ -330,7 +334,7 @@ and session are explicitly disposable; `awaitClosed()` joins owned work.
 
 ### 3.7 Passive communication diagnostics
 
-`MachineSession.communication` is a read-only `SharedFlow<CommunicationEvent>`
+`MachineSession.communication` is a read-only `Flow<CommunicationEvent>`
 observed at the existing coordinated session I/O boundary. No observer reads the
 transport or owns acknowledgments. The reader retains each original nonempty
 decoded line alongside the parsed category: status, acknowledgment, error, alarm,
@@ -346,22 +350,41 @@ partial writes. Session validation/admission rejection has no TX event. A write
 that returns normally remains an attempt observation; normal `ok`/`error` remains
 a separate RX event owned by the existing session correlation logic.
 
-The session retains a bounded replay buffer (256 events by default) and uses only
-non-suspending publication. When a stalled subscriber fills it, a new diagnostic
-event is discarded and `droppedCommunicationEvents` increases. Sequence gaps and
-the cumulative count make loss observable, including a final dropped event with
-no later traffic. Without subscribers, replay retains only the recent bounded
-tail; this ordinary eviction is not protocol loss. Observation never changes
+The session retains a bounded replay buffer (256 events by default) backed by
+`MutableSharedFlow` with `DROP_OLDEST` and non-suspending `tryEmit` publication.
+A stalled subscriber cannot cause the latest event to be rejected for responsive
+subscribers. Each subscriber resumes with the recent tail; sequence gaps show
+which observations it missed. `recentCommunication` exposes a read-only snapshot
+of that bounded tail without subscribing or changing controller state.
+
+`droppedCommunicationEvents` counts each source event evicted before handoff to
+at least one active subscriber once, even if several subscribers missed it. It
+is updated at publication, including the last overflow before traffic stops;
+subscriber resumption is not required. One next-sequence cursor per active
+subscription supplies this information because `DROP_OLDEST` always accepts
+`tryEmit`. Cursor registration/removal and advancement share the short publication
+lock; subscriber code runs outside cursor bookkeeping. A value taken from the
+backing flow but evicted before cursor advancement is skipped rather than handed
+out after being counted as lost. Collection uses the supported `flow` builder,
+not inheritance from the unstable `SharedFlow` interface. No rejected-delivery
+queue, per-subscriber event buffer or transport reader is introduced.
+
+A global overflow count can reflect a stalled terminal while the application
+history receives every event. Replay eviction without subscribers and ordinary
+history retention are not subscriber overflow. Observation never changes
 controller state, normal admission, status parsing, priorities or alarm handling.
 
 The application subscribes before connecting, capturing handshake traffic, and
-keeps a read-only history of at most 5,000 events independent of screen
-composition. Entries carry endpoint and session identity so sequences from
-explicit reconnects remain distinguishable. The dropped counter accumulates
-across sessions. Shutdown/switch collects the remaining bounded replay tail
-without duplicates. History eviction is ordinary retention, separate from
-subscriber overflow. Debug terminal rendering/filtering, command widgets and
-persistent/file logging are not implemented.
+keeps a bounded deque of at most 5,000 entries independent of screen composition.
+Ingestion appends/evicts in constant time; a dirty deque is copied into an immutable
+observable snapshot at most once every 50 ms (20/s). This bounds allocation and
+UI update frequency independently of controller output bursts. Entries retain
+endpoint, session identity and sequence order. Earlier snapshots never change.
+The dropped counter accumulates across sessions independently of snapshot timing.
+Disconnect, reconfiguration, switch and awaited shutdown collect the remaining
+bounded replay tail without duplicates and immediately publish the final history.
+Debug terminal rendering/filtering, command widgets and persistent/file logging
+are not implemented.
 
 ## 4. Application Operations
 

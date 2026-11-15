@@ -3,6 +3,7 @@ package no.grblcommander.desktop.connection
 import java.io.Closeable
 import java.io.IOException
 import java.util.Collections
+import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -16,12 +17,15 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import no.grblcommander.machine.session.CommunicationEvent
 import no.grblcommander.machine.session.MachineSession
 import no.grblcommander.machine.session.MachineSnapshot
 import no.grblcommander.machine.session.RealtimeCommand
@@ -46,6 +50,8 @@ class ControllerConnection internal constructor(
     val state = mutableState.asStateFlow()
     private val mutableHistory = MutableStateFlow<List<ControllerTraffic>>(emptyList())
     val history = mutableHistory.asStateFlow()
+    private val recentTraffic = ArrayDeque<ControllerTraffic>(historyCapacity)
+    private var historyDirty = false
     private val mutableDropped = MutableStateFlow(0L)
     /** Across every session, including failed handshakes. History eviction is separate. */
     val droppedCommunicationEvents = mutableDropped.asStateFlow()
@@ -54,16 +60,26 @@ class ControllerConnection internal constructor(
         lateinit var connecting: Deferred<Unit>
         val observers = mutableListOf<Job>()
         var dropped = 0L
+        var lastObservedSequence = 0L
         private val closed = AtomicBoolean()
         fun close() { if (closed.compareAndSet(false, true)) session.close() }
     }
 
-    init { owner.invokeOnCompletion { close() } }
+    init {
+        owner.invokeOnCompletion { close() }
+        scope.launch {
+            while (isActive) {
+                delay(50) // At most 20 immutable snapshots/s, independent of traffic rate.
+                synchronized(gate) { publishHistory() }
+            }
+        }
+    }
 
     /** Explicit connect/switch; the old one-shot session is fully disposed before creating another. */
     suspend fun connect(endpoint: ControllerEndpoint) {
         val entry = lifecycle.withLock {
             checkOpen()
+            currentCoroutineContext().ensureActive()
             stopActive()
             currentCoroutineContext().ensureActive()
             synchronized(gate) {
@@ -82,8 +98,7 @@ class ControllerConnection internal constructor(
                 // Subscribe before connect, including the first status query/banner in history.
                 entry.observers += scope.launch(start = CoroutineStart.UNDISPATCHED) {
                     session.communication.collect { event -> synchronized(gate) {
-                        val recent = (mutableHistory.value + ControllerTraffic(id, endpoint, event)).takeLast(historyCapacity)
-                        mutableHistory.value = Collections.unmodifiableList(recent)
+                        recordTraffic(entry, event)
                     } }
                 }
                 entry.observers += scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -131,12 +146,15 @@ class ControllerConnection internal constructor(
     /** Choose another endpoint without opening it. There is no automatic reconnect. */
     suspend fun reconfigure(endpoint: ControllerEndpoint) = lifecycle.withLock {
         checkOpen()
+        currentCoroutineContext().ensureActive()
         stopActive()
+        currentCoroutineContext().ensureActive()
         synchronized(gate) { checkOpen(); mutableState.value = ControllerConnectionState(endpoint) }
     }
 
     suspend fun disconnect() = lifecycle.withLock {
         checkOpen()
+        currentCoroutineContext().ensureActive()
         stopActive()
         synchronized(gate) {
             if (!closed) mutableState.value = state.value.copy(
@@ -155,7 +173,14 @@ class ControllerConnection internal constructor(
         old.observers.forEach { it.cancelAndJoin() }
         synchronized(gate) {
             finishObservations(old)
-            if (active === old) active = null
+            if (active === old) {
+                active = null
+                mutableState.value = state.value.copy(
+                    snapshot = old.session.state.value.copy(connection = if (closed) MachineSnapshot.Connection.CLOSED
+                        else MachineSnapshot.Connection.DISCONNECTED),
+                    closing = false,
+                )
+            }
         }
     }
 
@@ -163,10 +188,25 @@ class ControllerConnection internal constructor(
     private fun finishObservations(entry: Active) {
         mutableDropped.value += entry.session.droppedCommunicationEvents.value - entry.dropped
         entry.dropped = entry.session.droppedCommunicationEvents.value
-        val last = mutableHistory.value.lastOrNull { it.sessionId == entry.id }?.event?.sequence ?: 0L
-        val tail = entry.session.communication.replayCache.filter { it.sequence > last }
-            .map { ControllerTraffic(entry.id, entry.endpoint, it) }
-        mutableHistory.value = Collections.unmodifiableList((mutableHistory.value + tail).takeLast(historyCapacity))
+        entry.session.recentCommunication.forEach { event ->
+            if (event.sequence > entry.lastObservedSequence) recordTraffic(entry, event)
+        }
+        publishHistory()
+    }
+
+    /** Called under gate; ingestion is constant-space/constant-time per event. */
+    private fun recordTraffic(entry: Active, event: CommunicationEvent) {
+        if (recentTraffic.size == historyCapacity) recentTraffic.removeFirst()
+        recentTraffic.addLast(ControllerTraffic(entry.id, entry.endpoint, event))
+        entry.lastObservedSequence = event.sequence
+        historyDirty = true
+    }
+
+    private fun publishHistory() {
+        if (historyDirty) {
+            mutableHistory.value = Collections.unmodifiableList(recentTraffic.toList())
+            historyDirty = false
+        }
     }
 
     suspend fun executeLine(command: String) = session().executeLine(command)

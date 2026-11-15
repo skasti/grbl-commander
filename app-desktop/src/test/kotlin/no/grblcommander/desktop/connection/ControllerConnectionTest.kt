@@ -3,6 +3,7 @@ package no.grblcommander.desktop.connection
 import java.io.IOException
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import no.grblcommander.machine.session.MachineSession
 import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.MachineSnapshot.Connection
 import no.grblcommander.machine.session.RealtimeCommand
@@ -144,6 +145,146 @@ class ControllerConnectionTest {
             owner.connect(tcp)
             assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
         } finally { owner.close(); owner.awaitClosed() }
+    }
+
+    @Test fun `cancelled switch reconfigure and disconnect finish disposal and permit another connection`() = runBlocking<Unit> {
+        withTimeout(10_000) {
+            for (action in listOf("connect", "reconfigure", "disconnect")) {
+                val disposing = CompletableDeferred<Unit>()
+                val release = CompletableDeferred<Unit>()
+                val transports = mutableListOf<ConnectionTestTransport>()
+                val owner = ControllerConnection(this, { _, child ->
+                    val transport = ConnectionTestTransport().also { transports += it }
+                    val session = GrblMachineSession(transport, child)
+                    if (transports.size != 1) session else object : MachineSession by session {
+                        override suspend fun awaitClosed() {
+                            disposing.complete(Unit)
+                            release.await()
+                            session.awaitClosed()
+                        }
+                    }
+                })
+                try {
+                    owner.connect(tcp)
+                    val switching = launch {
+                        when (action) {
+                            "connect" -> owner.connect(serial)
+                            "reconfigure" -> owner.reconfigure(serial)
+                            else -> owner.disconnect()
+                        }
+                    }
+                    disposing.await()
+                    assertTrue(owner.state.value.closing)
+                    switching.cancel()
+                    release.complete(Unit)
+                    switching.join()
+                    assertEquals(1, transports.size)
+                    assertEquals(1, transports.single().closeCount)
+                    assertFalse(owner.state.value.closing, action)
+                    assertEquals(Connection.DISCONNECTED, owner.state.value.snapshot.connection, action)
+                    assertEquals(tcp, owner.state.value.endpoint)
+                    assertFailsWith<IOException> { owner.queryStatus() }
+                    owner.connect(serial)
+                    assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
+                    assertEquals(2, transports.size)
+                } finally { release.complete(Unit); owner.close(); owner.awaitClosed() }
+            }
+        }
+    }
+
+    @Test fun `shutdown during disposal cannot create a replacement or restore stale connected health`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            val disposing = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val transport = ConnectionTestTransport()
+            var created = 0
+            val owner = ControllerConnection(this, { _, child ->
+                created++
+                val session = GrblMachineSession(transport, child)
+                object : MachineSession by session {
+                    override suspend fun awaitClosed() {
+                        disposing.complete(Unit)
+                        release.await()
+                        session.awaitClosed()
+                    }
+                }
+            })
+            try {
+                owner.connect(tcp)
+                val switching = async { runCatching { owner.connect(serial) } }
+                disposing.await()
+                owner.close()
+                release.complete(Unit)
+                assertTrue(switching.await().isFailure)
+                owner.awaitClosed()
+                assertEquals(1, created)
+                assertEquals(1, transport.closeCount)
+                assertFalse(owner.state.value.closing)
+                assertEquals(Connection.CLOSED, owner.state.value.snapshot.connection)
+                assertFailsWith<IllegalStateException> { owner.connect(serial) }
+            } finally { release.complete(Unit); owner.close(); owner.awaitClosed() }
+        }
+    }
+
+    @Test fun `shutdown interrupts a pending handshake and closes once`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            for (cancelParent in listOf(false, true)) {
+                val parent = SupervisorJob()
+                val transport = ConnectionTestTransport().apply { autoStatus = false }
+                val owner = ControllerConnection(CoroutineScope(parent + Dispatchers.Default), { _, child ->
+                    GrblMachineSession(transport, child)
+                })
+                try {
+                    val connecting = async { runCatching { owner.connect(tcp) } }
+                    owner.state.first { it.snapshot.connection == Connection.CONNECTING }
+                    if (cancelParent) parent.cancel() else owner.close()
+                    owner.awaitClosed()
+                    assertTrue(connecting.await().isFailure)
+                    assertEquals(1, transport.closeCount)
+                    assertFalse(owner.state.value.closing)
+                    assertEquals(Connection.CLOSED, owner.state.value.snapshot.connection)
+                } finally { owner.close(); owner.awaitClosed(); parent.cancel() }
+            }
+        }
+    }
+
+    @Test fun `stalled terminal cannot starve app history and sampled snapshots are immutable with final flush`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            val transport = ConnectionTestTransport()
+            lateinit var session: MachineSession
+            val owner = ControllerConnection(this, { _, child ->
+                GrblMachineSession(transport, child, communicationBufferCapacity = 4).also { session = it }
+            }, historyCapacity = 5)
+            val release = CompletableDeferred<Unit>()
+            var terminal: Job? = null
+            try {
+                owner.connect(tcp)
+                val original = owner.history.first { it.isNotEmpty() }
+                val originalValues = original.toList()
+                val entered = CompletableDeferred<Unit>()
+                terminal = launch(start = CoroutineStart.UNDISPATCHED) {
+                    session.communication.collect { entered.complete(Unit); release.await() }
+                }
+                entered.await()
+                // Burst larger than both buffers; no requirement for a snapshot per line.
+                repeat(40) { transport.emit("[EXT:$it]\n") }
+                session.state.first { it.lastMessage == "[EXT:39]" }
+                owner.history.first { it.lastOrNull()?.event?.text == "[EXT:39]" }
+                owner.droppedCommunicationEvents.first { it > 0 }
+                assertEquals(originalValues, original)
+                assertEquals(5, owner.history.value.size)
+                assertTrue(owner.history.value.zipWithNext().all { (a, b) -> a.event.sequence < b.event.sequence })
+                // No traffic follows this final line; disconnect must flush the unsampled tail.
+                transport.emit("[EXT:final]\n")
+                session.state.first { it.lastMessage == "[EXT:final]" }
+                owner.disconnect()
+                val final = owner.history.value
+                assertEquals("[EXT:final]", final.last().event.text)
+                assertEquals(final.map { it.event.sequence }.distinct().size, final.size)
+                assertTrue(final.all { it.sessionId == 1L && it.endpoint == tcp })
+                assertEquals(session.droppedCommunicationEvents.value, owner.droppedCommunicationEvents.value)
+            } finally { terminal?.cancelAndJoin(); owner.close(); owner.awaitClosed() }
+        }
     }
 
     @Test fun `parent cancellation closes active connection and history survives shutdown`() = runBlocking<Unit> {

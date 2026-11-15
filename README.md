@@ -119,11 +119,17 @@ timestamp, direction, category and original decoded text. TX is a transport
 handoff attempt, never delivery/execution confirmation. Failed handoffs are
 marked local rejection or uncertain; pre-admission rejection produces no TX.
 Realtime bytes use visible ASCII or hex (`?`, `0x18`, `0x87`). A slow subscriber
-cannot suspend protocol I/O; buffer overflow increments
-`droppedCommunicationEvents`. `ControllerConnection.history` retains the latest
-5,000 events across reconnects, tagged with session identity and endpoint, even
-without a Debug screen. This is in-memory diagnostic history, not persistent
-logging. Terminal rendering/filtering and command widgets remain planned.
+cannot suspend protocol I/O. On overflow the oldest buffered event is evicted,
+so responsive observers keep receiving recent traffic. `droppedCommunicationEvents`
+counts each event evicted before handoff to any active subscriber once, even if
+that subscriber stays stalled and no further traffic arrives. A subscriber's
+sequence gaps identify its own losses; a global count need not mean the app
+history missed those events. `recentCommunication` provides a bounded replay-tail
+snapshot. `ControllerConnection.history` retains the latest 5,000 events across
+reconnects, tagged with session identity and endpoint, even without a Debug screen.
+Ingestion uses a bounded deque; immutable observable snapshots are published at
+most every 50 ms (20/s), and flushed on disconnect, switch and awaited shutdown.
+This is in-memory diagnostic history, not persistent logging. Terminal rendering/filtering and command widgets remain planned.
 
 Hardware-free transport/parser/session tests run on Linux and Windows:
 
