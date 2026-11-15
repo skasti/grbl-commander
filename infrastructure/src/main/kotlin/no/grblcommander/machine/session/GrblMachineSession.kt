@@ -34,6 +34,7 @@ class GrblMachineSession(
     parentScope: CoroutineScope,
     private val handshakeTimeoutMillis: Long = 5_000,
     private val commandTimeoutMillis: Long = 5_000,
+    communicationBufferCapacity: Int = 256,
 ) : MachineSession {
     init { require(handshakeTimeoutMillis > 0 && commandTimeoutMillis > 0) }
     private class Pending {
@@ -55,6 +56,10 @@ class GrblMachineSession(
     private val scope = CoroutineScope(parentScope.coroutineContext + owner + Dispatchers.IO)
     private val mutableState = MutableStateFlow(MachineSnapshot())
     override val state = mutableState.asStateFlow()
+    private val traffic = CommunicationEvents(communicationBufferCapacity)
+    override val communication = traffic.events
+    override val recentCommunication: List<CommunicationEvent> get() = traffic.recent
+    override val droppedCommunicationEvents = traffic.dropped
     private val normalCommands = Mutex()
     private val statusQueries = Mutex()
     private val writes = Mutex()
@@ -87,7 +92,7 @@ class GrblMachineSession(
                 while (true) {
                     writes.withLock {
                         synchronized(gate) { checkUsable(allowConnecting = true) }
-                        transport.write(byteArrayOf(RealtimeCommand.STATUS_QUERY.byte))
+                        writeObserved(byteArrayOf(RealtimeCommand.STATUS_QUERY.byte), CommunicationEvent.Category.STATUS)
                     }
                     withTimeoutOrNull(150) {
                         state.first { it.status != null || isTerminal(it.connection) }
@@ -128,7 +133,7 @@ class GrblMachineSession(
                             if (request.abandoned) throw CommandCorrelationException("Line interrupted before transmission")
                             request.transmissionStarted = true
                         }
-                        transport.write(bytes)
+                        writeObserved(bytes, CommunicationEvent.Category.COMMAND)
                     }
                     request.response.await()
                 }
@@ -148,7 +153,8 @@ class GrblMachineSession(
                 currentCoroutineContext().ensureActive()
                 synchronized(gate) { checkUsable() }
                 attempted = true
-                transport.write(byteArrayOf(command.byte))
+                writeObserved(byteArrayOf(command.byte), if (command == RealtimeCommand.STATUS_QUERY ||
+                    command == RealtimeCommand.STATUS_QUERY_ALL) CommunicationEvent.Category.STATUS else CommunicationEvent.Category.REALTIME)
                 synchronized(gate) { mutableState.value = state.value.copy(lastRealtimeFailure = null) }
             }
         } catch (error: Throwable) {
@@ -172,7 +178,7 @@ class GrblMachineSession(
                         ResetAttempt(state.value.alarmCode).also { resetAttempt = it; request = it }
                     }
                     // Arm banner observation before I/O: a fast peer may reply before write returns.
-                    transport.write(byteArrayOf(RealtimeCommand.SOFT_RESET.byte))
+                    writeObserved(byteArrayOf(RealtimeCommand.SOFT_RESET.byte), CommunicationEvent.Category.REALTIME)
                     synchronized(gate) { invalidateForReset(attempt) }
                 }
                 val attempt = checkNotNull(request)
@@ -257,6 +263,25 @@ class GrblMachineSession(
         }
     }
 
+    /** Called only after session admission, immediately at the coordinated write boundary. */
+    private suspend fun writeObserved(bytes: ByteArray, category: CommunicationEvent.Category) {
+        val text = if (category == CommunicationEvent.Category.COMMAND) bytes.decodeToString() else {
+            val byte = bytes.single().toInt() and 0xff
+            if (byte in 32..126) byte.toChar().toString() else "0x%02X".format(byte)
+        }
+        val attempt = traffic.publish(CommunicationEvent.Direction.TX, category, text, CommunicationEvent.Outcome.ATTEMPTED)
+        try {
+            transport.write(bytes)
+        } catch (error: Throwable) {
+            traffic.publish(
+                CommunicationEvent.Direction.TX, category, text,
+                if (error is IllegalArgumentException) CommunicationEvent.Outcome.LOCAL_REJECTION else CommunicationEvent.Outcome.UNCERTAIN,
+                attempt, error.message ?: error.javaClass.simpleName,
+            )
+            throw error
+        }
+    }
+
     private suspend fun readLoop() {
         try {
             val decoder = GrblLineDecoder()
@@ -273,8 +298,18 @@ class GrblMachineSession(
     }
 
     private fun receive(line: String) = synchronized(gate) {
+        val message = GrblProtocol.parse(line)
+        val category = when (message) {
+            is GrblMessage.Status -> CommunicationEvent.Category.STATUS
+            GrblMessage.Ok -> CommunicationEvent.Category.ACKNOWLEDGMENT
+            is GrblMessage.Error -> CommunicationEvent.Category.ERROR
+            is GrblMessage.Alarm -> CommunicationEvent.Category.ALARM
+            is GrblMessage.Startup -> CommunicationEvent.Category.STARTUP
+            else -> CommunicationEvent.Category.INFORMATION
+        }
+        traffic.publish(CommunicationEvent.Direction.RX, category, line, CommunicationEvent.Outcome.RECEIVED)
         if (terminal()) return@synchronized
-        when (val message = GrblProtocol.parse(line)) {
+        when (message) {
             is GrblMessage.Status -> {
                 val previous = state.value
                 val wasAlarm = previous.alarmCode != null || previous.status?.isAlarm == true
@@ -454,7 +489,11 @@ class GrblMachineSession(
                 normalCommandsSynchronized = false, resetInProgress = false, resetRequired = true,
             )
             resetAttempt = null
-            pending?.response?.completeExceptionally(error)
+            pending?.let { request ->
+                request.response.completeExceptionally(
+                    if (request.transmissionStarted) IOException("Session terminated; unacknowledged line outcome unknown", error) else error,
+                )
+            }
             pending = null
             owner.cancel(CancellationException("Session terminated", error))
         }
@@ -463,3 +502,4 @@ class GrblMachineSession(
     override fun close() { terminate(IOException("Session closed"), Connection.CLOSED) }
     override suspend fun awaitClosed() { owner.join() }
 }
+

@@ -33,12 +33,19 @@ screen opts in; FileExplorer replaces the editor's bottom keys, but inherits and
 modifies its right keys. Open the explorer, switch to Manual, navigate into its
 details screen, then return to Program: the explorer and unfinished editor are
 still present. Manual has a local notes screen; MDI has an unsent text buffer.
-These are UI fixtures, not machine functions. The application does not connect
-to a controller, access actual program files or execute commands.
+These are UI fixtures, not machine functions. They do not access actual program
+files or send commands. The application starts disconnected; connection controls
+and endpoint settings UI remain planned.
 
 The UI-independent `:infrastructure` module provides TCP and serial transports,
 GRBL parsing and a shared machine-session API with observable controller state.
-The desktop demonstration does not instantiate a session or send machine commands.
+The application owns one `ControllerConnection` above every mode/screen lifetime.
+It selects the existing production transport from a typed TCP or serial endpoint,
+creates one fresh session for each explicit connection, and closes/awaits it at
+application exit. `connect(endpoint)`, `disconnect()` and `reconfigure(endpoint)`
+are application APIs; reconfiguration alone does not connect. All retained modes
+share this owner through `LocalControllerConnection`; the header observes its
+actual connection health. No endpoint is selected or connected automatically.
 
 ### Requirements
 
@@ -106,6 +113,24 @@ FAILED. A timed-out reset is not retried automatically. Observe `session.state`
 Close and await `session.awaitClosed()` when disposing the owning service.
 See [alarm protocol and source findings](docs/grbl-alarms.md) for recovery limits.
 
+`MachineSession.communication` exposes bounded, read-only TX/RX diagnostics from
+the existing coordinated reader/writer. Events include session-local sequence,
+timestamp, direction, category and original decoded text. TX is a transport
+handoff attempt, never delivery/execution confirmation. Failed handoffs are
+marked local rejection or uncertain; pre-admission rejection produces no TX.
+Realtime bytes use visible ASCII or hex (`?`, `0x18`, `0x87`). A slow subscriber
+cannot suspend protocol I/O. On overflow the oldest buffered event is evicted,
+so responsive observers keep receiving recent traffic. `droppedCommunicationEvents`
+counts each event evicted before handoff to any active subscriber once, even if
+that subscriber stays stalled and no further traffic arrives. A subscriber's
+sequence gaps identify its own losses; a global count need not mean the app
+history missed those events. `recentCommunication` provides a bounded replay-tail
+snapshot. `ControllerConnection.history` retains the latest 5,000 events across
+reconnects, tagged with session identity and endpoint, even without a Debug screen.
+Ingestion uses a bounded deque; immutable observable snapshots are published at
+most every 50 ms (20/s), and flushed on disconnect, switch and awaited shutdown.
+This is in-memory diagnostic history, not persistent logging. Terminal rendering/filtering and command widgets remain planned.
+
 Hardware-free transport/parser/session tests run on Linux and Windows:
 
 ```bash
@@ -143,3 +168,4 @@ label validation check.
 For implementation constraints,
 see [AGENTS.md](AGENTS.md), [architecture](docs/architecture.md), and
 the [UI layout contract](docs/ui-layout.md).
+

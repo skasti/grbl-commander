@@ -23,7 +23,10 @@ sizes and touch targets.
 
 `AppShell` owns the persistent regions, accepts a Compose content slot for the
 workspace, and exposes an optional header-controls slot for UI-mode selection.
-`ShellState` contains display-only header information. Screen instances own
+`ShellState` contains display-only header information, including connection health
+observed from the shared application-owned `ControllerConnection`. All modes
+receive that same owner through `LocalControllerConnection`; it outlives their
+stacks and compositions. No connection settings or command UI is implemented. Screen instances own
 softkey bindings; the shell reads them from the selected persistent stack. The
 Program, Manual and MDI buttons change presentation context only. Softkeys
 invoke safe, in-memory UI actions; machine commands are not implemented.
@@ -277,9 +280,10 @@ disabled/active state and typed slot activation with screen-owned callbacks. The
 action dispatch layer must remain separate from GRBL transports and physical
 execution.
 
-Machine position/DRO, functional mode-specific pages, live connection state,
+Machine position/DRO, functional mode-specific pages, connection settings UI,
 programmable actions, and physical CNC operations are planned and are not part
 of the desktop demonstration.
 
 See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the
 repository [AGENTS.md](../AGENTS.md).
+
