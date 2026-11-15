@@ -220,7 +220,7 @@ class GrblMachineSession(
                     terminate(IOException("Controller restarted; command correlation lost"))
                 }
             }
-            is GrblMessage.Information -> {
+            is GrblMessage.AlarmDescription, is GrblMessage.Information -> {
                 mutableState.value = state.value.copy(lastMessage = line)
                 pending?.takeUnless { it.abandoned }?.let {
                     if (it.lines.size >= 256) {

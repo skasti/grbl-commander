@@ -8,8 +8,15 @@ object GrblProtocol {
         if (line.startsWith("error:")) line.substringAfter(':').toIntOrNull()?.let {
             return GrblMessage.Error(it)
         }
-        if (line.startsWith("ALARM:")) line.substringAfter(':').toIntOrNull()?.let {
+        if (line.startsWith("ALARM:")) line.substringAfter(':').toIntOrNull()?.takeIf { it > 0 }?.let {
             return GrblMessage.Alarm(it)
+        }
+        if (line.startsWith("[ALARMCODE:") && line.endsWith(']')) {
+            val parts = line.substring(11, line.length - 1).split('|', limit = 3)
+            val code = parts.firstOrNull()?.toIntOrNull()?.takeIf { it > 0 }
+            if (code != null && parts.size == 3 && parts[2].isNotBlank()) {
+                return GrblMessage.AlarmDescription(code, parts[2])
+            }
         }
         if (line.startsWith("Grbl ", ignoreCase = true) || line.startsWith("grblHAL ", ignoreCase = true)) {
             return GrblMessage.Startup(line)
