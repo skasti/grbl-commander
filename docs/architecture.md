@@ -314,7 +314,47 @@ the header. Screens never construct sessions or transports.
 select `TcpTransport` and `SerialTransport` through a small factory. Serial uses
 `SerialConfiguration` unchanged, including its 115200/8N1/no-flow-control/DTR/RTS
 low defaults. Native serial-port lookup occurs at connect rather than endpoint
-selection. No endpoint storage, chooser or connection settings UI is implemented.
+selection. `ControllerEndpointDraft` validates editable fields without DNS lookup
+or I/O. TCP uses an explicitly entered port (1–65535); serial retains the existing
+defaults and permits manual Windows port names and Linux device paths, including
+devices absent from discovery.
+
+`ControllerEndpointPreferences` stores only the selected typed endpoint and its
+editable settings using JVM per-user preferences. A single versioned record
+contains the transport and all serial options; missing, incomplete, invalid or
+unsupported records leave the endpoint unselected. Preference access/flush
+failures propagate so callers can report a failed load/save. Call storage on an
+I/O dispatcher. Saving never calls `reconfigure`, closes an active session or
+connects. The form loads saved settings on opening; application startup does not connect
+an endpoint.
+
+`SerialPortDiscovery` in `:infrastructure` enumerates jSerialComm ports on the I/O
+dispatcher, returning device paths/names and descriptive labels without opening
+ports or changing control lines. Empty discovery and native/permission failures
+are distinct results; cancellation propagates. Discovery is advisory, so manual
+device entry remains valid independently of its result.
+
+`ControllerSettings` validates and orchestrates explicit load/save/connect/disconnect
+requests through the existing owner. Replacing or disconnecting a connected or
+connecting session requires explicit interruption confirmation. Save cannot
+reconfigure an active session. Connect saves only after successful handshake;
+a subsequent storage failure leaves connected health visible. Cancellation during
+handshake closes the unfinished attempt; disconnect remains available during it.
+There is no automatic retry, reset, machine command replay or auto-connect.
+
+The Util mode owns one persistent stack rooted at `UtilMode`, an empty workspace
+with a connection-settings button. `ControllerConnectionSettings : Screen<Unit>`
+opens above that root using the explicit parent contract; F6 returns to Util and
+F7 selects Connection. The root is reserved for the terminal in
+[#22](https://github.com/skasti/grbl-commander/issues/22). Settings uses its own
+right bank, without inheriting future terminal filters. The form owns draft,
+validation/error display and local interruption confirmation, never a session.
+Mode changes preserve the form and connection. Closing the form cancels unfinished
+form work; a completed connection outlives the screen.
+
+Both header and form read the same authoritative owner state. A presentation clock
+marks retained reports stale after three seconds, even without a new state emission;
+disconnected/unknown reports are not live. There is no background status polling.
 
 The owner starts disconnected. `connect(endpoint)` is an explicit operator
 request: it closes, cancels and awaits any old session/handshake before creating
@@ -492,19 +532,20 @@ Shared operations can use consistent positions where appropriate screens expose
 them; no softkey is unconditionally visible across modes or overlays.
 
 **Current implementation:** The desktop shell renders a header with Program,
-Manual and MDI UI-mode selection, a central workspace, eight bottom softkey
+Manual, MDI and icon-only Util UI-mode selection, a central workspace, eight bottom softkey
 slots and seven right softkey slots. Each window retains a `ScreenStack` for
 each UI mode, hosted together by `ScreenStackHost`. Program includes the branded
 welcome screen and a runnable in-memory editor/file-explorer example. Manual has
-a nested details screen with local notes; MDI has an unsent text buffer. Mode
+a nested details screen with local notes; MDI has an unsent text buffer. Util has
+an empty root and controller connection settings. Mode
 changes do not cancel overlays, discard drafts, or alter controller execution
 state. The window icon and header show the supplied app logo. Softkey slots
 render screen-owned labels/icons, reactive enabled/active state, and safe
 in-memory navigation actions. Pointer and keyboard input share guarded slot
 activation. DRO, real mode operations and live machine-status presentation are not
 implemented. A shared application-owned connection uses `:infrastructure`; the
-header observes its real health. It starts disconnected and has no connection
-settings UI. The shared slot layout is described
+header observes its real health and report freshness. It starts disconnected;
+Util owns explicit connection settings/actions. The shared slot layout is described
 in [UI layout](ui-layout.md).
 
 ### Screen navigation contract
@@ -619,7 +660,7 @@ Initial modes:
 | Program    | Program selection, editing, toolpath preview, and execution        |
 | Probing    | Macro-driven probing workflows                                     |
 | Macros     | Macro discovery, editing, execution, and synchronization           |
-| Debug      | Communication terminal, diagnostics, and controller inspection     |
+| Util       | Connection settings; planned terminal, diagnostics and controller inspection |
 
 Tool Management may be presented as a mode or as a workspace accessible from
 Program and Macros.
@@ -629,7 +670,7 @@ Program and Macros.
 Switching UI mode must not implicitly modify machine state or interrupt an
 active operation. Each window retains its mode stacks and their composed
 navigation histories independently. The current demonstration provides Program,
-Manual and MDI contexts; probing, macro and debug workspaces remain planned.
+Manual, MDI and Util contexts; probing, macro and terminal workspaces remain planned.
 
 ### 5.3 DRO
 
@@ -874,7 +915,7 @@ The application must:
 - Never automatically resume interrupted motion following reconnection.
 - Avoid presenting simulated or predicted outcomes as confirmed machine state.
 
-Raw command access remains possible in Debug mode, but bypassing
+Planned raw command access belongs in Util mode, but bypassing
 application-level workflows must be explicit.
 
 Software validation and toolpath previews cannot guarantee collision-free or
@@ -988,7 +1029,7 @@ Initial technology choices:
 | Serial transport | jSerialComm                                                   |
 | 2D rendering     | Compose Canvas / Skia                                         |
 | Build            | Gradle Kotlin DSL                                             |
-| Configuration    | Kotlin serialization with an appropriate persistent format    |
+| Configuration    | JVM preferences for desktop controller endpoints; other configuration planned |
 | Testing          | Kotlin/JVM tests, simulated controller, and cross-platform CI |
 | Packaging        | Platform-native desktop distributions                         |
 

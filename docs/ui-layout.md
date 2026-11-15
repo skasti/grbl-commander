@@ -10,7 +10,7 @@ screenshot design references:
 
 | Region          | Current responsibility                                                                                                 |
 |-----------------|------------------------------------------------------------------------------------------------------------------------|
-| Header          | Image logo, application identity, Program/Manual/MDI UI-mode selection, current context and explicit connection status |
+| Header          | Image logo, application identity, Program/Manual/MDI/Util UI-mode selection, current context and explicit connection status |
 | Main workspace  | ScreenStackHost: retains all mode screen stacks and renders only the active stack                                      |
 | Bottom softkeys | Eight fixed slots, F1 through F8                                                                                       |
 | Right softkeys  | Seven fixed slots, R1 through R7                                                                                       |
@@ -26,10 +26,12 @@ workspace, and exposes an optional header-controls slot for UI-mode selection.
 `ShellState` contains display-only header information, including connection health
 observed from the shared application-owned `ControllerConnection`. All modes
 receive that same owner through `LocalControllerConnection`; it outlives their
-stacks and compositions. No connection settings or command UI is implemented. Screen instances own
+stacks and compositions. Util supplies controller connection settings; a terminal
+command UI is not implemented. Screen instances own
 softkey bindings; the shell reads them from the selected persistent stack. The
-Program, Manual and MDI buttons change presentation context only. Softkeys
-invoke safe, in-memory UI actions; machine commands are not implemented.
+Program, Manual, MDI and icon-only ⚙ Util buttons change presentation context
+only. Util connection actions use the shared owner; other mode examples are
+in-memory fixtures. No UI exposes motion commands.
 
 The application icon and header logo use the Compose resource
 `drawable/grbl_commander_icon.png` (384 × 256), while the workspace uses
@@ -280,9 +282,48 @@ disabled/active state and typed slot activation with screen-owned callbacks. The
 action dispatch layer must remain separate from GRBL transports and physical
 execution.
 
-Machine position/DRO, functional mode-specific pages, connection settings UI,
+Machine position/DRO, machine operation pages, terminal command UI,
 programmable actions, and physical CNC operations are planned and are not part
 of the desktop demonstration.
+
+### Util connection settings
+
+Util is selected by an icon-only ⚙ header button with accessible name "Util" and
+selected semantics/color. Connection health stays in the separate display-only
+header indicator, with the current endpoint in the header context. No settings
+screen is pushed onto Program, Manual or MDI stacks.
+
+Util owns a persistent `ScreenStack(UtilMode(...))`. Its initial root is an empty
+workspace containing **Controller connection**; the terminal root is planned in
+[#22](https://github.com/skasti/grbl-commander/issues/22). F6 **⌨ Util** selects the
+root; F7 **🔗 Connection** opens `ControllerConnectionSettings` above it using the
+root as explicit parent. F7 while settings is active cannot create another screen.
+These slots show selected view, independently of actual controller health. Closing
+settings returns to the same root. Each screen owns its banks; settings does not
+inherit the right bank, so future terminal filters are covered automatically.
+
+Settings is a scrolling touch-friendly form with Serial/USB and TCP/network
+selection. TCP requires host/IP and port 1–65535; serial supports optional refresh,
+descriptive port buttons and manual device entry. Baud is always visible, while
+Advanced exposes bits, parity, stop bits, flow control and DTR/RTS. Manual entry
+remains enabled when discovery is empty or fails. Defaults are 115200, 8N1, no
+flow control, DTR/RTS false. Edits never change the current endpoint/session.
+
+F1 **Save**, F2 **Connect**, F3 **Disconnect**, F6 **Util**, F7 **Connection** and F8
+**Close** use the existing guarded softkey activation. Matching workspace actions
+use the same screen callbacks. Invalid values show validation errors before any
+transport is created. Save persists without connecting; Connect awaits the status
+handshake before saving and reporting success. Progress/errors, current endpoint,
+last connection failure and stale/unknown report warning reflect shared owner
+state. Staleness expires after three seconds without reports and is also reflected
+in the header; the UI does not add status polling.
+
+Replacing/disconnecting an active or connecting session requires a screen-local
+confirmation describing interruption and uncertain pending command outcomes. It
+never resets/stops/replays machine work implicitly. Disconnect can interrupt a
+handshake. Close cancels unfinished form work but keeps a completed connection.
+Switching modes retains the form, its current operation and scroll state. Saving
+and discovery failures remain visible without claiming false connection health.
 
 See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the
 repository [AGENTS.md](../AGENTS.md).

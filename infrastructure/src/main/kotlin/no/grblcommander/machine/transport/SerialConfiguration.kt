@@ -16,7 +16,7 @@ data class SerialConfiguration(
     enum class FlowControl { NONE, RTS_CTS }
 
     init {
-        require(port.isNotBlank())
+        require(port.isNotBlank() && port.none(Char::isISOControl)) { "Enter a serial device path or port name" }
         require(baudRate > 0)
         require(dataBits in 5..8)
     }

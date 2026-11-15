@@ -15,7 +15,7 @@ who are.
 
 The desktop application uses Kotlin/JVM and Compose Multiplatform Desktop. The
 persistent `AppShell` owns a header with Program, Manual and MDI UI-mode
-buttons, a workspace, and fixed bottom/right screen-owned softkeys. Each window
+buttons and an icon-only ⚙ Util selector, a workspace, and fixed bottom/right screen-owned softkeys. Each window
 owns a persistent `ScreenStack` for each UI mode. `ScreenStackHost` hosts all
 these stacks, retaining inactive compositions and overlays (including ordinary
 Compose `remember` state), while only the active stack is visible and
@@ -34,8 +34,7 @@ modifies its right keys. Open the explorer, switch to Manual, navigate into its
 details screen, then return to Program: the explorer and unfinished editor are
 still present. Manual has a local notes screen; MDI has an unsent text buffer.
 These are UI fixtures, not machine functions. They do not access actual program
-files or send commands. The application starts disconnected; connection controls
-and endpoint settings UI remain planned.
+files or send commands. The application starts disconnected. Util provides controller connection settings.
 
 The UI-independent `:infrastructure` module provides TCP and serial transports,
 GRBL parsing and a shared machine-session API with observable controller state.
@@ -46,6 +45,35 @@ application exit. `connect(endpoint)`, `disconnect()` and `reconfigure(endpoint)
 are application APIs; reconfiguration alone does not connect. All retained modes
 share this owner through `LocalControllerConnection`; the header observes its
 actual connection health. No endpoint is selected or connected automatically.
+
+Select **⚙ Util**, then **Controller connection** or **F7 Connection** to configure
+TCP/network or Serial/USB. Util has one persistent stack and an otherwise empty
+root; its terminal is planned in [#22](https://github.com/skasti/grbl-commander/issues/22).
+**F6 Util** and **F8 Close** return to that root. F7 highlights the settings view;
+connection health remains a separate shared header indicator. Switching modes
+retains an open form and never disconnects the shared session.
+
+Enter a TCP host/IP and its configured port (no fixed port is assumed), or refresh
+the optional serial-port list and/or enter a device manually. Serial defaults are
+115200 baud, 8N1, no flow control and DTR/RTS false; Advanced exposes all options.
+Discovery does not open ports or change control lines. Empty discovery or native/
+permission failures do not prevent manual entry.
+
+**Save** stores the selected transport/settings in per-user JVM preferences without
+changing the active connection. **Connect** validates, connects through the shared
+owner, waits for a controller status handshake and then saves. **Disconnect** can
+cancel a pending handshake. Replacing/disconnecting an active or connecting session
+requires confirmation; this does not stop physical motion or replay commands.
+Close cancels an unfinished form action; it does not disconnect a completed session.
+Storage errors are displayed separately from actual connection health. Settings
+load when opening the form; missing/corrupt/incomplete records use blank endpoint
+fields and normal serial defaults. Nothing automatically connects or retries.
+
+The screen shows the actual endpoint, lifecycle state, last error and stale/unknown
+machine-state warning. Report freshness expires after three seconds; there is no
+background status polling. Hardware-free tests cover validation, persistence,
+serial discovery, confirmation, cancellation, timeout/reconnect and Util navigation.
+Physical controller/USB line behavior remains unverified.
 
 ### Requirements
 
