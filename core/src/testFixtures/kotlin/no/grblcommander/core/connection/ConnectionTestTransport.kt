@@ -20,6 +20,15 @@ class ConnectionTestTransport : MachineTransport {
     var onWrite: (suspend (String) -> Unit)? = null
     var writeFailure = false
     private var remaining = byteArrayOf()
+    suspend fun nextNonStatusWrite(): String {
+        while (true) {
+            val write = writes.receive()
+            if (write != "?") return write
+        }
+    }
+    fun drainWrites(): List<String> = buildList {
+        while (true) add(writes.tryReceive().getOrNull() ?: break)
+    }
     override suspend fun connect() { check(!closed); connected = true; connectCount++ }
     override suspend fun read(buffer: ByteArray): Int {
         if (remaining.isEmpty()) remaining = input.receiveCatching().getOrNull() ?: return -1
@@ -29,7 +38,8 @@ class ConnectionTestTransport : MachineTransport {
         return count
     }
     override suspend fun write(bytes: ByteArray) {
-        if (closed || writeFailure) {
+        if (closed) throw IOException("Transport closed")
+        if (writeFailure) {
             close()
             throw IOException("write failed")
         }

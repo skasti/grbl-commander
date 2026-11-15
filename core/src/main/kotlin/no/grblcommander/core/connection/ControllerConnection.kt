@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import no.grblcommander.machine.session.CommunicationEvent
@@ -111,6 +112,26 @@ class ControllerConnection(
                     session.state.collect { synchronized(gate) {
                         if (active === entry && !closed) mutableState.value = state.value.copy(snapshot = session.state.value)
                     } }
+                }
+                entry.observers += scope.launch {
+                    session.state.first { it.connection == MachineSnapshot.Connection.CONNECTED ||
+                        it.connection == MachineSnapshot.Connection.FAILED || it.connection == MachineSnapshot.Connection.CLOSED }
+                    while (isActive) {
+                        delay(500)
+                        val snapshot = synchronized(gate) {
+                            if (active !== entry || closed || state.value.closing) return@launch
+                            session.state.value
+                        }
+                        if (snapshot.connection != MachineSnapshot.Connection.CONNECTED) return@launch
+                        if (snapshot.resetInProgress) continue // Reset owns its own status handshake.
+                        try {
+                            // Status has no acknowledgment slot; the existing reader owns all reports.
+                            session.sendRealtime(RealtimeCommand.STATUS_QUERY)
+                        } catch (_: Exception) {
+                            // Session records I/O errors. Preserve cancellation, never reconnect here.
+                            currentCoroutineContext().ensureActive()
+                        }
+                    }
                 }
                 entry.connecting = scope.async(start = CoroutineStart.LAZY) {
                     try {

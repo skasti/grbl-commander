@@ -319,7 +319,10 @@ transport is created. Save persists without connecting; Connect awaits the statu
 handshake before saving and reporting success. Progress/errors, current endpoint,
 last connection failure and stale/unknown report warning reflect shared owner
 state. Staleness expires after three seconds without reports and is also reflected
-in the header; the UI does not add status polling.
+in the header. Core owns background status polling every 500 ms after handshake,
+independently of the active screen/mode; UI does not start additional pollers.
+Polling stops on connection disposal/failure and pauses during reset handshake.
+Missing replies still become stale; sending a poll is not a confirmed report.
 
 Replacing/disconnecting an active or connecting session requires a screen-local
 confirmation describing interruption and uncertain pending command outcomes. It

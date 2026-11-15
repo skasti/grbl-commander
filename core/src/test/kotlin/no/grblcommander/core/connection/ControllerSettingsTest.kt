@@ -59,7 +59,7 @@ class ControllerSettingsTest {
         assertFalse(first.closed)
         assertEquals(1, transports.size)
         assertEquals("?", first.writes.receive())
-        assertTrue(first.writes.tryReceive().isFailure)
+        assertTrue(first.drainWrites().all { it == "?" })
     }
 
     @Test fun `validation and missing confirmation leave current connection intact`() = fixture {
@@ -74,7 +74,7 @@ class ControllerSettingsTest {
         settings.connect(draft.copy(tcpPort = "1234"), interruptionConfirmed = true)
         assertTrue(transports.first().closed)
         assertEquals(2, transports.size)
-        assertTrue(transports.all { it.writes.receive() == "?" && it.writes.tryReceive().isFailure })
+        assertTrue(transports.all { it.writes.receive() == "?" && it.drainWrites().all { write -> write == "?" } })
         settings.disconnect(interruptionConfirmed = true)
         assertEquals(MachineSnapshot.Connection.DISCONNECTED, connection.state.value.snapshot.connection)
         assertTrue(transports.all { it.closed })

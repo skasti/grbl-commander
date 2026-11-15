@@ -363,7 +363,8 @@ handshake, or awaiting its settings save if handshake has completed. Save and a
 running Disconnect cannot be cancelled by another Disconnect action. Workspace
 buttons and softkeys share the same enabled predicate, and callbacks also guard
 against repeated activation. Interruption still requires explicit confirmation.
-There is no automatic retry, reset, machine command replay or auto-connect.
+Connection attempts and machine commands are not automatically retried; no
+reset, machine command replay or auto-connect is implicit.
 
 The Util mode owns one persistent stack rooted at `UtilMode`, an empty workspace
 with a connection-settings button. `ControllerConnectionSettings : Screen<Unit>`
@@ -377,7 +378,25 @@ form work; a completed connection outlives the screen.
 
 Both header and form read the same authoritative owner state. A presentation clock
 marks retained reports stale after three seconds, even without a new state emission;
-disconnected/unknown reports are not live. There is no background status polling.
+disconnected/unknown reports are not live.
+
+Each active connection owns one core background polling coroutine, independent
+of UI composition and mode selection. After successful handshake it waits 500 ms
+and sends `RealtimeCommand.STATUS_QUERY` through the existing session realtime
+writer. It does not await a response or hold the explicit `queryStatus()` mutex;
+the single session reader handles every report. Normal-command acknowledgment
+slots and traffic categorization are unchanged. Polling waits 500 ms after each
+write completes, so slow writes cannot overlap or create catch-up bursts.
+
+Polling pauses while `resetInProgress` because reset owns its status handshake.
+Alarms, `resetRequired` and uncertain normal-command correlation do not block
+status requests. Recoverable write failures/timeouts retain the session's existing
+diagnostics and permit the next scheduled poll; cancellation propagates. Actual
+connection failure stops polling, and disconnect/reconfiguration/replacement or
+application/parent shutdown cancels and awaits the old connection's polling work.
+A reconnect creates one fresh loop only after disposing the old session. No
+normal command, reset, reconnect or status-derived success is synthesized;
+missing responses remain visibly stale.
 
 The owner starts disconnected. `connect(endpoint)` is an explicit operator
 request: it closes, cancels and awaits any old session/handshake before creating
@@ -1080,9 +1099,8 @@ record mapping, traffic history and the production session factory. Session and
 transport construction is confined to this core composition boundary; their
 implementations and protocol semantics remain in infrastructure. Future shared
 machine-operation coordination and application/domain models belong in core.
-Application-owned connection work, including any future automatic polling,
-belongs to this lifetime rather than a screen. No automatic status poller is
-implemented in the current source.
+Application-owned background status polling belongs to the core connection
+lifetime rather than a screen, using the existing infrastructure realtime path.
 
 Infrastructure does not import core configuration models. Its preferences adapter
 stores a text record supplied by core; core owns its schema, validation and

@@ -75,11 +75,14 @@ requires confirmation; this does not stop physical motion or replay commands.
 Close cancels an unfinished form action; it does not disconnect a completed session.
 Storage errors are displayed separately from actual connection health. Settings
 load when opening the form; missing/corrupt/incomplete records use blank endpoint
-fields and normal serial defaults. Nothing automatically connects or retries.
+fields and normal serial defaults. The application never automatically connects or retries connection attempts.
 
 The screen shows the actual endpoint, lifecycle state, last error and stale/unknown
-machine-state warning. Report freshness expires after three seconds; there is no
-background status polling in this source. Hardware-free tests cover validation, persistence,
+machine-state warning. Core sends a background `?` status query every 500 ms after successful handshake,
+independently of the selected screen/mode. Polling stops with the connection and
+pauses during reset handshake. Writes are sequential, with no backlog or catch-up
+bursts; a slow write delays the next poll. Missing reports still become stale
+after three seconds, and polling never reconnects, resets or sends normal commands. Hardware-free tests cover validation, persistence,
 serial discovery, confirmation, cancellation, timeout/reconnect and Util navigation.
 Physical controller/USB line behavior remains unverified.
 
