@@ -287,10 +287,11 @@ class GrblMachineSession(
                 if (message.report.blockingCriticalEvent == true && !blockingAlarmLatched) {
                     blockingAlarmLatched = true
                     resetBoundaryEstablished = false
+                    resetClearedAlarmCode = null
                     commandEpoch++
                     discardPending(CommandCorrelationException("Controller reports a blocking critical event; reset required"))
                 } else if (message.report.isAlarm && (!wasAlarm || code != previous.alarmCode)) {
-                    observeAlarm(code, fromStatus = true, blockingEvent = message.report.blockingCriticalEvent)
+                    observeAlarm(code, fromStatus = true)
                 }
                 if (!message.report.isAlarm) resetClearedAlarmCode = null
                 refreshSynchronization(observed)
@@ -336,14 +337,19 @@ class GrblMachineSession(
         }
     }
 
-    private fun observeAlarm(code: Int?, fromStatus: Boolean = false, blockingEvent: Boolean? = null) {
+    private fun observeAlarm(code: Int?, fromStatus: Boolean = false) {
         // Critical core events may discard the line entirely. Unknown numeric
         // extension alarms get the same conservative reset barrier, not a critical label.
         val retainedAfterReset = fromStatus && resetBoundaryEstablished &&
-            (code != null && code == resetClearedAlarmCode || blockingEvent == false)
+            code != null && code == resetClearedAlarmCode
         // Learning the retained post-reset code is not a new event and must not
         // interrupt an operator's already pending unlock/homing request.
         if (retainedAfterReset) return
+        // Only the known pre-reset code can be retained. A new event or changed
+        // code ends that history; absence of $C:1 says nothing about alarm age.
+        if (code != null || !fromStatus || resetAttempt?.bannerReportSequence == null) {
+            resetClearedAlarmCode = null
+        }
         commandEpoch++
         if (code != null && ControllerAlarm.fromCode(code).isCritical != false) {
             blockingAlarmLatched = true

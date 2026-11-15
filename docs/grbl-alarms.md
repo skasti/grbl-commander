@@ -63,10 +63,16 @@ Core can retain a critical alarm code after reset while leaving the blocking
 loop. `report.c` emits `$C:1` in its all-fields `FW:grblHAL` report while
 `sys.blocking_event` is active. This flag is distinct from the alarm code, and
 absence in an ordinary partial report does not prove it is false. A retained
-code after a witnessed reset does not itself require repeated resets; a new
-alarm event or reported blocking flag does. Unlock or homing remains a separate,
-explicit Application/operator action subject to `system.c` checks. Reset during
-motion can also produce an interrupted-cycle/homing alarm and lose position.
+known pre-reset code after a witnessed reset does not itself require repeated
+resets. This retained-code history survives a bare post-banner Alarm report, but
+ends on a non-Alarm report, a changed alarm code or an explicit `ALARM:n` event.
+Alarm transitions after that point follow the ordinary correlation and reset
+rules, including recurrence of the same code. An unseen code is not classified
+as retained merely because an all-fields report has no `$C:1`. A reported active
+blocking flag requires reset even if the alarm code is unchanged.
+Unlock or homing remains a separate, explicit Application/operator action subject
+to `system.c` checks. Reset during motion can also produce an interrupted-cycle/
+homing alarm and lose position.
 
 ## Verification coverage
 
@@ -74,8 +80,10 @@ Hardware-free tests cover exact criticality for codes 1–22, optional/unknown
 codes and descriptions, critical alarms without acknowledgments, non-critical
 late `ok`/`error`, alarm after an earlier acknowledgment, empty queues,
 homing-required with explicitly requested `$H`, status-only alarms, repeated
-status during recovery, preserved real-time access, reset timeout/failure,
-pre-banner stale replies and post-reset synchronization without replay.
+status during recovery, post-reset alarm transitions after Idle and code changes,
+partial/all-fields/blocking reports, explicit alarm notifications in either order,
+preserved real-time access, reset timeout/failure, pre-banner stale replies and
+post-reset synchronization without replay.
 
 The official Linux Simulator test enables hard limits only in its isolated NVS,
 starts a non-motion dwell and toggles the simulator's documented X-limit input
