@@ -25,7 +25,8 @@ fun main() {
     val settings = ControllerSettings(connection)
     scope.launch(start = CoroutineStart.UNDISPATCHED) { settings.initialize() }
     try {
-        application {
+        // Let Compose return so finally can close and await the machine connection.
+        application(exitProcessOnExit = false) {
             Window(
                 onCloseRequest = ::exitApplication,
                 title = "GRBL Commander",

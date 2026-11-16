@@ -491,7 +491,10 @@ draft, progress, confirmations and navigation. It requests Save or Connect, and
 core performs any persistence internal to those operations. Neither Compose nor
 screens instantiate or refer to the JVM Preferences adapter. Serial discovery is
 requested through core and executed by infrastructure. `Main` supplies the shared
-core services to `CommanderApp`; changing mode never recreates them.
+core services to `CommanderApp`; changing mode never recreates them. Closing the
+application window exits Compose and runs application-owned cleanup before normal
+process completion: startup/polling are cancelled, the TCP/serial connection is
+closed, and owned work is awaited. Exit sends no automatic machine-control command.
 
 See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the
 repository [AGENTS.md](../AGENTS.md).

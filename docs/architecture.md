@@ -328,7 +328,14 @@ workflows serialize configuration access, validate loaded/edited values and
 publish configuration after a successful read/write. Loading occurs through the
 core operation at application startup and when the form opens. Main owns connection
 and settings above screen lifetimes, launches `initialize()` and cancels/joins its
-application scope at shutdown. `CommanderApp` signals `onUiReady()` after composition.
+application scope at shutdown. The desktop entry point uses
+`application(exitProcessOnExit = false)`: window close returns through Main's
+`finally` block instead of terminating the JVM before cleanup. Main cancels the
+application scope, calls `connection.close()`, awaits `connection.awaitClosed()`
+and joins the application job. This disposes TCP/serial resources, stops polling
+and cancels pending handshake/command work before normal process completion;
+uncertain commands are never replayed. No machine reset, hold or unlock is sent
+as part of exit. `CommanderApp` signals `onUiReady()` after composition.
 Core initialization loads configuration and asynchronously attempts a valid saved
 endpoint at most once. Missing/invalid data skips connection. Manual actions cancel
 pending initialization; direct connection lifecycle intentions also prevent delayed

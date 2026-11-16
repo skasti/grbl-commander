@@ -352,6 +352,41 @@ class ControllerConnectionTest {
         }
     }
 
+    @Test fun `application shutdown closes transport and awaits an unacknowledged command without replay`() = runBlocking<Unit> {
+        withTimeout(5_000) {
+            val applicationJob = SupervisorJob()
+            val scope = CoroutineScope(applicationJob + Dispatchers.Default)
+            val transport = ConnectionTestTransport()
+            val owner = ControllerConnection(scope, { _, child -> GrblMachineSession(transport, child) })
+            try {
+                owner.connect(tcp)
+                val pending = async { runCatching { owner.executeLine("G1 X100 F100") } }
+                assertEquals("G1 X100 F100\n", transport.nextNonStatusWrite())
+                assertTrue(owner.state.value.manualCommandPending)
+                // Main's exit sequence, including cancellation of an active application scope.
+                scope.cancel()
+                owner.close()
+                owner.awaitClosed()
+                applicationJob.join()
+                assertTrue(pending.await().isFailure)
+                assertEquals(1, transport.closeCount)
+                assertFalse(transport.isConnected)
+                assertEquals(Connection.CLOSED, owner.state.value.snapshot.connection)
+                assertFalse(owner.state.value.closing)
+                assertNull(owner.state.value.snapshot.failure)
+                assertTrue(transport.drainWrites().all { it == "?" }) // No reset, hold, unlock or replay.
+                owner.close()
+                owner.awaitClosed()
+                assertEquals(1, transport.closeCount)
+            } finally {
+                scope.cancel()
+                owner.close()
+                owner.awaitClosed()
+                applicationJob.join()
+            }
+        }
+    }
+
     @Test fun `parent cancellation closes active connection and history survives shutdown`() = runBlocking<Unit> {
         withTimeout(5_000) {
             val parent = SupervisorJob()

@@ -44,7 +44,10 @@ connection/settings workflows. `:infrastructure` provides transports, protocol,
 `GrblMachineSession`, serial discovery and actual JVM Preferences storage.
 
 `Main` constructs one core connection/settings pair above every mode/screen
-lifetime, and closes/awaits the connection at exit. Core selects the existing
+lifetime. Closing the application window returns from Compose without terminating
+JVM execution first, so Main cancels startup/background work, closes the TCP/serial
+connection and awaits connection/application cleanup before returning. Closing the
+application does not send Feed Hold, reset, unlock or replay commands. Core selects the existing
 production transport from a typed endpoint and creates a fresh session per
 explicit connection. All retained modes share this owner; the header observes
 its actual health. Save and Connect remain explicit user intentions, while core
