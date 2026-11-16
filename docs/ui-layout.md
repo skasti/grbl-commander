@@ -375,7 +375,7 @@ IME/key submission cannot duplicate a pending request. Blank, multiline, overlon
 non-ASCII and embedded realtime input is rejected. Local admission/failure feedback
 appears beneath the prompt, and failed submission preserves it. Success clears the
 unchanged line after acknowledgment, without claiming motion completion. Up/Down
-and the second bottom-softkey page browse up to 100 recent transport handoffs
+and F3/F4 on the first bottom-softkey page browse up to 100 recent transport handoffs
 and restore the unsent draft. Recall is updated before acknowledgment, retains
 controller errors/timeouts/uncertainty and removes exact local transport rejections. Nothing persists command history.
 
@@ -404,7 +404,7 @@ existing rows and never reconstructs older hidden traffic. Subscription continue
 while other modes or Connection settings are displayed. Clear view records a local history boundary; it never
 clears session state, pending commands or the shared history. Only actual traffic cursor gaps show a missed-events warning. Normal buffer
 rotation is silent. Follow starts enabled; upward manual scrolling disables it,
-downward scrolling back to the bottom reactivates it, and F4 Follow jumps directly
+downward scrolling back to the bottom reactivates it, and R6 ⏬ Follow jumps directly
 to the latest entry. Stable row identities preserve scrollback during rotation.
 
 F8 **Next page** cycles between two bottom pages, with a page indicator. F7
@@ -415,24 +415,28 @@ status-query action; shared background polling remains responsible for status.
 
 | Bottom slot | Page 1 | Page 2 |
 | --- | --- | --- |
-| F1 | `sendRealtime(FEED_HOLD)` | Previous command |
-| F2 | Guarded `sendRealtime(CYCLE_START)` | Next command |
-| F3 | Confirm, then `reset()` handshake | Copy selected log text |
-| F4 | Follow, with reactive active state | Clear view |
+| F1 | ▶️ Guarded `sendRealtime(CYCLE_START)` | Confirm, then `reset()` handshake |
+| F2 | ⏸️ `sendRealtime(FEED_HOLD)` | Copy selected log text |
+| F3 | ⬆️ Prev Cmd | Clear view |
+| F4 | ⬇️ Next Cmd | Unassigned |
 | F5 | Unassigned | Unassigned |
 | F6 | Unassigned | Unassigned |
 | F7 | Filters (funnel icon) | Filters (funnel icon) |
 | F8 | Next page (1/2) | Next page (2/2), wrapping to page 1 |
 
+R6 **⏬ Follow** has reactive active state and remains available on both bottom
+pages and in Filters. R7 **Connection** remains the terminal navigation key.
+Connection settings and modals replace these right-bank bindings.
+
 Upward manual scrolling disables Follow; returning to the bottom enables it.
-F4 Follow jumps to the newest retained event and follows incoming output; disabled Follow preserves scrollback with stable
+R6 ⏬ Follow jumps to the newest retained event and follows incoming output; disabled Follow preserves scrollback with stable
 session/sequence keys. Switching modes or visiting settings retains the page,
 filter menu, list and prompt. History/copy actions expose reactive enabled states.
 Realtime and paging actions opt out of keyboard repeat; realtime requests
 reserve separate in-flight slots. Reset confirmation warns about interrupting
 work and invalidating
 pending commands. Core enforces manual command admission separately from Cycle
-Start. F2 is available for a fresh synchronized `Idle` or completed `Hold:0`,
+Start. F1 is available for a fresh synchronized `Idle` or completed `Hold:0`,
 including after command acknowledgment. It is disabled during Run, Hold:1,
 Jog, Door, alarm, reset and stale/unknown/disconnected status. Explicit activation
 sends one realtime `~`; it never automatically resumes or resubmits a command. The `>` prefix and editable line share font metrics and vertical

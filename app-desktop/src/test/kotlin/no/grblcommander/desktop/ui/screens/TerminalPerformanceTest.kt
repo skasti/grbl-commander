@@ -43,7 +43,7 @@ class TerminalPerformanceTest {
             val loadMillis = (System.nanoTime() - started) / 1_000_000.0
             val initialTail = terminal.history.last().cursor
             onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
-            onNodeWithTag("softkey-F4").assertIsNotSelected()
+            onNodeWithTag("softkey-R6").assertIsNotSelected()
             val log = onNodeWithTag("terminal-log").fetchSemanticsNode()
             val prompt = onNodeWithTag("terminal-prompt").fetchSemanticsNode()
             val scroll = log.config[SemanticsActions.ScrollBy].action!!

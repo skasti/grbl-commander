@@ -75,11 +75,12 @@ apply to newly received events only; existing rows stay intact. Terminal retains
 10,000 admitted events independently of core's 5,000-event diagnostic buffer.
 Only actual sequence gaps produce a missed-events warning; normal rotation is silent.
 
-F8 **Next page** cycles between two bottom-softkey pages. The first has Feed Hold,
-guarded Cycle Start, confirmed Soft Reset and Follow on F1–F4. The second has
-Previous command, Next command, Copy selected text and Clear view on F1–F4.
+F8 **Next page** cycles between two bottom-softkey pages. The first has ▶️ Cycle Start,
+⏸️ Feed Hold, ⬆️ Prev Cmd and ⬇️ Next Cmd on F1–F4. The second has confirmed
+Soft Reset, Copy selected text and Clear view on F1–F3; F4 is unassigned.
+R6 ⏬ Follow remains available on both pages and while the filter menu is open.
 Scrolling upward disables Follow; scrolling back to the bottom reactivates it.
-F4 Follow jumps to the newest retained entry; new traffic preserves manual scrollback.
+R6 Follow jumps to the newest retained entry; new traffic preserves manual scrollback.
 The prompt prefix and editable text share typography and alignment inside a single
 touch-friendly input field.
 

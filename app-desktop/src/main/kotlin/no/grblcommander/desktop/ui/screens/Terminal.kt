@@ -81,6 +81,7 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
     private var filtersOpen by mutableStateOf(false)
     private var copySelection by mutableStateOf<(() -> Unit)?>(null)
     override val rightKeys = mapOf(
+        RightSoftKeySlot.R6 to SoftKeyDefinition("⏬\nFollow", action = { follow = !follow }, active = { follow }, repeatable = false),
         RightSoftKeySlot.R7 to SoftKeyDefinition("🔗\nConnection", action = ::openConnection, repeatable = false),
     )
     private val filterKeys = mapOf(
@@ -95,16 +96,15 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
     private val bottomPages = SoftKeyPages(
         pages = listOf(
             mapOf(
-                BottomSoftKeySlot.F1 to SoftKeyDefinition("⏸\nFeed Hold (!)", action = { realtime(BottomSoftKeySlot.F1) { connection.sendRealtime(RealtimeCommand.FEED_HOLD) } }, enabled = { connected && realtimeBusy[BottomSoftKeySlot.F1] != true }, repeatable = false),
-                BottomSoftKeySlot.F2 to SoftKeyDefinition("▶\nCycle Start (~)", action = { realtime(BottomSoftKeySlot.F2) { connection.sendRealtime(RealtimeCommand.CYCLE_START) } }, enabled = { realtimeBusy[BottomSoftKeySlot.F2] != true && observedState.canCycleStart(now) }, repeatable = false),
-                BottomSoftKeySlot.F3 to SoftKeyDefinition("🔄\nSoft Reset", action = ::confirmReset, enabled = { connected && !observedState.snapshot.resetInProgress && realtimeBusy[BottomSoftKeySlot.F3] != true }, repeatable = false),
-                BottomSoftKeySlot.F4 to SoftKeyDefinition("📌\nFollow", action = { follow = !follow }, active = { follow }, repeatable = false),
+                BottomSoftKeySlot.F1 to SoftKeyDefinition("▶️\nCycle Start (~)", action = { realtime(BottomSoftKeySlot.F1) { connection.sendRealtime(RealtimeCommand.CYCLE_START) } }, enabled = { realtimeBusy[BottomSoftKeySlot.F1] != true && observedState.canCycleStart(now) }, repeatable = false),
+                BottomSoftKeySlot.F2 to SoftKeyDefinition("⏸️\nFeed Hold (!)", action = { realtime(BottomSoftKeySlot.F2) { connection.sendRealtime(RealtimeCommand.FEED_HOLD) } }, enabled = { connected && realtimeBusy[BottomSoftKeySlot.F2] != true }, repeatable = false),
+                BottomSoftKeySlot.F3 to SoftKeyDefinition("⬆️\nPrev Cmd", action = { browseHistory(-1) }, enabled = { !submitting && historyIndex > 0 }),
+                BottomSoftKeySlot.F4 to SoftKeyDefinition("⬇️\nNext Cmd", action = { browseHistory(1) }, enabled = { !submitting && historyIndex < commands.size }),
             ),
             mapOf(
-                BottomSoftKeySlot.F1 to SoftKeyDefinition("Previous\ncommand", action = { browseHistory(-1) }, enabled = { !submitting && historyIndex > 0 }),
-                BottomSoftKeySlot.F2 to SoftKeyDefinition("Next\ncommand", action = { browseHistory(1) }, enabled = { !submitting && historyIndex < commands.size }),
-                BottomSoftKeySlot.F3 to SoftKeyDefinition("Copy selected\ntext", action = { copySelection?.invoke() }, enabled = { selectedText.isNotEmpty() && copySelection != null }, repeatable = false),
-                BottomSoftKeySlot.F4 to SoftKeyDefinition("🧹\nClear view", action = ::clearView, repeatable = false),
+                BottomSoftKeySlot.F1 to SoftKeyDefinition("🔄\nSoft Reset", action = ::confirmReset, enabled = { connected && !observedState.snapshot.resetInProgress && realtimeBusy[BottomSoftKeySlot.F1] != true }, repeatable = false),
+                BottomSoftKeySlot.F2 to SoftKeyDefinition("Copy selected\ntext", action = { copySelection?.invoke() }, enabled = { selectedText.isNotEmpty() && copySelection != null }, repeatable = false),
+                BottomSoftKeySlot.F3 to SoftKeyDefinition("🧹\nClear view", action = ::clearView, repeatable = false),
             ),
         ),
         nextSlot = BottomSoftKeySlot.F8,
@@ -142,7 +142,7 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
             "Soft reset interrupts active work and invalidates pending commands. Machine position and execution may be uncertain. Nothing is replayed, unlocked or resumed automatically.",
             false,
             mapOf(BottomSoftKeySlot.F1 to ModalDialog.Choice("Reset", true), BottomSoftKeySlot.F8 to ModalDialog.Choice("Cancel", false)),
-        ).open(this) { confirmed -> if (confirmed) realtime(BottomSoftKeySlot.F3) { connection.reset() } }
+        ).open(this) { confirmed -> if (confirmed) realtime(BottomSoftKeySlot.F1) { connection.reset() } }
     }
 
     internal fun submit() {
@@ -202,7 +202,7 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
     @Composable override fun Content() {
         val compositionScope = rememberCoroutineScope()
         DisposableEffect(compositionScope) { scope = compositionScope; onDispose { scope = null } }
-        val state by connection.state.collectAsState()
+        val state by connection.state.collectAsState(context = Dispatchers.Main)
         LaunchedEffect(connection) {
             // The composition dispatcher can flush inline on a publishing thread.
             // Confine incremental UI mutations to the actual desktop UI dispatcher.

@@ -63,15 +63,13 @@ class TerminalTest {
                 assertEquals(TextFieldValue("G0 X12", TextRange(3)), f.terminal.prompt)
                 assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND })
             }
-            onNodeWithTag("softkey-F8").performClick()
-            onNodeWithTag("softkey-F1").performClick()
+            onNodeWithTag("softkey-F3").performClick()
             onNodeWithTag("terminal-prompt").assertPromptText("\$I")
-            onNodeWithTag("softkey-F2").performClick()
+            onNodeWithTag("softkey-F4").performClick()
             runOnIdle { assertEquals(TextFieldValue("G0 X12", TextRange(3)), f.terminal.prompt) }
-            onNodeWithText("Previous command").assertDoesNotExist()
-            onNodeWithText("Next command").assertDoesNotExist()
-            onNodeWithTag("softkey-F8").performClick()
-            onNodeWithText("⏸\nFeed Hold (!)").assertExists()
+            onNodeWithText("⬆️\nPrev Cmd").assertExists()
+            onNodeWithText("⬇️\nNext Cmd").assertExists()
+            onNodeWithText("⏸️\nFeed Hold (!)").assertExists()
             onNodeWithText("Send").assertDoesNotExist()
         }
     }
@@ -99,13 +97,15 @@ class TerminalTest {
         Fixture().use { f ->
             f.connect(); host(f)
             onNodeWithTag("terminal-prompt").performClick().performTextInput("unsent")
-            onNodeWithTag("softkey-F4").assertIsSelected().performClick().assertIsNotSelected()
+            onNodeWithTag("softkey-R6").assertIsSelected().performClick().assertIsNotSelected()
             onNodeWithTag("softkey-F8").performClick() // Utilities page.
             runOnIdle {
                 assertNotNull(f.util.softKeyDefinition(BottomSoftKeySlot.F7)!!.icon)
                 assertEquals("Filters", f.util.softKeyDefinition(BottomSoftKeySlot.F7)!!.label)
                 assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F5))
-                assertEquals(setOf(RightSoftKeySlot.R7), f.util.effectiveRightKeys.keys)
+                assertEquals(setOf(RightSoftKeySlot.R6, RightSoftKeySlot.R7), f.util.effectiveRightKeys.keys)
+                assertEquals("⏬\nFollow", f.util.softKeyDefinition(RightSoftKeySlot.R6)!!.label)
+                assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F4))
             }
             onNodeWithTag("softkey-F7").performClick()
             onNodeWithTag("softkey-F1").assertIsNotSelected().performClick().assertIsSelected()
@@ -123,7 +123,7 @@ class TerminalTest {
             assertTrue(f.owner.diagnosticSnapshot().none { it.event.category == CommunicationEvent.Category.COMMAND })
             runBlocking { repeat(300) { f.transport.emit("[EXT:$it]\n") } }
             waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[EXT:299]" } }
-            waitUntil(timeoutMillis = 5_000) { f.terminal.history.lastOrNull()?.event?.text == "[EXT:299]" }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.history.any { it.event.text == "[EXT:299]" } }
             runOnIdle { f.active = f.util }
             onNodeWithTag("terminal-prompt").assertPromptText("unsent")
             onNodeWithTag("softkey-F1").assertIsSelected() // Filter bank survived the mode switch.
@@ -136,18 +136,18 @@ class TerminalTest {
                 assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F7))
             }
             runBlocking { f.transport.emit("[COVERED:settings]\n") }
-            waitUntil(timeoutMillis = 5_000) { f.terminal.history.lastOrNull()?.event?.text == "[COVERED:settings]" }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.history.any { it.event.text == "[COVERED:settings]" } }
             onNodeWithTag("softkey-R7").performClick()
             onNodeWithTag("terminal-prompt").assertPromptText("unsent")
             onNodeWithTag("softkey-F1").assertIsSelected() // Settings restores the filter menu too.
             onNodeWithTag("softkey-F7").performClick() // Back to the same utilities page.
-            onNodeWithText("Previous\ncommand").assertExists()
+            onNodeWithText("🔄\nSoft Reset").assertExists()
             onNodeWithText("Filters").assertExists()
             onNodeWithText("🔄\nShow all").assertDoesNotExist()
-            onNodeWithTag("softkey-F4").performClick()
+            onNodeWithTag("softkey-F3").performClick()
             runOnIdle { assertTrue(f.owner.diagnosticSnapshot().isNotEmpty()); assertEquals("unsent", f.terminal.prompt.text) }
             onNodeWithTag("softkey-F8").performClick() // Wrap to realtime page.
-            onNodeWithTag("softkey-F4").assertIsNotSelected()
+            onNodeWithTag("softkey-R6").assertIsNotSelected()
             onNodeWithText("⌨\nTerminal").assertDoesNotExist()
         }
     }
@@ -159,17 +159,18 @@ class TerminalTest {
             onNodeWithTag("softkey-F2").assertIsNotEnabled()
             onNodeWithText("❔\nStatus (?)").assertDoesNotExist()
             f.connect()
-            waitUntil(timeoutMillis = 5_000) { f.util.softKeyDefinition(BottomSoftKeySlot.F1)!!.enabled() }
+            waitUntil(timeoutMillis = 5_000) { f.util.softKeyDefinition(BottomSoftKeySlot.F2)!!.enabled() }
             f.transport.drainWrites()
-            onNodeWithTag("softkey-F1").performClick()
+            onNodeWithTag("softkey-F2").performClick()
             assertEquals("!", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
-            onNodeWithTag("softkey-F2").assertIsEnabled().performClick()
+            onNodeWithTag("softkey-F1").assertIsEnabled().performClick()
             assertEquals("~", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
-            onNodeWithTag("softkey-F3").performClick()
+            onNodeWithTag("softkey-F8").performClick()
+            onNodeWithTag("softkey-F1").performClick()
             onNodeWithText("Reset controller?").assertExists()
             onNodeWithTag("softkey-F8").performClick()
             assertTrue(f.transport.drainWrites().all { it == "?" })
-            onNodeWithTag("softkey-F3").performClick()
+            onNodeWithTag("softkey-F1").performClick()
             onNodeWithTag("softkey-F1").performClick()
             assertEquals("\u0018", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
             waitUntil(timeoutMillis = 5_000) { !f.owner.state.value.snapshot.resetInProgress }
@@ -180,7 +181,12 @@ class TerminalTest {
     @Test fun `Cycle Start is restored after acknowledged motion reaches completed feed hold`() = runComposeUiTest {
         Fixture().use { f ->
             f.connect(); host(f)
-            onNodeWithTag("softkey-F2").assertIsEnabled()
+            onNodeWithText("▶️\nCycle Start (~)").assertExists()
+            onNodeWithText("⏸️\nFeed Hold (!)").assertExists()
+            onNodeWithText("⬆️\nPrev Cmd").assertExists()
+            onNodeWithText("⬇️\nNext Cmd").assertExists()
+            onNodeWithText("⏬\nFollow").assertExists()
+            onNodeWithTag("softkey-F1").assertIsEnabled()
             onNodeWithTag("terminal-prompt").performTextInput("G1 X100 F100")
             onNodeWithTag("terminal-prompt").performKeyInput { pressKey(Key.Enter) }
             assertEquals("G1 X100 F100\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
@@ -190,24 +196,24 @@ class TerminalTest {
             runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
             waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Run" }
             waitUntil(timeoutMillis = 5_000) {
-                runCatching { onNodeWithTag("softkey-F2").assertIsNotEnabled() }.isSuccess
+                runCatching { onNodeWithTag("softkey-F1").assertIsNotEnabled() }.isSuccess
             }
-            onNodeWithTag("softkey-F2").assertIsNotEnabled()
-            onNodeWithTag("softkey-F1").performClick()
+            onNodeWithTag("softkey-F1").assertIsNotEnabled()
+            onNodeWithTag("softkey-F2").performClick()
             assertEquals("!", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
             f.transport.statusReport = "<Hold:1|MPos:2,0,0>"
             runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
             waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Hold:1" }
             waitUntil(timeoutMillis = 5_000) {
-                runCatching { onNodeWithTag("softkey-F2").assertIsNotEnabled() }.isSuccess
+                runCatching { onNodeWithTag("softkey-F1").assertIsNotEnabled() }.isSuccess
             }
-            onNodeWithTag("softkey-F2").assertIsNotEnabled()
+            onNodeWithTag("softkey-F1").assertIsNotEnabled()
             f.transport.statusReport = "<Hold:0|MPos:3,0,0>"
             runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
             waitUntil(timeoutMillis = 5_000) {
-                runCatching { onNodeWithTag("softkey-F2").assertIsEnabled() }.isSuccess
+                runCatching { onNodeWithTag("softkey-F1").assertIsEnabled() }.isSuccess
             }
-            onNodeWithTag("softkey-F2").assertIsEnabled().performClick()
+            onNodeWithTag("softkey-F1").assertIsEnabled().performClick()
             assertEquals("~", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
             assertTrue(f.transport.drainWrites().all { it == "?" })
         }
@@ -219,19 +225,19 @@ class TerminalTest {
             runBlocking { repeat(100) { f.transport.emit("[LINE:$it]\n") } }
             waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[LINE:99]" } }
             onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
-            onNodeWithTag("softkey-F4").assertIsNotSelected()
+            onNodeWithTag("softkey-R6").assertIsNotSelected()
             runBlocking { f.transport.emit("[LINE:latest]\n") }
             waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[LINE:latest]" } }
-            onNodeWithTag("softkey-F4").assertIsNotSelected().performClick()
-            onNodeWithTag("softkey-F4").assertIsSelected()
+            onNodeWithTag("softkey-R6").assertIsNotSelected().performClick()
+            onNodeWithTag("softkey-R6").assertIsSelected()
             onNodeWithText("[LINE:latest]", substring = true).assertExists()
             onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
-            onNodeWithTag("softkey-F4").assertIsNotSelected()
+            onNodeWithTag("softkey-R6").assertIsNotSelected()
             repeat(10) {
-                if (!f.util.softKeyDefinition(BottomSoftKeySlot.F4)!!.active())
+                if (!f.util.softKeyDefinition(RightSoftKeySlot.R6)!!.active())
                     onNodeWithTag("terminal-log").performTouchInput { swipeUp() }
             }
-            onNodeWithTag("softkey-F4").assertIsSelected() // Returning to bottom restores Follow.
+            onNodeWithTag("softkey-R6").assertIsSelected() // Returning to bottom restores Follow.
             runBlocking { f.transport.emit("[LINE:after-bottom]\n") }
             waitUntil(timeoutMillis = 5_000) { f.terminal.history.lastOrNull()?.event?.text == "[LINE:after-bottom]" }
             onNodeWithText("[LINE:after-bottom]", substring = true).assertExists()

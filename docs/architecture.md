@@ -377,8 +377,9 @@ reset, machine command replay or auto-connect is implicit.
 The Util mode owns one persistent stack rooted at `Terminal : Screen<Unit>`.
 `ControllerConnectionSettings` opens above it with the explicit parent contract.
 R7 opens Connection from Terminal and returns to Terminal from the form. No
-self-selection key is shown on Terminal. F8 cycles between the realtime/Follow
-and history/copy/clear bottom pages. F7 Filters, with a funnel icon, replaces the
+self-selection key is shown on Terminal. F8 cycles between the Cycle Start/Feed Hold/command-history
+and reset/copy/clear bottom pages. R6 ⏬ Follow remains available on both pages
+and in Filters. F7 Filters, with a funnel icon, replaces the
 bottom bank with F1–F6 filter toggles and F7 Back. Back restores the selected
 ordinary page; R7 navigation remains available while filtering. F5/F6 are
 unassigned on the ordinary terminal pages.
