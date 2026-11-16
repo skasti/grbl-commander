@@ -16,6 +16,12 @@ class ControllerConnectionTest {
     private val tcp = ControllerEndpoint.Tcp("localhost", 23)
     private val serial = ControllerEndpoint.Serial(SerialConfiguration("test-port"))
 
+    private suspend fun ControllerConnection.awaitDiagnostics(predicate: (List<ControllerTraffic>) -> Boolean): List<ControllerTraffic> = withTimeout(5_000) {
+        var snapshot: List<ControllerTraffic>
+        do { yield(); snapshot = diagnosticSnapshot() } while (!predicate(snapshot))
+        snapshot
+    }
+
     @Test fun `intentional disconnect clears close diagnostics while unexpected loss remains a failure`() = runBlocking<Unit> {
         withTimeout(5_000) {
             val transports = mutableListOf<ConnectionTestTransport>()
@@ -88,12 +94,12 @@ class ControllerConnectionTest {
             val owner = ControllerConnection(this, { _, scope ->
                 assertTrue(transports.all { it.closed })
                 ConnectionTestTransport().also { transports += it }.let { GrblMachineSession(it, scope) }
-            }, historyCapacity = 5)
+            }, diagnosticCapacity = 5)
             try {
                 owner.connect(tcp)
                 val first = transports.single()
                 first.writes.receive() // only status, no implicit machine operation
-                owner.history.first { it.size >= 2 }
+                owner.awaitDiagnostics { it.size >= 2 }
                 assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
                 assertEquals(tcp, owner.state.value.endpoint)
                 val line = async { owner.executeLine("\$I") }
@@ -104,7 +110,7 @@ class ControllerConnectionTest {
                 assertEquals("!", first.nextNonStatusWrite())
                 assertEquals("Idle", owner.queryStatus().executionState)
                 first.writes.receive()
-                owner.history.first { events -> events.last().event.direction.name == "RX" && events.size == 5 }
+                owner.awaitDiagnostics { events -> events.last().event.direction.name == "RX" && events.size == 5 }
                 val pending = async { runCatching { owner.executeLine("G4 P0") } }
                 assertEquals("G4 P0\n", first.nextNonStatusWrite())
                 owner.connect(serial)
@@ -113,8 +119,8 @@ class ControllerConnectionTest {
                 assertEquals(2, transports.size)
                 assertEquals("?", transports.last().writes.receive())
                 assertTrue(transports.last().drainWrites().all { it == "?" }) // no replay
-                owner.history.first { it.last().sessionId == 2L }
-                assertTrue(owner.history.value.size <= 5)
+                owner.awaitDiagnostics { it.last().sessionId == 2L }
+                assertTrue(owner.diagnosticSnapshot().size <= 5)
                 owner.disconnect()
                 assertEquals(Connection.DISCONNECTED, owner.state.value.snapshot.connection)
                 assertEquals(1, transports.last().closeCount)
@@ -175,7 +181,7 @@ class ControllerConnectionTest {
                     assertEquals("?", transports.last().writes.receive())
                     assertTrue(transports.last().drainWrites().all { it == "?" })
                     owner.disconnect()
-                    assertTrue(owner.history.value.isNotEmpty())
+                    assertTrue(owner.diagnosticSnapshot().isNotEmpty())
                 } finally { owner.close(); owner.awaitClosed() }
                 assertTrue(transports.all { it.closeCount == 1 })
             }
@@ -307,18 +313,18 @@ class ControllerConnectionTest {
         }
     }
 
-    @Test fun `stalled terminal cannot starve app history and sampled snapshots are immutable with final flush`() = runBlocking<Unit> {
+    @Test fun `stalled session subscriber cannot starve explicit diagnostic snapshots and final observations`() = runBlocking<Unit> {
         withTimeout(5_000) {
             val transport = ConnectionTestTransport()
             lateinit var session: MachineSession
             val owner = ControllerConnection(this, { _, child ->
                 GrblMachineSession(transport, child, communicationBufferCapacity = 4).also { session = it }
-            }, historyCapacity = 5)
+            }, diagnosticCapacity = 5)
             val release = CompletableDeferred<Unit>()
             var terminal: Job? = null
             try {
                 owner.connect(tcp)
-                val original = owner.history.first { it.isNotEmpty() }
+                val original = owner.awaitDiagnostics { it.isNotEmpty() }
                 val originalValues = original.toList()
                 val entered = CompletableDeferred<Unit>()
                 terminal = launch(start = CoroutineStart.UNDISPATCHED) {
@@ -328,17 +334,16 @@ class ControllerConnectionTest {
                 // Burst larger than both buffers; no requirement for a snapshot per line.
                 repeat(40) { transport.emit("[EXT:$it]\n") }
                 session.state.first { it.lastMessage == "[EXT:39]" }
-                owner.history.first { it.lastOrNull()?.event?.text == "[EXT:39]" }
+                owner.awaitDiagnostics { it.lastOrNull()?.event?.text == "[EXT:39]" }
                 owner.droppedCommunicationEvents.first { it > 0 }
                 assertEquals(originalValues, original)
-                assertEquals(5, owner.history.value.size)
-                assertTrue(owner.evictedHistoryEvents.value > 0)
-                assertTrue(owner.history.value.zipWithNext().all { (a, b) -> a.event.sequence < b.event.sequence })
+                assertEquals(5, owner.diagnosticSnapshot().size)
+                assertTrue(owner.diagnosticSnapshot().zipWithNext().all { (a, b) -> a.event.sequence < b.event.sequence })
                 // No traffic follows this final line; disconnect must flush the unsampled tail.
                 transport.emit("[EXT:final]\n")
                 session.state.first { it.lastMessage == "[EXT:final]" }
                 owner.disconnect()
-                val final = owner.history.value
+                val final = owner.diagnosticSnapshot()
                 assertEquals("[EXT:final]", final.last().event.text)
                 assertEquals(final.map { it.event.sequence }.distinct().size, final.size)
                 assertTrue(final.all { it.sessionId == 1L && it.endpoint == tcp })
@@ -357,7 +362,7 @@ class ControllerConnectionTest {
             parent.cancel()
             owner.awaitClosed()
             assertEquals(1, transport.closeCount)
-            assertTrue(owner.history.value.isNotEmpty())
+            assertTrue(owner.diagnosticSnapshot().isNotEmpty())
             assertFailsWith<IllegalStateException> { owner.connect(tcp) }
         }
     }

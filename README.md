@@ -57,7 +57,8 @@ virtualized monospaced traffic log and an editable prompt. Enter (including the
 onscreen keyboard action) submits one validated ASCII line through the shared
 connection. There is no Send button. Commands can move the machine; `ok` only
 acknowledges a command. Up/Down and the history softkeys browse the last
-100 submitted lines; history is in memory only. Unsent input and selection/caret,
+100 transport handoffs; error/timeout/uncertain results remain in recall history,
+while local transport rejection is removed. History is in memory only. Unsent input and selection/caret,
 filters and scrollback survive mode changes. Select text within an output entry
 and use Copy selected text or the normal keyboard copy action. Selection is per
 entry; cross-entry selection/export is not implemented.
@@ -68,12 +69,15 @@ icon, replaces the bottom bank with Status RX, Poll TX, OK, Info, Errors and Tim
 on F1–F6; F7 **Back** restores the selected bottom page. Status/poll traffic starts
 hidden; ordinary commands,
 acknowledgments, messages, errors and alarms start visible. Filters and Clear view
-change presentation only. The console displays lost/evicted history counts.
+apply to newly received events only; existing rows stay intact. Terminal retains
+10,000 admitted events independently of core's 5,000-event diagnostic buffer.
+Only actual sequence gaps produce a missed-events warning; normal rotation is silent.
 
 F8 **Next page** cycles between two bottom-softkey pages. The first has Feed Hold,
 guarded Cycle Start, confirmed Soft Reset and Follow on F1–F4. The second has
 Previous command, Next command, Copy selected text and Clear view on F1–F4.
-Manual scrolling disables Follow; enabling it jumps to the newest visible entry.
+Scrolling upward disables Follow; scrolling back to the bottom reactivates it.
+F4 Follow jumps to the newest retained entry; new traffic preserves manual scrollback.
 The prompt prefix and editable text share typography and alignment inside a single
 touch-friendly input field.
 
@@ -213,11 +217,16 @@ counts each event evicted before handoff to any active subscriber once, even if
 that subscriber stays stalled and no further traffic arrives. A subscriber's
 sequence gaps identify its own losses; a global count need not mean the app
 history missed those events. `recentCommunication` provides a bounded replay-tail
-snapshot. `ControllerConnection.history` retains the latest 5,000 events across
-reconnects, tagged with session identity and endpoint, independently of the selected mode.
-Ingestion uses a bounded deque; immutable observable snapshots are published at
-most every 50 ms (20/s), and flushed on disconnect, switch and awaited shutdown.
-This is in-memory diagnostic history, not persistent logging. Terminal consumes these snapshots without adding a transport reader or poller.
+snapshot. `ControllerConnection.traffic` exposes individual events through a read-only
+SharedFlow with a 1,024-event DROP_OLDEST buffer and non-suspending publication.
+A separate 5,000-event diagnostic ring retains all observed traffic across sessions;
+`diagnosticSnapshot()` creates a consistent immutable copy only on request.
+Entries retain session, endpoint, timestamp, source sequence and a global cursor.
+Cursor gaps cover upstream and core-stream loss without adding overlapping global
+counters. Terminal subscribes before seeding from a diagnostic snapshot, deduplicates
+the overlap and retains admitted rows incrementally in a Compose ring. Its
+subscription remains active under other modes/settings. This is in-memory history,
+without an extra transport reader, poller or persistent logging.
 
 Hardware-free transport/parser/session tests run on Linux and Windows:
 

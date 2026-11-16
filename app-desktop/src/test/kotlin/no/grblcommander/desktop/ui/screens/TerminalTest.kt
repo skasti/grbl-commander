@@ -58,10 +58,10 @@ class TerminalTest {
             enter() // An additional Enter while awaiting ok cannot enqueue another line.
             runOnIdle { f.terminal.prompt = TextFieldValue("G0 X12", TextRange(3)) }
             runBlocking { f.transport.emit("[EXT:unfamiliar]\nok\n") }
-            waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[EXT:unfamiliar]" } }
+            waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[EXT:unfamiliar]" } }
             runOnIdle {
                 assertEquals(TextFieldValue("G0 X12", TextRange(3)), f.terminal.prompt)
-                assertEquals(1, f.owner.history.value.count { it.event.category == CommunicationEvent.Category.COMMAND })
+                assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND })
             }
             onNodeWithTag("softkey-F8").performClick()
             onNodeWithTag("softkey-F1").performClick()
@@ -91,7 +91,7 @@ class TerminalTest {
             runOnIdle { f.terminal.prompt = TextFieldValue("\$I") }
             onNodeWithTag("terminal-prompt").performImeAction()
             runOnIdle { assertEquals("\$I", f.terminal.prompt.text); assertNotNull(f.terminal.localError) }
-            assertTrue(f.owner.history.value.none { it.event.category == CommunicationEvent.Category.COMMAND })
+            assertTrue(f.owner.diagnosticSnapshot().none { it.event.category == CommunicationEvent.Category.COMMAND })
         }
     }
 
@@ -120,9 +120,10 @@ class TerminalTest {
             onNodeWithTag("terminal-prompt").assertDoesNotExist()
             onNodeWithText("Unsent text").performClick().performTextInput("G0 X999")
             onNodeWithText("Unsent text").performKeyInput { pressKey(Key.Enter) }
-            assertTrue(f.owner.history.value.none { it.event.category == CommunicationEvent.Category.COMMAND })
+            assertTrue(f.owner.diagnosticSnapshot().none { it.event.category == CommunicationEvent.Category.COMMAND })
             runBlocking { repeat(300) { f.transport.emit("[EXT:$it]\n") } }
-            waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[EXT:299]" } }
+            waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[EXT:299]" } }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.history.lastOrNull()?.event?.text == "[EXT:299]" }
             runOnIdle { f.active = f.util }
             onNodeWithTag("terminal-prompt").assertPromptText("unsent")
             onNodeWithTag("softkey-F1").assertIsSelected() // Filter bank survived the mode switch.
@@ -134,6 +135,8 @@ class TerminalTest {
                 assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F6))
                 assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F7))
             }
+            runBlocking { f.transport.emit("[COVERED:settings]\n") }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.history.lastOrNull()?.event?.text == "[COVERED:settings]" }
             onNodeWithTag("softkey-R7").performClick()
             onNodeWithTag("terminal-prompt").assertPromptText("unsent")
             onNodeWithTag("softkey-F1").assertIsSelected() // Settings restores the filter menu too.
@@ -142,7 +145,7 @@ class TerminalTest {
             onNodeWithText("Filters").assertExists()
             onNodeWithText("🔄\nShow all").assertDoesNotExist()
             onNodeWithTag("softkey-F4").performClick()
-            runOnIdle { assertTrue(f.owner.history.value.isNotEmpty()); assertEquals("unsent", f.terminal.prompt.text) }
+            runOnIdle { assertTrue(f.owner.diagnosticSnapshot().isNotEmpty()); assertEquals("unsent", f.terminal.prompt.text) }
             onNodeWithTag("softkey-F8").performClick() // Wrap to realtime page.
             onNodeWithTag("softkey-F4").assertIsNotSelected()
             onNodeWithText("⌨\nTerminal").assertDoesNotExist()
@@ -177,14 +180,24 @@ class TerminalTest {
         Fixture().use { f ->
             f.connect(); host(f)
             runBlocking { repeat(100) { f.transport.emit("[LINE:$it]\n") } }
-            waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[LINE:99]" } }
+            waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[LINE:99]" } }
             onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
             onNodeWithTag("softkey-F4").assertIsNotSelected()
             runBlocking { f.transport.emit("[LINE:latest]\n") }
-            waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[LINE:latest]" } }
+            waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[LINE:latest]" } }
             onNodeWithTag("softkey-F4").assertIsNotSelected().performClick()
             onNodeWithTag("softkey-F4").assertIsSelected()
             onNodeWithText("[LINE:latest]", substring = true).assertExists()
+            onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
+            onNodeWithTag("softkey-F4").assertIsNotSelected()
+            repeat(10) {
+                if (!f.util.softKeyDefinition(BottomSoftKeySlot.F4)!!.active())
+                    onNodeWithTag("terminal-log").performTouchInput { swipeUp() }
+            }
+            onNodeWithTag("softkey-F4").assertIsSelected() // Returning to bottom restores Follow.
+            runBlocking { f.transport.emit("[LINE:after-bottom]\n") }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.history.lastOrNull()?.event?.text == "[LINE:after-bottom]" }
+            onNodeWithText("[LINE:after-bottom]", substring = true).assertExists()
         }
     }
     @Test fun `prompt marker and editable text share the same vertical position and touch target`() = runComposeUiTest {

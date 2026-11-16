@@ -485,21 +485,36 @@ history receives every event. Replay eviction without subscribers and ordinary
 history retention are not subscriber overflow. Observation never changes
 controller state, normal admission, status parsing, priorities or alarm handling.
 
-The application subscribes before connecting, capturing handshake traffic, and
-keeps a bounded deque of at most 5,000 entries independent of screen composition.
-Ingestion appends/evicts in constant time; a dirty deque is copied into an immutable
-observable snapshot at most once every 50 ms (20/s). This bounds allocation and
-UI update frequency independently of controller output bursts. Entries retain
-endpoint, session identity and sequence order. Earlier snapshots never change.
-The dropped counter accumulates across sessions independently of snapshot timing.
-Disconnect, reconfiguration, switch and awaited shutdown collect the remaining
-bounded replay tail without duplicates and immediately publish the final history.
-`evictedHistoryEvents` counts bounded-history retention evictions;
-`missedHistoryEvents` counts this consumer's sequence gaps across sessions. These
-are independent of the multicast-wide overflow count. Terminal renders immutable
-history snapshots lazily, filters supplied categories only in presentation, and
-uses a screen-local boundary for Clear view. It has no reader, session or poller.
-Persistent/file logging is not implemented.
+Core subscribes before connecting, capturing handshake traffic. `traffic` is a
+read-only `SharedFlow<ControllerTraffic>` backed by `MutableSharedFlow` with 1,024
+extra slots, `DROP_OLDEST` and `tryEmit`. Publication never suspends machine I/O;
+successful `tryEmit` does not imply every subscriber received every event.
+A separate 5,000-event deque retains all observed traffic regardless of UI filters.
+`diagnosticSnapshot()` copies it consistently only on explicit request. Entries
+carry endpoint, session identity, source sequence, timestamp and global cursor.
+The cursor advances by source sequence distance across sessions, so a consumer's
+cursor gaps count the union of upstream and core-stream loss once. Multicast-wide
+drop counters describe other subscribers too and must not be added to these gaps.
+Normal diagnostic retention is not loss. Disconnect and awaited shutdown collect
+the remaining session replay tail without duplicate session/sequence identities.
+
+Terminal continuously subscribes while its retained screen is composed, including
+inactive modes and covered Connection settings. Subscription is established before
+seeding from the diagnostic snapshot. Cursor overlap is ignored; bounded overflow
+during handoff remains detectable. The snapshot's oldest retained cursor establishes
+the initial baseline, without warning about earlier normal diagnostic rotation.
+Terminal owns a 10,000-entry Compose-observable indexed ring. Only events admitted
+by current filters consume capacity; all events advance its loss cursor and update
+command recall. Filter changes do not delete or reconstruct existing entries.
+Slots and ring indices update atomically on the desktop UI dispatcher; ingestion
+yields after bounded work, and LazyColumn renders retained entries with stable
+session/sequence keys. Normal rotation is silent. Clear view advances a local
+boundary and clears only displayed rows. Persistent/file logging is not implemented.
+
+Command recall observes ordinary command TX handoffs independently of acknowledgment.
+Local transport rejection removes its exact session/attempt entry; controller error,
+timeout and uncertain handoff retain it. The command operation still awaits its
+acknowledgment. No synthetic TX echo, automatic retry or replay is introduced.
 
 ## 4. Application Operations
 

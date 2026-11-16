@@ -40,6 +40,11 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.onSubscription
+import androidx.compose.runtime.snapshots.Snapshot
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.ControllerTraffic
 import no.grblcommander.core.connection.description
@@ -61,8 +66,10 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
     private var submitting by mutableStateOf(false)
     private var follow by mutableStateOf(true)
     private var selectedText by mutableStateOf("")
-    private var clearedThrough by mutableStateOf<Pair<Long, Long>?>(null)
-    private val commands = mutableStateListOf<String>()
+    private var clearedThrough = 0L
+    internal val history = TerminalHistory()
+    internal val commandHistory = TerminalCommandHistory()
+    private val commands get() = commandHistory
     private var historyIndex by mutableIntStateOf(0)
     private var draft = TextFieldValue()
     private var scope: CoroutineScope? = null
@@ -108,7 +115,8 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
     override val bottomKeys get() = if (filtersOpen) filterKeys else bottomPages.keys
 
     private fun clearView() {
-        clearedThrough = connection.history.value.lastOrNull()?.let { it.sessionId to it.event.sequence }
+        clearedThrough = connection.trafficCursor
+        Snapshot.withMutableSnapshot { history.clearView() }
         selectedText = ""
     }
 
@@ -149,13 +157,11 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
         scope?.launch {
             try {
                 connection.executeLine(entered.text)
-                // The shared traffic stream owns TX and acknowledgment presentation.
-                if (commands.lastOrNull() != entered.text) {
-                    if (commands.size == 100) commands.removeAt(0)
-                    commands.add(entered.text)
+                // Only traffic handoffs update command history; acknowledgment is not motion completion.
+                if (prompt == entered) {
+                    prompt = TextFieldValue()
+                    historyIndex = commands.size
                 }
-                if (prompt == entered) prompt = TextFieldValue()
-                historyIndex = commands.size
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
                 localError = "Command rejected or result uncertain; inspect traffic before submitting again: ${error.message}"
@@ -170,33 +176,72 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
         prompt = if (historyIndex == commands.size) draft else commands.elementAt(historyIndex).let { TextFieldValue(it, TextRange(it.length)) }
     }
 
-    private fun visible(traffic: ControllerTraffic): Boolean {
-        val boundary = clearedThrough
-        return (boundary == null || traffic.sessionId > boundary.first ||
-            (traffic.sessionId == boundary.first && traffic.event.sequence > boundary.second)) && filters.includes(traffic.event)
+    private fun receiveTraffic(traffic: ControllerTraffic) {
+        val atDraft = historyIndex == commands.size
+        if (history.receive(traffic, traffic.cursor > clearedThrough && filters.includes(traffic.event))) {
+            commandHistory.receive(traffic)
+            historyIndex = if (atDraft) commands.size else historyIndex.coerceAtMost(commands.size)
+        }
+    }
+
+    /** Register first, then seed. SharedFlow queues concurrent events; cursor overlap is ignored. */
+    internal suspend fun observeTraffic() {
+        var delivered = 0
+        connection.traffic.onSubscription {
+            val snapshot = connection.diagnosticSnapshot()
+            Snapshot.withMutableSnapshot {
+                history.start(snapshot)
+                snapshot.forEach(::receiveTraffic)
+            }
+        }.collect {
+            Snapshot.withMutableSnapshot { receiveTraffic(it) }
+            if (++delivered % 128 == 0) yield() // Let pointer/key/frame work run during sustained traffic.
+        }
     }
 
     @Composable override fun Content() {
         val compositionScope = rememberCoroutineScope()
         DisposableEffect(compositionScope) { scope = compositionScope; onDispose { scope = null } }
         val state by connection.state.collectAsState()
-        val history by connection.history.collectAsState()
-        val evicted by connection.evictedHistoryEvents.collectAsState()
-        val missed by connection.missedHistoryEvents.collectAsState()
+        LaunchedEffect(connection) {
+            // The composition dispatcher can flush inline on a publishing thread.
+            // Confine incremental UI mutations to the actual desktop UI dispatcher.
+            withContext(Dispatchers.Main) { observeTraffic() }
+        }
         val clock = rememberCurrentTime()
         SideEffect { now = clock; observedState = state }
-        val lines = history.filter(::visible)
+        val lines = history
         val list = rememberLazyListState()
-        val scrollObserver = remember {
+        var userScrollingDown by remember { mutableStateOf(false) }
+        val scrollObserver = remember(list) {
             object : NestedScrollConnection {
                 override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                    if (source == NestedScrollSource.UserInput && available.y != 0f) follow = false
+                    if (source == NestedScrollSource.UserInput) {
+                        if (available.y > 0f) { follow = false; userScrollingDown = false }
+                        else if (available.y < 0f) userScrollingDown = true
+                    }
+                    return Offset.Zero
+                }
+
+                override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                    if (source == NestedScrollSource.UserInput && userScrollingDown && !list.canScrollForward) follow = true
                     return Offset.Zero
                 }
             }
         }
-        LaunchedEffect(lines.lastOrNull()?.let { it.sessionId to it.event.sequence }, lines.size, follow) {
-            if (follow && lines.isNotEmpty()) list.scrollToItem(lines.lastIndex)
+        LaunchedEffect(list) {
+            snapshotFlow { Triple(list.canScrollForward, list.isScrollInProgress, userScrollingDown) }.collect { (canForward, scrolling, down) ->
+                if (down && !canForward) follow = true
+                if (down && !scrolling) userScrollingDown = false
+            }
+        }
+        LaunchedEffect(lines.lastOrNull()?.cursor, follow) {
+            // FlushCoroutineDispatcher can enter an effect while composition is applying.
+            // Queue scroll measurement on the desktop event loop after that apply completes.
+            withContext(Dispatchers.Main) {
+                yield()
+                if (follow && lines.isNotEmpty()) list.scrollToItem(lines.lastIndex)
+            }
         }
         val clipboard = LocalClipboard.current
         DisposableEffect(compositionScope, clipboard) {
@@ -208,7 +253,7 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
                 Text("${state.snapshot.connection} · ${state.endpoint?.description() ?: "No endpoint"} · ${state.snapshot.status?.executionState ?: "Unknown"}")
                 if (state.reportIsStale(clock)) Text("Machine state is stale or unavailable.", color = MaterialTheme.colorScheme.tertiary)
                 state.snapshot.alarmCode?.let { Text("Controller alarm: $it", color = MaterialTheme.colorScheme.error) }
-                if (evicted + missed > 0) Text("${evicted + missed} older events dropped ($evicted evicted, $missed missed)")
+                if (history.missed > 0) Text("${history.missed} traffic events missed")
                 Column(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF101419)).padding(8.dp)) {
                     LazyColumn(state = list, modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollObserver).testTag("terminal-log")) {
                         items(lines, key = { "${it.sessionId}:${it.event.sequence}" }) { traffic ->

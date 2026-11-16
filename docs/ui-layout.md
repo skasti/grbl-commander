@@ -362,15 +362,16 @@ timestamps and failed/uncertain handoffs. Original unfamiliar text is retained;
 control characters are escaped. Selection and copying are supported within one
 output entry; selection spanning multiple lazy entries is not implemented.
 
-Incoming snapshots never replace the prompt value, caret or focus. Ordinary
+Incoming events never replace the prompt value, caret or focus. Ordinary
 text editing, selection and paste use Compose text input. Enter or the onscreen
 keyboard Done/Enter action is the only submission action; held Enter and concurrent
 IME/key submission cannot duplicate a pending request. Blank, multiline, overlong,
 non-ASCII and embedded realtime input is rejected. Local admission/failure feedback
 appears beneath the prompt, and failed submission preserves it. Success clears the
 unchanged line after acknowledgment, without claiming motion completion. Up/Down
-and the second bottom-softkey page browse up to 100 recent submitted commands
-and restore the unsent draft. Nothing persists command history.
+and the second bottom-softkey page browse up to 100 recent transport handoffs
+and restore the unsent draft. Recall is updated before acknowledgment, retains
+controller errors/timeouts/uncertainty and removes exact local transport rejections. Nothing persists command history.
 
 F7 **Filters**, with a funnel icon, replaces the current bottom bank with a
 contextual filter menu. F7 **↩ Back** restores the previously selected bottom
@@ -390,10 +391,15 @@ and no filter buttons in the workspace.
 | F8 | Unassigned | No paging behind the menu |
 
 Active filters mean visible. Normal/realtime commands always remain visible.
-Filtering is category-based and affects neither session processing nor shared
-alarm/connection indicators. Clear view records a local history boundary; it never
-clears session state, pending commands or the shared history. A visible counter
-separates evicted entries from events missed by the history consumer.
+Filtering is category-based at receipt and affects neither session processing nor
+shared alarm/connection indicators. The observable terminal ring retains up to
+10,000 admitted events; hidden events consume no capacity. Changing filters keeps
+existing rows and never reconstructs older hidden traffic. Subscription continues
+while other modes or Connection settings are displayed. Clear view records a local history boundary; it never
+clears session state, pending commands or the shared history. Only actual traffic cursor gaps show a missed-events warning. Normal buffer
+rotation is silent. Follow starts enabled; upward manual scrolling disables it,
+downward scrolling back to the bottom reactivates it, and F4 Follow jumps directly
+to the latest entry. Stable row identities preserve scrollback during rotation.
 
 F8 **Next page** cycles between two bottom pages, with a page indicator. F7
 Filters remains fixed on both pages. R7 navigates to Connection settings and back
@@ -412,8 +418,8 @@ status-query action; shared background polling remains responsible for status.
 | F7 | Filters (funnel icon) | Filters (funnel icon) |
 | F8 | Next page (1/2) | Next page (2/2), wrapping to page 1 |
 
-Manual scroll gestures disable Follow. Enabling Follow jumps to the newest visible
-event and follows incoming output; disabled Follow preserves scrollback with stable
+Upward manual scrolling disables Follow; returning to the bottom enables it.
+F4 Follow jumps to the newest retained event and follows incoming output; disabled Follow preserves scrollback with stable
 session/sequence keys. Switching modes or visiting settings retains the page,
 filter menu, list and prompt. History/copy actions expose reactive enabled states.
 Realtime and paging actions opt out of keyboard repeat; realtime requests

@@ -21,6 +21,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -36,11 +40,12 @@ import no.grblcommander.machine.protocol.GrblProtocol
 class ControllerConnection(
     parentScope: CoroutineScope,
     private val sessionFactory: (ControllerEndpoint, CoroutineScope) -> MachineSession,
-    private val historyCapacity: Int = 5_000,
+    private val diagnosticCapacity: Int = 5_000,
+    trafficCapacity: Int = 1_024,
 ) : Closeable {
     constructor(parentScope: CoroutineScope) : this(parentScope, ::controllerSession)
 
-    init { require(historyCapacity > 0) }
+    init { require(diagnosticCapacity > 0 && trafficCapacity > 0) }
     private val owner = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + owner)
     private val lifecycle = Mutex()
@@ -50,16 +55,19 @@ class ControllerConnection(
     private var active: Active? = null
     private val mutableState = MutableStateFlow(ControllerConnectionState())
     val state = mutableState.asStateFlow()
-    private val mutableHistory = MutableStateFlow<List<ControllerTraffic>>(emptyList())
-    val history = mutableHistory.asStateFlow()
-    private val mutableEvicted = MutableStateFlow(0L)
-    val evictedHistoryEvents = mutableEvicted.asStateFlow()
-    private val mutableMissed = MutableStateFlow(0L)
-    val missedHistoryEvents = mutableMissed.asStateFlow()
-    private var historyEvictions = 0L
-    private var historyMisses = 0L
-    private val recentTraffic = ArrayDeque<ControllerTraffic>(historyCapacity)
-    private var historyDirty = false
+    private val mutableTraffic = MutableSharedFlow<ControllerTraffic>(
+        extraBufferCapacity = trafficCapacity, onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val traffic: SharedFlow<ControllerTraffic> = mutableTraffic.asSharedFlow()
+    private val recentTraffic = ArrayDeque<ControllerTraffic>(diagnosticCapacity)
+    private var cursor = 0L
+    /** Logical traffic position, including gaps in the session stream. */
+    val trafficCursor: Long get() = synchronized(gate) { cursor }
+
+    /** Explicit, consistent diagnostic snapshot. No list is created during publication. */
+    fun diagnosticSnapshot(): List<ControllerTraffic> = synchronized(gate) {
+        Collections.unmodifiableList(recentTraffic.toList())
+    }
     private val mutableDropped = MutableStateFlow(0L)
     /** Across every session, including failed handshakes. History eviction is separate. */
     val droppedCommunicationEvents = mutableDropped.asStateFlow()
@@ -75,15 +83,7 @@ class ControllerConnection(
         fun close() { if (closed.compareAndSet(false, true)) session.close() }
     }
 
-    init {
-        owner.invokeOnCompletion { close() }
-        scope.launch {
-            while (isActive) {
-                delay(50) // At most 20 immutable snapshots/s, independent of traffic rate.
-                synchronized(gate) { publishHistory() }
-            }
-        }
-    }
+    init { owner.invokeOnCompletion { close() } }
 
     /** Explicit connect/switch; the old one-shot session is fully disposed before creating another. */
     suspend fun connect(endpoint: ControllerEndpoint) {
@@ -223,7 +223,6 @@ class ControllerConnection(
         entry.session.recentCommunication.forEach { event ->
             if (event.sequence > entry.lastObservedSequence) recordTraffic(entry, event)
         }
-        publishHistory()
     }
 
     /** Called under gate; ingestion is constant-space/constant-time per event. */
@@ -233,20 +232,15 @@ class ControllerConnection(
             event.category == CommunicationEvent.Category.COMMAND && event.outcome == CommunicationEvent.Outcome.ATTEMPTED) {
             mutableState.value = state.value.copy(manualCommandTransmitted = true)
         }
-        if (recentTraffic.size == historyCapacity) { recentTraffic.removeFirst(); historyEvictions++ }
-        historyMisses += (event.sequence - entry.lastObservedSequence - 1).coerceAtLeast(0)
-        recentTraffic.addLast(ControllerTraffic(entry.id, entry.endpoint, event))
+        if (event.sequence <= entry.lastObservedSequence) return
+        // Advance over upstream gaps as well as observed events. A consumer's cursor
+        // gaps then count the union of session/core losses, never their sum twice.
+        cursor += event.sequence - entry.lastObservedSequence
+        val traffic = ControllerTraffic(entry.id, entry.endpoint, event, cursor)
+        if (recentTraffic.size == diagnosticCapacity) recentTraffic.removeFirst()
+        recentTraffic.addLast(traffic)
         entry.lastObservedSequence = event.sequence
-        historyDirty = true
-    }
-
-    private fun publishHistory() {
-        if (historyDirty) {
-            mutableEvicted.value = historyEvictions
-            mutableMissed.value = historyMisses
-            mutableHistory.value = Collections.unmodifiableList(recentTraffic.toList())
-            historyDirty = false
-        }
+        mutableTraffic.tryEmit(traffic) // DROP_OLDEST may evict even when this returns true.
     }
 
     suspend fun executeLine(command: String): no.grblcommander.machine.session.CommandAcknowledgment {
