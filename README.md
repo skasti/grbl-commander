@@ -56,30 +56,39 @@ Select **⚙ Util** to open the live Terminal. Its unified console combines a
 virtualized monospaced traffic log and an editable prompt. Enter (including the
 onscreen keyboard action) submits one validated ASCII line through the shared
 connection. There is no Send button. Commands can move the machine; `ok` only
-acknowledges a command. Up/Down and the workspace history buttons browse the last
+acknowledges a command. Up/Down and the history softkeys browse the last
 100 submitted lines; history is in memory only. Unsent input and selection/caret,
 filters and scrollback survive mode changes. Select text within an output entry
 and use Copy selected text or the normal keyboard copy action. Selection is per
 entry; cross-entry selection/export is not implemented.
 
-Right R1–R7 control Status RX, Poll TX, OK, Info, Errors, Time and Show all.
-Status/poll traffic starts hidden; ordinary commands, acknowledgments, messages,
-errors and alarms start visible. Filters and Clear view change presentation only.
-The console displays lost/evicted history counts. Manual scrolling disables Follow;
-F5 enables it and jumps to the newest visible entry. F1 explicitly queries status,
-F2 sends Feed Hold, F3 requests guarded Cycle Start and F4 confirms Soft Reset via
-bottom softkeys before using the session reset handshake. F6 is unassigned.
+The terminal has no workspace action buttons or explicit Status key. Its shared
+connection polls status automatically every 500 ms. R1 **Filters** replaces the
+right bank with Status RX, Poll TX, OK, Info, Errors and Time toggles; R7 **Back**
+restores the ordinary bank. Status/poll traffic starts hidden; ordinary commands,
+acknowledgments, messages, errors and alarms start visible. Filters and Clear view
+change presentation only. The console displays lost/evicted history counts.
+
+F8 **Next page** cycles between two bottom-softkey pages. The first has Feed Hold,
+guarded Cycle Start, confirmed Soft Reset and Follow on F1–F4. The second has
+Previous command, Next command, Copy selected text and Clear view on F1–F4.
+Manual scrolling disables Follow; enabling it jumps to the newest visible entry.
+The prompt prefix and editable text share typography and alignment inside a single
+touch-friendly input field.
+
 Cycle Start is deliberately limited to a fresh `Hold:0` while an application-owned
 manual line still awaits acknowledgment. Acknowledged or externally started work
 has no proven owner and cannot be resumed here; broader operation coordination
 is planned. Stale, busy, unsynchronized and disconnected states prevent manual
 submission, while permitted realtime controls remain independent.
 
-**F7 Terminal** selects the root and **F8 Connection** opens the connection form
-above it on the same persistent stack. F8 highlights the settings view; terminal
-filters/actions are unavailable while settings or a confirmation is topmost.
-Connection health and machine/alarm observations remain in the shared header.
-Switching modes retains an open form and never disconnects the shared session.
+**F5 Connection** opens the connection form and **F7 Terminal** selects the root.
+These positions stay fixed on both terminal pages and in settings; F5 highlights
+the settings view. F6 is unassigned. Terminal pages and the filter menu survive
+mode changes and visits to settings. Settings and confirmations replace covered
+terminal actions. Connection health and machine/alarm observations remain in the
+shared header. Switching modes retains an open form and never disconnects the
+shared session.
 
 Enter a TCP host/IP and its configured port (no fixed port is assumed), or refresh
 the optional serial-port list and/or enter a device manually. Serial defaults are

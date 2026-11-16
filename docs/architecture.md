@@ -368,7 +368,10 @@ reset, machine command replay or auto-connect is implicit.
 
 The Util mode owns one persistent stack rooted at `Terminal : Screen<Unit>`.
 `ControllerConnectionSettings` opens above it with the explicit parent contract.
-F7 selects Terminal and F8 selects Connection; F6 is unassigned. Settings replaces
+F7 selects Terminal and F5 selects Connection; F6 is unassigned. Terminal uses
+F8 to cycle between its realtime/Follow and history/copy/clear bottom pages.
+R1 Filters opens a contextual right bank, with R7 Back restoring its ordinary keys.
+The workspace has no action toolbar or explicit status-query key. Settings replaces
 both softkey banks, so Terminal actions cannot leak through. Screen instances and
 compositions retain terminal draft/caret, filters, scrollback and open forms across
 mode changes. The form owns draft, validation/error display and stack-owned
@@ -709,6 +712,14 @@ repeatable definitions also accept repeated key-downs. Terminal realtime control
 set `repeatable = false`, so held keys are consumed until release, including across
 navigation changes. Owners independently guard concurrent requests. `active` affects presentation only. No central
 action registry, navigator or mutable softkey store is involved.
+
+`SoftKeyPages<S>` is presentation state owned by an individual screen/bank.
+Screens expose its current map through the existing softkey getters. Common
+navigation keys retain their positions, and a non-repeating Next page action
+wraps to the first page. A single page has no paging action. This does not add
+navigation entries or a separate action dispatcher. Contextual banks such as
+Terminal Filters replace that screen's right map without changing its bottom
+page, input or the controller. Retained compositions preserve page/menu state.
 
 Each retained mode stack owns its effective bindings through its screens. A
 covered screen can contribute actions only through inheritance explicitly

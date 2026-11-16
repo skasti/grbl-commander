@@ -5,13 +5,13 @@ import no.grblcommander.machine.session.CommunicationEvent
 import kotlin.test.*
 
 class TerminalFiltersTest {
-    @Test fun `defaults hide only polling and status and show all reveals every category`() {
+    @Test fun `defaults hide only polling and status and individual toggles reveal every category`() {
         val filters = TerminalFilters()
         for (category in CommunicationEvent.Category.entries) {
             for (direction in CommunicationEvent.Direction.entries) {
                 val event = CommunicationEvent(1, Instant.EPOCH, direction, category, "unfamiliar text", CommunicationEvent.Outcome.RECEIVED)
                 assertEquals(category != CommunicationEvent.Category.STATUS, filters.includes(event), "$direction $category")
-                filters.showAll()
+                filters.status = true; filters.polling = true
                 assertTrue(filters.includes(event))
                 filters.status = false
                 filters.polling = false

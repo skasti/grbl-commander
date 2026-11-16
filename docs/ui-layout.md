@@ -346,18 +346,17 @@ header indicator, with the current endpoint in the header context. No settings
 screen is pushed onto Program, Manual or MDI stacks.
 
 Util owns one persistent `ScreenStack(Terminal(...))`. Terminal is visible on first
-entry. F7 **⌨ Terminal** selects the root; F8 **🔗 Connection** opens
-`ControllerConnectionSettings` above it with an explicit parent. These positions
-remain stable on both screens and indicate selected view independently of machine
+entry. F7 **⌨ Terminal** selects the root; F5 **🔗 Connection** opens
+`ControllerConnectionSettings` above it with an explicit parent. These navigation
+positions remain stable on both screens and indicate selected view independently of machine
 health. F6 is unassigned (reserved for Overrides). Switching modes restores an
 open settings screen; F7 explicitly returns to Terminal. Settings replaces both
 banks and never inherits Terminal filters or realtime actions.
 
 ### Terminal console
 
-The workspace has compact endpoint/controller status, a small history/copy/clear
-toolbar, a dark virtualized monospaced output region and an editable `>` prompt
-inside the same console surface. Output entries distinguish TX, RX, category,
+The workspace has compact endpoint/controller status, a dark virtualized monospaced
+output region and an editable `>` prompt inside the same console surface. Output entries distinguish TX, RX, category,
 timestamps and failed/uncertain handoffs. Original unfamiliar text is retained;
 control characters are escaped. Selection and copying are supported within one
 output entry; selection spanning multiple lazy entries is not implemented.
@@ -369,10 +368,15 @@ IME/key submission cannot duplicate a pending request. Blank, multiline, overlon
 non-ASCII and embedded realtime input is rejected. Local admission/failure feedback
 appears beneath the prompt, and failed submission preserves it. Success clears the
 unchanged line after acknowledgment, without claiming motion completion. Up/Down
-and touch workspace actions browse up to 100 recent submitted commands and restore
-the unsent draft. Nothing persists command history.
+and the second bottom-softkey page browse up to 100 recent submitted commands
+and restore the unsent draft. Nothing persists command history.
 
-| Right slot | Filter/action | Initially visible |
+The ordinary right bank offers R1 **Filters**. Activating it replaces only that
+bank with the contextual filter menu; R7 **Back** restores the preceding bank.
+The bottom page, prompt, scrollback and filter values are unchanged. There is no
+Show all action and no filter buttons in the workspace.
+
+| Right slot in Filters | Filter/action | Initially visible |
 | --- | --- | --- |
 | R1 | Status RX | No |
 | R2 | Poll TX | No |
@@ -380,7 +384,7 @@ the unsent draft. Nothing persists command history.
 | R4 | Info and startup | Yes |
 | R5 | Errors and alarms | Yes |
 | R6 | Time | Yes |
-| R7 | Show all | Reveals every category and timestamps |
+| R7 | Back | Restores ordinary keys |
 
 Active filters mean visible. Normal/realtime commands always remain visible.
 Filtering is category-based and affects neither session processing nor shared
@@ -388,26 +392,33 @@ alarm/connection indicators. Clear view records a local history boundary; it nev
 clears session state, pending commands or the shared history. A visible counter
 separates evicted entries from events missed by the history consumer.
 
-| Bottom slot | Terminal action |
-| --- | --- |
-| F1 | Explicit `queryStatus()` |
-| F2 | `sendRealtime(FEED_HOLD)` |
-| F3 | Guarded `sendRealtime(CYCLE_START)` |
-| F4 | Confirm with `ModalDialog<Boolean>`, then `reset()` handshake |
-| F5 | Follow, with reactive active state |
-| F6 | Unassigned |
-| F7 | Terminal, selected at root |
-| F8 | Connection |
+F8 **Next page** cycles between two bottom pages, with a page indicator. F5
+Connection and F7 Terminal remain fixed on both pages and the settings screen.
+F6 is unassigned. The terminal workspace has no action toolbar and no explicit
+status-query action; shared background polling remains responsible for status.
 
-Manual scroll gestures disable Follow. Enabling F5 jumps to the newest visible
+| Bottom slot | Page 1 | Page 2 |
+| --- | --- | --- |
+| F1 | `sendRealtime(FEED_HOLD)` | Previous command |
+| F2 | Guarded `sendRealtime(CYCLE_START)` | Next command |
+| F3 | Confirm, then `reset()` handshake | Copy selected log text |
+| F4 | Follow, with reactive active state | Clear view |
+| F5 | Connection | Connection |
+| F6 | Unassigned | Unassigned |
+| F7 | Terminal, selected at root | Terminal, selected at root |
+| F8 | Next page (1/2) | Next page (2/2), wrapping to page 1 |
+
+Manual scroll gestures disable Follow. Enabling Follow jumps to the newest visible
 event and follows incoming output; disabled Follow preserves scrollback with stable
-session/sequence keys. Switching modes retains the list, filters and prompt.
-Realtime actions opt out of keyboard repeat and reserve separate in-flight slots,
-so a waiting status query cannot block Feed Hold or Reset. Reset confirmation
-warns about interrupting work and invalidating pending commands. Core enforces
-manual command admission and Cycle Start ownership; a fresh `Hold:0` is insufficient
-without a still-pending application-owned line. Resume after acknowledgment and
-broader program ownership require future operation coordination.
+session/sequence keys. Switching modes or visiting settings retains the page,
+filter menu, list and prompt. History/copy actions expose reactive enabled states.
+Realtime and paging actions opt out of keyboard repeat; realtime requests
+reserve separate in-flight slots. Reset confirmation warns about interrupting work and invalidating
+pending commands. Core enforces manual command admission and Cycle Start ownership;
+a fresh `Hold:0` is insufficient without a still-pending application-owned line.
+Resume after acknowledgment and broader program ownership require future operation
+coordination. The `>` prefix and editable line share font metrics and vertical
+alignment inside the field decoration; the entire 48 dp prompt is a focus target.
 
 ### Connection form
 
@@ -418,7 +429,7 @@ Advanced exposes bits, parity, stop bits, flow control and DTR/RTS. Manual entry
 remains enabled when discovery is empty or fails. Defaults are 115200, 8N1, no
 flow control, DTR/RTS false. Edits never change the current endpoint/session.
 
-F1 **Save**, F2 **Connect**, F3 **Disconnect**, F7 **Terminal** and F8 **Connection**
+F1 **Save**, F2 **Connect**, F3 **Disconnect**, F5 **Connection** and F7 **Terminal**
 use the existing guarded softkey activation. Close remains a workspace button;
 there is no separate Close softkey. Matching workspace actions
 use the same screen callbacks. Invalid values show validation errors before any

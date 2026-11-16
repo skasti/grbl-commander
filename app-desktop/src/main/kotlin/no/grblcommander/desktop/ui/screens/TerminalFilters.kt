@@ -22,5 +22,4 @@ internal class TerminalFilters {
         CommunicationEvent.Category.COMMAND, CommunicationEvent.Category.REALTIME -> true
     }
 
-    fun showAll() { status = true; polling = true; acknowledgments = true; information = true; errors = true; time = true }
 }

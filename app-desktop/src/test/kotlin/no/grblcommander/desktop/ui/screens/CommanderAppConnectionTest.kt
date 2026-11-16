@@ -24,7 +24,7 @@ class CommanderAppConnectionTest {
             val settings = ControllerSettings(owner)
             setContent { CommanderApp(owner, settings) }
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
-            onNodeWithTag("softkey-F8").performClick()
+            onNodeWithTag("softkey-F5").performClick()
             waitUntil(timeoutMillis = 5_000) {
                 runCatching { onNodeWithText("TCP / network", substring = true).assertIsEnabled() }.isSuccess
             }

@@ -11,7 +11,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,8 +60,8 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
     private var follow by mutableStateOf(true)
     private var selectedText by mutableStateOf("")
     private var clearedThrough by mutableStateOf<Pair<Long, Long>?>(null)
-    private val commands = ArrayDeque<String>()
-    private var historyIndex = 0
+    private val commands = mutableStateListOf<String>()
+    private var historyIndex by mutableIntStateOf(0)
     private var draft = TextFieldValue()
     private var scope: CoroutineScope? = null
     private val realtimeBusy = mutableStateMapOf<BottomSoftKeySlot, Boolean>()
@@ -70,24 +69,48 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
     private var now by mutableStateOf(java.time.Instant.now())
     private val connected get() = observedState.let { !it.closing && it.snapshot.connection == Connection.CONNECTED }
 
-    override val rightKeys = mapOf(
+    private var filtersOpen by mutableStateOf(false)
+    private var copySelection by mutableStateOf<(() -> Unit)?>(null)
+    private val normalRightKeys = mapOf(
+        RightSoftKeySlot.R1 to SoftKeyDefinition("Filters", action = { filtersOpen = true }, repeatable = false),
+    )
+    override val rightKeys get() = if (filtersOpen) filterKeys else normalRightKeys
+    private val filterKeys = mapOf(
         RightSoftKeySlot.R1 to SoftKeyDefinition("📊\nStatus RX", action = { filters.status = !filters.status }, active = { filters.status }),
         RightSoftKeySlot.R2 to SoftKeyDefinition("❔\nPoll TX", action = { filters.polling = !filters.polling }, active = { filters.polling }),
         RightSoftKeySlot.R3 to SoftKeyDefinition("✅\nOK", action = { filters.acknowledgments = !filters.acknowledgments }, active = { filters.acknowledgments }),
         RightSoftKeySlot.R4 to SoftKeyDefinition("💬\nInfo", action = { filters.information = !filters.information }, active = { filters.information }),
         RightSoftKeySlot.R5 to SoftKeyDefinition("⚠\nErrors", action = { filters.errors = !filters.errors }, active = { filters.errors }),
         RightSoftKeySlot.R6 to SoftKeyDefinition("⏱\nTime", action = { filters.time = !filters.time }, active = { filters.time }),
-        RightSoftKeySlot.R7 to SoftKeyDefinition("🔄\nShow all", action = filters::showAll),
+        RightSoftKeySlot.R7 to SoftKeyDefinition("Back", action = { filtersOpen = false }, repeatable = false),
     )
-    override val bottomKeys = mapOf(
-        BottomSoftKeySlot.F1 to SoftKeyDefinition("❔\nStatus (?)", action = { realtime(BottomSoftKeySlot.F1) { connection.queryStatus() } }, enabled = { connected && realtimeBusy[BottomSoftKeySlot.F1] != true }, repeatable = false),
-        BottomSoftKeySlot.F2 to SoftKeyDefinition("⏸\nFeed Hold (!)", action = { realtime(BottomSoftKeySlot.F2) { connection.sendRealtime(RealtimeCommand.FEED_HOLD) } }, enabled = { connected && realtimeBusy[BottomSoftKeySlot.F2] != true }, repeatable = false),
-        BottomSoftKeySlot.F3 to SoftKeyDefinition("▶\nCycle Start (~)", action = { realtime(BottomSoftKeySlot.F3) { connection.sendRealtime(RealtimeCommand.CYCLE_START) } }, enabled = { realtimeBusy[BottomSoftKeySlot.F3] != true && observedState.canCycleStart(now) }, repeatable = false),
-        BottomSoftKeySlot.F4 to SoftKeyDefinition("🔄\nSoft Reset (Ctrl+X)", action = ::confirmReset, enabled = { connected && !observedState.snapshot.resetInProgress && realtimeBusy[BottomSoftKeySlot.F4] != true }, repeatable = false),
-        BottomSoftKeySlot.F5 to SoftKeyDefinition("📌\nFollow", action = { follow = !follow }, active = { follow }),
-        BottomSoftKeySlot.F7 to SoftKeyDefinition("⌨\nTerminal", action = {}, active = { true }),
-        BottomSoftKeySlot.F8 to SoftKeyDefinition("🔗\nConnection", action = ::openConnection),
+    private val bottomPages = SoftKeyPages(
+        pages = listOf(
+            mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyDefinition("⏸\nFeed Hold (!)", action = { realtime(BottomSoftKeySlot.F1) { connection.sendRealtime(RealtimeCommand.FEED_HOLD) } }, enabled = { connected && realtimeBusy[BottomSoftKeySlot.F1] != true }, repeatable = false),
+                BottomSoftKeySlot.F2 to SoftKeyDefinition("▶\nCycle Start (~)", action = { realtime(BottomSoftKeySlot.F2) { connection.sendRealtime(RealtimeCommand.CYCLE_START) } }, enabled = { realtimeBusy[BottomSoftKeySlot.F2] != true && observedState.canCycleStart(now) }, repeatable = false),
+                BottomSoftKeySlot.F3 to SoftKeyDefinition("🔄\nSoft Reset", action = ::confirmReset, enabled = { connected && !observedState.snapshot.resetInProgress && realtimeBusy[BottomSoftKeySlot.F3] != true }, repeatable = false),
+                BottomSoftKeySlot.F4 to SoftKeyDefinition("📌\nFollow", action = { follow = !follow }, active = { follow }, repeatable = false),
+            ),
+            mapOf(
+                BottomSoftKeySlot.F1 to SoftKeyDefinition("Previous\ncommand", action = { browseHistory(-1) }, enabled = { !submitting && historyIndex > 0 }),
+                BottomSoftKeySlot.F2 to SoftKeyDefinition("Next\ncommand", action = { browseHistory(1) }, enabled = { !submitting && historyIndex < commands.size }),
+                BottomSoftKeySlot.F3 to SoftKeyDefinition("Copy selected\ntext", action = { copySelection?.invoke() }, enabled = { selectedText.isNotEmpty() && copySelection != null }, repeatable = false),
+                BottomSoftKeySlot.F4 to SoftKeyDefinition("🧹\nClear view", action = ::clearView, repeatable = false),
+            ),
+        ),
+        nextSlot = BottomSoftKeySlot.F8,
+        commonKeys = mapOf(
+            BottomSoftKeySlot.F5 to SoftKeyDefinition("🔗\nConnection", action = ::openConnection, repeatable = false),
+            BottomSoftKeySlot.F7 to SoftKeyDefinition("⌨\nTerminal", action = {}, active = { true }),
+        ),
     )
+    override val bottomKeys get() = bottomPages.keys
+
+    private fun clearView() {
+        clearedThrough = connection.history.value.lastOrNull()?.let { it.sessionId to it.event.sequence }
+        selectedText = ""
+    }
 
     fun openConnection() {
         if (screenStack.top === this) ControllerConnectionSettings(settings).open(this)
@@ -111,7 +134,7 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
             "Soft reset interrupts active work and invalidates pending commands. Machine position and execution may be uncertain. Nothing is replayed, unlocked or resumed automatically.",
             false,
             mapOf(BottomSoftKeySlot.F1 to ModalDialog.Choice("Reset", true), BottomSoftKeySlot.F8 to ModalDialog.Choice("Cancel", false)),
-        ).open(this) { confirmed -> if (confirmed) realtime(BottomSoftKeySlot.F4) { connection.reset() } }
+        ).open(this) { confirmed -> if (confirmed) realtime(BottomSoftKeySlot.F3) { connection.reset() } }
     }
 
     internal fun submit() {
@@ -128,8 +151,8 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
                 connection.executeLine(entered.text)
                 // The shared traffic stream owns TX and acknowledgment presentation.
                 if (commands.lastOrNull() != entered.text) {
-                    if (commands.size == 100) commands.removeFirst()
-                    commands.addLast(entered.text)
+                    if (commands.size == 100) commands.removeAt(0)
+                    commands.add(entered.text)
                 }
                 if (prompt == entered) prompt = TextFieldValue()
                 historyIndex = commands.size
@@ -176,21 +199,16 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
             if (follow && lines.isNotEmpty()) list.scrollToItem(lines.lastIndex)
         }
         val clipboard = LocalClipboard.current
+        DisposableEffect(compositionScope, clipboard) {
+            copySelection = { compositionScope.launch { clipboard.setClipEntry(ClipEntry(StringSelection(selectedText))) } }
+            onDispose { copySelection = null }
+        }
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("${state.snapshot.connection} · ${state.endpoint?.description() ?: "No endpoint"} · ${state.snapshot.status?.executionState ?: "Unknown"}")
                 if (state.reportIsStale(clock)) Text("Machine state is stale or unavailable.", color = MaterialTheme.colorScheme.tertiary)
                 state.snapshot.alarmCode?.let { Text("Controller alarm: $it", color = MaterialTheme.colorScheme.error) }
                 if (evicted + missed > 0) Text("${evicted + missed} older events dropped ($evicted evicted, $missed missed)")
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { browseHistory(-1) }, enabled = commands.isNotEmpty() && !submitting) { Text("Previous command") }
-                    TextButton(onClick = { browseHistory(1) }, enabled = commands.isNotEmpty() && !submitting) { Text("Next command") }
-                    TextButton(onClick = { compositionScope.launch { clipboard.setClipEntry(ClipEntry(StringSelection(selectedText))) } }, enabled = selectedText.isNotEmpty()) { Text("Copy selected text") }
-                    TextButton(onClick = {
-                        clearedThrough = history.lastOrNull()?.let { it.sessionId to it.event.sequence }
-                        selectedText = ""
-                    }) { Text("🧹 Clear view") }
-                }
                 Column(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF101419)).padding(8.dp)) {
                     LazyColumn(state = list, modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollObserver).testTag("terminal-log")) {
                         items(lines, key = { "${it.sessionId}:${it.event.sequence}" }) { traffic ->
@@ -210,19 +228,17 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
                             }, readOnly = true, textStyle = consoleStyle.copy(color = color), modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp))
                         }
                     }
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("> ", color = Color(0xFF93D6A3), fontFamily = FontFamily.Monospace)
-                        BasicTextField(
-                            value = prompt,
-                            onValueChange = { prompt = it; historyIndex = commands.size },
-                            singleLine = true,
-                            textStyle = consoleStyle.copy(color = Color.White),
-                            cursorBrush = SolidColor(Color.White),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                            keyboardActions = KeyboardActions(onDone = { submit() }),
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("terminal-prompt")
-                                .onFocusChanged { if (!it.isFocused) enterHeld = false }
-                                .onPreviewKeyEvent { event ->
+                    BasicTextField(
+                        value = prompt,
+                        onValueChange = { prompt = it; historyIndex = commands.size },
+                        singleLine = true,
+                        textStyle = consoleStyle.copy(color = Color.White),
+                        cursorBrush = SolidColor(Color.White),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { submit() }),
+                        modifier = Modifier.fillMaxWidth().testTag("terminal-prompt")
+                            .onFocusChanged { if (!it.isFocused) enterHeld = false }
+                            .onPreviewKeyEvent { event ->
                                 when (event.key) {
                                     Key.Enter, Key.NumPadEnter -> { if (event.type == KeyEventType.KeyDown) { if (!enterHeld) { enterHeld = true; submit() } } else enterHeld = false; true }
                                     Key.DirectionUp -> { if (event.type == KeyEventType.KeyDown) browseHistory(-1); true }
@@ -230,8 +246,13 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
                                     else -> false
                                 }
                             },
-                        )
-                    }
+                        decorationBox = { input ->
+                            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("> ", style = consoleStyle.copy(color = Color(0xFF93D6A3)), modifier = Modifier.testTag("terminal-prompt-marker"))
+                                Box(Modifier.weight(1f).testTag("terminal-input-line")) { input() }
+                            }
+                        },
+                    )
                 }
                 Text("Commands can move the machine. Enter submits one line; ok acknowledges reception, not completed motion.", style = MaterialTheme.typography.bodySmall)
                 if (submitting) Text("Awaiting command acknowledgment…")
@@ -243,7 +264,7 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
 
     private var enterHeld = false
     private companion object {
-        val consoleStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+        val consoleStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 18.sp, letterSpacing = 0.sp)
         val timeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS").withZone(ZoneId.systemDefault())
         fun render(event: CommunicationEvent, time: Boolean): String = buildString {
             if (time) append(timeFormat.format(event.timestamp)).append(' ')

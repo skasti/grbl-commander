@@ -4,6 +4,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import java.util.UUID
@@ -40,6 +44,9 @@ class TerminalTest {
             MaterialTheme { AppShell(ShellState.startup(), { f.active }) { ScreenStackHost(listOf(f.util, f.other), f.active) } }
         }
     }
+    private fun SemanticsNodeInteraction.assertPromptText(text: String) =
+        assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(text)))
+
     private fun ComposeUiTest.enter() = onNodeWithTag("terminal-prompt").performKeyInput { pressKey(Key.Enter) }
 
     @Test fun `Enter submits once without echo duplication and incoming output preserves draft caret`() = runComposeUiTest {
@@ -55,11 +62,16 @@ class TerminalTest {
             runOnIdle {
                 assertEquals(TextFieldValue("G0 X12", TextRange(3)), f.terminal.prompt)
                 assertEquals(1, f.owner.history.value.count { it.event.category == CommunicationEvent.Category.COMMAND })
-                f.terminal.browseHistory(-1)
-                assertEquals("\$I", f.terminal.prompt.text)
-                f.terminal.browseHistory(1)
-                assertEquals(TextFieldValue("G0 X12", TextRange(3)), f.terminal.prompt)
             }
+            onNodeWithTag("softkey-F8").performClick()
+            onNodeWithTag("softkey-F1").performClick()
+            onNodeWithTag("terminal-prompt").assertPromptText("\$I")
+            onNodeWithTag("softkey-F2").performClick()
+            runOnIdle { assertEquals(TextFieldValue("G0 X12", TextRange(3)), f.terminal.prompt) }
+            onNodeWithText("Previous command").assertDoesNotExist()
+            onNodeWithText("Next command").assertDoesNotExist()
+            onNodeWithTag("softkey-F8").performClick()
+            onNodeWithText("⏸\nFeed Hold (!)").assertExists()
             onNodeWithText("Send").assertDoesNotExist()
         }
     }
@@ -87,8 +99,9 @@ class TerminalTest {
         Fixture().use { f ->
             f.connect(); host(f)
             onNodeWithTag("terminal-prompt").performClick().performTextInput("unsent")
+            onNodeWithTag("softkey-R1").performClick() // Filters replaces the right bank only.
             onNodeWithTag("softkey-R1").assertIsNotSelected().performClick().assertIsSelected()
-            onNodeWithTag("softkey-F5").assertIsSelected().performClick().assertIsNotSelected()
+            onNodeWithTag("softkey-F4").assertIsSelected().performClick().assertIsNotSelected()
             runOnIdle { f.active = f.other }
             onNodeWithTag("terminal-prompt").assertDoesNotExist()
             onNodeWithText("Unsent text").performClick().performTextInput("G0 X999")
@@ -97,39 +110,44 @@ class TerminalTest {
             runBlocking { repeat(300) { f.transport.emit("[EXT:$it]\n") } }
             waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[EXT:299]" } }
             runOnIdle { f.active = f.util }
-            onNodeWithTag("terminal-prompt").assertTextEquals("unsent")
+            onNodeWithTag("terminal-prompt").assertPromptText("unsent")
             onNodeWithTag("softkey-R1").assertIsSelected()
-            onNodeWithTag("softkey-F5").assertIsNotSelected()
-            onNodeWithTag("softkey-F8").performClick()
+            onNodeWithTag("softkey-F4").assertIsNotSelected()
+            onNodeWithTag("softkey-R7").performClick() // Back restores the normal bank.
+            onNodeWithText("Filters").assertExists()
+            onNodeWithText("🔄\nShow all").assertDoesNotExist()
+            onNodeWithTag("softkey-F8").performClick() // Utility page.
+            onNodeWithTag("softkey-F5").performClick()
             runOnIdle {
                 assertIs<ControllerConnectionSettings>(f.util.top)
                 assertTrue(f.util.effectiveRightKeys.isEmpty())
                 assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F6))
             }
             onNodeWithTag("softkey-F7").performClick()
-            onNodeWithTag("terminal-prompt").assertTextEquals("unsent")
-            onNodeWithText("🧹 Clear view").performClick()
+            onNodeWithTag("terminal-prompt").assertPromptText("unsent")
+            onNodeWithText("Previous\ncommand").assertExists() // Page survived settings.
+            onNodeWithTag("softkey-F4").performClick()
             runOnIdle { assertTrue(f.owner.history.value.isNotEmpty()); assertEquals("unsent", f.terminal.prompt.text) }
         }
     }
 
-    @Test fun `realtime controls use correct shared path and Reset requires explicit confirmation`() = runComposeUiTest {
+    @Test fun `realtime controls use correct shared path without a status key and Reset requires confirmation`() = runComposeUiTest {
         Fixture().use { f ->
             host(f)
             onNodeWithTag("softkey-F1").assertIsNotEnabled()
             onNodeWithTag("softkey-F2").assertIsNotEnabled()
+            onNodeWithText("❔\nStatus (?)").assertDoesNotExist()
             f.connect()
             waitUntil(timeoutMillis = 5_000) { f.util.softKeyDefinition(BottomSoftKeySlot.F1)!!.enabled() }
             f.transport.drainWrites()
             onNodeWithTag("softkey-F1").performClick()
-            onNodeWithTag("softkey-F2").performClick()
             assertEquals("!", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
-            onNodeWithTag("softkey-F3").assertIsNotEnabled()
-            onNodeWithTag("softkey-F4").performClick()
+            onNodeWithTag("softkey-F2").assertIsNotEnabled()
+            onNodeWithTag("softkey-F3").performClick()
             onNodeWithText("Reset controller?").assertExists()
             onNodeWithTag("softkey-F8").performClick()
             assertTrue(f.transport.drainWrites().all { it == "?" })
-            onNodeWithTag("softkey-F4").performClick()
+            onNodeWithTag("softkey-F3").performClick()
             onNodeWithTag("softkey-F1").performClick()
             assertEquals("\u0018", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
             waitUntil(timeoutMillis = 5_000) { !f.owner.state.value.snapshot.resetInProgress }
@@ -143,12 +161,31 @@ class TerminalTest {
             runBlocking { repeat(100) { f.transport.emit("[LINE:$it]\n") } }
             waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[LINE:99]" } }
             onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
-            onNodeWithTag("softkey-F5").assertIsNotSelected()
+            onNodeWithTag("softkey-F4").assertIsNotSelected()
             runBlocking { f.transport.emit("[LINE:latest]\n") }
             waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[LINE:latest]" } }
-            onNodeWithTag("softkey-F5").assertIsNotSelected().performClick()
-            onNodeWithTag("softkey-F5").assertIsSelected()
+            onNodeWithTag("softkey-F4").assertIsNotSelected().performClick()
+            onNodeWithTag("softkey-F4").assertIsSelected()
             onNodeWithText("[LINE:latest]", substring = true).assertExists()
         }
     }
+    @Test fun `prompt marker and editable text share the same vertical position and touch target`() = runComposeUiTest {
+        Fixture().use { f ->
+            host(f)
+            onNodeWithTag("terminal-prompt-marker", useUnmergedTree = true).performClick()
+            onNodeWithTag("terminal-prompt").performTextInput("G0 X100")
+            val marker = onNodeWithTag("terminal-prompt-marker", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            val input = onNodeWithTag("terminal-input-line", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+            assertTrue(kotlin.math.abs(marker.center.y - input.center.y) < 1f, "Prompt marker and input must align: $marker / $input")
+            val markerLayout = mutableListOf<TextLayoutResult>()
+            val inputLayout = mutableListOf<TextLayoutResult>()
+            onNodeWithTag("terminal-prompt-marker", useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(markerLayout) }
+            onNodeWithTag("terminal-prompt").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(inputLayout) }
+            val markerBaseline = marker.top + markerLayout.single().firstBaseline
+            val inputBaseline = input.top + inputLayout.single().firstBaseline
+            assertTrue(kotlin.math.abs(markerBaseline - inputBaseline) < 1f, "Prompt text baselines must match: $markerBaseline / $inputBaseline")
+            onNodeWithTag("terminal-prompt").assertPromptText("G0 X100")
+        }
+    }
+
 }

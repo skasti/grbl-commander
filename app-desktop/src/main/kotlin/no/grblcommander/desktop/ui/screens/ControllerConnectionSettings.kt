@@ -74,7 +74,7 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
         BottomSoftKeySlot.F2 to SoftKeyDefinition("Connect", action = { request(Action.CONNECT) }, enabled = { !busy && confirmation == null }),
         BottomSoftKeySlot.F3 to SoftKeyDefinition("Disconnect", action = { request(Action.DISCONNECT) }, enabled = { canDisconnect }),
         BottomSoftKeySlot.F7 to SoftKeyDefinition("⌨\nTerminal", action = ::close, enabled = { confirmation == null }),
-        BottomSoftKeySlot.F8 to SoftKeyDefinition("🔗\nConnection", action = {}, active = { true }),
+        BottomSoftKeySlot.F5 to SoftKeyDefinition("🔗\nConnection", action = {}, active = { true }),
     )
     // No right-key inheritance: Terminal traffic filters are inactive while this screen is topmost.
 

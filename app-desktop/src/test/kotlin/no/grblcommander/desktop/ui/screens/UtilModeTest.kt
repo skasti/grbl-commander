@@ -33,14 +33,14 @@ class UtilModeTest {
             runOnIdle {
                 assertNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
                 assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F7)!!.active())
-                activateSoftKey({ util }, BottomSoftKeySlot.F8)
+                activateSoftKey({ util }, BottomSoftKeySlot.F5)
                 assertIs<ControllerConnectionSettings>(util.top)
                 assertNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
-                assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F8)!!.active())
+                assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F5)!!.active())
                 assertFalse(util.softKeyDefinition(BottomSoftKeySlot.F7)!!.active())
                 assertTrue(util.effectiveRightKeys.isEmpty())
                 assertEquals(2, util.size)
-                activateSoftKey({ util }, BottomSoftKeySlot.F8)
+                activateSoftKey({ util }, BottomSoftKeySlot.F5)
                 assertEquals(2, util.size)
             }
             waitUntil(timeoutMillis = 5_000) {
@@ -62,7 +62,7 @@ class UtilModeTest {
                 assertSame(root, util.top)
                 assertNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
                 assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F7)!!.active())
-                assertFalse(util.softKeyDefinition(BottomSoftKeySlot.F8)!!.active())
+                assertFalse(util.softKeyDefinition(BottomSoftKeySlot.F5)!!.active())
                 assertNull(owner.state.value.endpoint)
             }
         } finally {
