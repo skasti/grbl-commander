@@ -55,9 +55,12 @@ jobs:
           rpm=(app-desktop/build/compose/binaries/main/rpm/*.rpm)
           test -f "${deb[0]}"
           test -f "${rpm[0]}"
+          debContents=$(dpkg-deb --contents "${deb[0]}")
+          rpmContents=$(rpm -qpl "${rpm[0]}")
           for notice in THIRD_PARTY_NOTICES.txt APACHE-2.0.txt LGPL-3.0.txt GPL-3.0.txt OFL-1.1.txt SKIA.txt JSERIALCOMM_NOTICE.txt; do
-            dpkg-deb --contents "${deb[0]}" | rg -F "$notice"
-            rpm -qpl "${rpm[0]}" | rg -F "$notice"
+            grep -Fq "$notice" <<< "$debContents"
+            grep -Fq "$notice" <<< "$rpmContents"
+            printf 'Verified Linux legal resource: %s\\n' "$notice"
           done
       - name: Verify Windows MSI contains Start menu shortcut
         if: runner.os == 'Windows'
