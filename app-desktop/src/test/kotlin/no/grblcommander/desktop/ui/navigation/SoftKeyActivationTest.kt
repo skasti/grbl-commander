@@ -3,9 +3,33 @@ package no.grblcommander.desktop.ui.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
 import kotlin.test.*
 
 class SoftKeyActivationTest {
+    // Test-only event construction uses the exact Compose version under test.
+    @OptIn(androidx.compose.ui.InternalComposeUiApi::class)
+    @Test fun nonRepeatableActionsWaitForReleaseAcrossNavigation() {
+        val root = Fixture()
+        root.definition.value = root.definition.value.copy(repeatable = false)
+        val stack = ScreenStack(root)
+        val pressed = mutableSetOf<Key>()
+        fun event(type: KeyEventType) = KeyEvent(key = Key.F1, type = type)
+        val down = event(KeyEventType.KeyDown)
+        assertTrue(handleSoftKeyEvent(down, { stack }, pressed))
+        assertTrue(handleSoftKeyEvent(down, { stack }, pressed))
+        assertEquals(1, root.calls)
+        val overlay = Fixture()
+        overlay.definition.value = overlay.definition.value.copy(repeatable = false)
+        stack.push(overlay)
+        handleSoftKeyEvent(down, { stack }, pressed)
+        assertEquals(0, overlay.calls)
+        handleSoftKeyEvent(event(KeyEventType.KeyUp), { stack }, pressed)
+        handleSoftKeyEvent(down, { stack }, pressed)
+        assertEquals(1, overlay.calls)
+    }
+
     private class Fixture : Screen<Unit>(Unit) {
         var calls = 0
         val allowed = mutableStateOf(true)

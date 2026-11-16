@@ -20,6 +20,8 @@ import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
+import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.SoftKeySlot
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
@@ -75,7 +77,7 @@ class ControllerConnectionSettingsTest {
             }
         })
         val settings = ControllerSettings(owner, ControllerEndpointPreferences(preferences))
-        val root = UtilMode(settings)
+        val root = Terminal(settings)
         val stack = ScreenStack(root)
         val draft = ControllerEndpointDraft(ControllerEndpointDraft.Transport.TCP, "localhost", "4321")
         override fun close() {
@@ -102,7 +104,7 @@ class ControllerConnectionSettingsTest {
         }
     }
 
-    private fun ComposeUiTest.activate(fixture: Fixture, slot: BottomSoftKeySlot): Boolean {
+    private fun ComposeUiTest.activate(fixture: Fixture, slot: SoftKeySlot): Boolean {
         var activated = false
         runOnIdle { activated = activateSoftKey({ fixture.stack }, slot) }
         return activated
@@ -224,7 +226,7 @@ class ControllerConnectionSettingsTest {
             onNodeWithText("Interrupt current connection?").assertExists()
             assertFalse(activate(fixture, BottomSoftKeySlot.F2))
             assertFalse(activate(fixture, BottomSoftKeySlot.F3))
-            assertFalse(activate(fixture, BottomSoftKeySlot.F7))
+            assertFalse(activate(fixture, RightSoftKeySlot.R7))
             runOnIdle { assertEquals(3, fixture.stack.size) }
             onNodeWithTag("softkey-F8").performClick()
             runOnIdle {

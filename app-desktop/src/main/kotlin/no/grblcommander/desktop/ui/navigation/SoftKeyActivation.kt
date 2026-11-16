@@ -31,12 +31,16 @@ fun softKeySlot(key: Key, shift: Boolean = false): SoftKeySlot? {
 
 /**
  * Consume mapped key-up as well as key-down, executing only on key-down.
- * Each key-down (including OS-generated repeat) is an activation; actions that
- * must not repeat must enforce that in their own application-level preconditions.
+ * The shell supplies physical key state across navigation. Definitions can opt
+ * out of OS repeat; owners must still guard concurrent requests.
  */
-fun handleSoftKeyEvent(event: KeyEvent, currentStack: () -> ScreenStack): Boolean {
+fun handleSoftKeyEvent(event: KeyEvent, currentStack: () -> ScreenStack, pressedKeys: MutableSet<Key>? = null): Boolean {
+    if (event.type == KeyEventType.KeyUp) pressedKeys?.remove(event.key)
     if (event.isAltPressed || event.isCtrlPressed || event.isMetaPressed) return false
     val slot = softKeySlot(event.key, event.isShiftPressed) ?: return false
-    if (event.type == KeyEventType.KeyDown) activateSoftKey(currentStack, slot)
+    if (event.type == KeyEventType.KeyDown) {
+        val repeated = pressedKeys?.add(event.key) == false
+        if (!repeated || currentStack().softKeyDefinition(slot)?.repeatable != false) activateSoftKey(currentStack, slot)
+    }
     return true
 }

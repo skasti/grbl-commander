@@ -23,6 +23,8 @@ dependencies {
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
     implementation(compose.components.resources)
+    // Confine live terminal updates to the desktop event-dispatch thread.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
     testImplementation(kotlin("test-junit5"))
     testImplementation(compose.desktop.uiTestJUnit4)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

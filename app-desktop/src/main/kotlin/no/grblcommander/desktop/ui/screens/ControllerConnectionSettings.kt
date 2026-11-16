@@ -44,6 +44,7 @@ import no.grblcommander.desktop.ui.dialogs.ModalDialog
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.desktop.ui.navigation.Screen
+import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
 import no.grblcommander.machine.transport.DiscoveredSerialPort
 import no.grblcommander.machine.transport.SerialConfiguration
@@ -73,10 +74,13 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
         BottomSoftKeySlot.F1 to SoftKeyDefinition("Save", action = ::save, enabled = { !busy && confirmation == null }),
         BottomSoftKeySlot.F2 to SoftKeyDefinition("Connect", action = { request(Action.CONNECT) }, enabled = { !busy && confirmation == null }),
         BottomSoftKeySlot.F3 to SoftKeyDefinition("Disconnect", action = { request(Action.DISCONNECT) }, enabled = { canDisconnect }),
-        BottomSoftKeySlot.F7 to SoftKeyDefinition("⌨\nUtil", action = ::close, enabled = { confirmation == null }),
-        BottomSoftKeySlot.F8 to SoftKeyDefinition("🔗\nConnection", action = {}, active = { true }),
     )
-    // No right-key inheritance: future Terminal traffic filters are inactive while this screen is topmost.
+    override val rightKeys = mapOf(
+        RightSoftKeySlot.R7 to SoftKeyDefinition(
+            "⌨\nTerminal", action = ::close, enabled = { confirmation == null }, repeatable = false,
+        ),
+    )
+    // Neither bank inherits: covered Terminal actions remain inactive.
 
     private fun close() { if (confirmation == null) finish(Unit) }
 

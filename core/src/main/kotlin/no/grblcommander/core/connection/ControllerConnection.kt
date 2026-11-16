@@ -21,6 +21,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -30,16 +34,18 @@ import no.grblcommander.machine.session.CommunicationEvent
 import no.grblcommander.machine.session.MachineSession
 import no.grblcommander.machine.session.MachineSnapshot
 import no.grblcommander.machine.session.RealtimeCommand
+import no.grblcommander.machine.protocol.GrblProtocol
 
 /** App-lifetime command boundary. Screens never receive a transport or replace its session. */
 class ControllerConnection(
     parentScope: CoroutineScope,
     private val sessionFactory: (ControllerEndpoint, CoroutineScope) -> MachineSession,
-    private val historyCapacity: Int = 5_000,
+    private val diagnosticCapacity: Int = 5_000,
+    trafficCapacity: Int = 1_024,
 ) : Closeable {
     constructor(parentScope: CoroutineScope) : this(parentScope, ::controllerSession)
 
-    init { require(historyCapacity > 0) }
+    init { require(diagnosticCapacity > 0 && trafficCapacity > 0) }
     private val owner = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + owner)
     private val lifecycle = Mutex()
@@ -49,10 +55,19 @@ class ControllerConnection(
     private var active: Active? = null
     private val mutableState = MutableStateFlow(ControllerConnectionState())
     val state = mutableState.asStateFlow()
-    private val mutableHistory = MutableStateFlow<List<ControllerTraffic>>(emptyList())
-    val history = mutableHistory.asStateFlow()
-    private val recentTraffic = ArrayDeque<ControllerTraffic>(historyCapacity)
-    private var historyDirty = false
+    private val mutableTraffic = MutableSharedFlow<ControllerTraffic>(
+        extraBufferCapacity = trafficCapacity, onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val traffic: SharedFlow<ControllerTraffic> = mutableTraffic.asSharedFlow()
+    private val recentTraffic = ArrayDeque<ControllerTraffic>(diagnosticCapacity)
+    private var cursor = 0L
+    /** Logical traffic position, including gaps in the session stream. */
+    val trafficCursor: Long get() = synchronized(gate) { cursor }
+
+    /** Explicit, consistent diagnostic snapshot. No list is created during publication. */
+    fun diagnosticSnapshot(): List<ControllerTraffic> = synchronized(gate) {
+        Collections.unmodifiableList(recentTraffic.toList())
+    }
     private val mutableDropped = MutableStateFlow(0L)
     /** Across every session, including failed handshakes. History eviction is separate. */
     val droppedCommunicationEvents = mutableDropped.asStateFlow()
@@ -66,25 +81,34 @@ class ControllerConnection(
         fun close() { if (closed.compareAndSet(false, true)) session.close() }
     }
 
-    init {
-        owner.invokeOnCompletion { close() }
-        scope.launch {
-            while (isActive) {
-                delay(50) // At most 20 immutable snapshots/s, independent of traffic rate.
-                synchronized(gate) { publishHistory() }
-            }
-        }
+    init { owner.invokeOnCompletion { close() } }
+
+    private var manualLifecycleIntent = 0L
+
+    /** Startup shares the ordinary lifecycle lock and never replaces a manual operation. */
+    internal suspend fun connectAtStartup(endpoint: ControllerEndpoint) = connect(endpoint, automatic = true)
+
+    internal fun startupFailed(error: Throwable) = synchronized(gate) {
+        if (!closed && manualLifecycleIntent == 0L) mutableState.value = state.value.copy(
+            snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.FAILED,
+                failure = error.message ?: error.javaClass.simpleName, normalCommandsSynchronized = false),
+        )
     }
 
     /** Explicit connect/switch; the old one-shot session is fully disposed before creating another. */
-    suspend fun connect(endpoint: ControllerEndpoint) {
+    suspend fun connect(endpoint: ControllerEndpoint) = connect(endpoint, automatic = false)
+
+    private suspend fun connect(endpoint: ControllerEndpoint, automatic: Boolean) {
+        if (!automatic) synchronized(gate) { manualLifecycleIntent++ }
         val entry = lifecycle.withLock {
+            if (automatic && synchronized(gate) { manualLifecycleIntent != 0L || active != null }) return
             checkOpen()
             currentCoroutineContext().ensureActive()
             stopActive()
             currentCoroutineContext().ensureActive()
             synchronized(gate) {
                 checkOpen()
+                if (automatic && manualLifecycleIntent != 0L) return
                 val session = try { sessionFactory(endpoint, scope) } catch (error: Throwable) {
                     mutableState.value = ControllerConnectionState(endpoint, MachineSnapshot(
                         connection = MachineSnapshot.Connection.FAILED, failure = error.message,
@@ -165,22 +189,28 @@ class ControllerConnection(
     }
 
     /** Choose another endpoint without opening it. There is no automatic reconnect. */
-    suspend fun reconfigure(endpoint: ControllerEndpoint) = lifecycle.withLock {
-        checkOpen()
-        currentCoroutineContext().ensureActive()
-        stopActive()
-        currentCoroutineContext().ensureActive()
-        synchronized(gate) { checkOpen(); mutableState.value = ControllerConnectionState(endpoint) }
+    suspend fun reconfigure(endpoint: ControllerEndpoint) {
+        synchronized(gate) { manualLifecycleIntent++ }
+        lifecycle.withLock {
+            checkOpen()
+            currentCoroutineContext().ensureActive()
+            stopActive()
+            currentCoroutineContext().ensureActive()
+            synchronized(gate) { checkOpen(); mutableState.value = ControllerConnectionState(endpoint) }
+        }
     }
 
-    suspend fun disconnect() = lifecycle.withLock {
-        checkOpen()
-        currentCoroutineContext().ensureActive()
-        stopActive()
-        synchronized(gate) {
-            if (!closed) mutableState.value = state.value.copy(
-                snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.DISCONNECTED, failure = null), closing = false,
-            )
+    suspend fun disconnect() {
+        synchronized(gate) { manualLifecycleIntent++ }
+        lifecycle.withLock {
+            checkOpen()
+            currentCoroutineContext().ensureActive()
+            stopActive()
+            synchronized(gate) {
+                if (!closed) mutableState.value = state.value.copy(
+                    snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.DISCONNECTED, failure = null), closing = false,
+                )
+            }
         }
     }
 
@@ -201,7 +231,7 @@ class ControllerConnection(
                     // Retain the last observation, but not the session's technical close reason.
                     snapshot = old.session.state.value.copy(connection = if (closed) MachineSnapshot.Connection.CLOSED
                         else MachineSnapshot.Connection.DISCONNECTED, failure = null),
-                    closing = false,
+                    closing = false, manualCommandPending = false,
                 )
             }
         }
@@ -214,26 +244,43 @@ class ControllerConnection(
         entry.session.recentCommunication.forEach { event ->
             if (event.sequence > entry.lastObservedSequence) recordTraffic(entry, event)
         }
-        publishHistory()
     }
 
     /** Called under gate; ingestion is constant-space/constant-time per event. */
     private fun recordTraffic(entry: Active, event: CommunicationEvent) {
-        if (recentTraffic.size == historyCapacity) recentTraffic.removeFirst()
-        recentTraffic.addLast(ControllerTraffic(entry.id, entry.endpoint, event))
+        if (event.sequence <= entry.lastObservedSequence) return
+        // Advance over upstream gaps as well as observed events. A consumer's cursor
+        // gaps then count the union of session/core losses, never their sum twice.
+        cursor += event.sequence - entry.lastObservedSequence
+        val traffic = ControllerTraffic(entry.id, entry.endpoint, event, cursor)
+        if (recentTraffic.size == diagnosticCapacity) recentTraffic.removeFirst()
+        recentTraffic.addLast(traffic)
         entry.lastObservedSequence = event.sequence
-        historyDirty = true
+        mutableTraffic.tryEmit(traffic) // DROP_OLDEST may evict even when this returns true.
     }
 
-    private fun publishHistory() {
-        if (historyDirty) {
-            mutableHistory.value = Collections.unmodifiableList(recentTraffic.toList())
-            historyDirty = false
+    suspend fun executeLine(command: String): no.grblcommander.machine.session.CommandAcknowledgment {
+        GrblProtocol.encodeCommand(command)
+        val selected = synchronized(gate) {
+            val selected = session()
+            if (!state.value.copy(snapshot = selected.state.value).canExecuteLine()) throw IOException("Manual command unavailable: controller must be synchronized and idle")
+            selected.also { mutableState.value = state.value.copy(manualCommandPending = true) }
         }
+        try { return selected.executeLine(command) }
+        finally { synchronized(gate) {
+            if (active?.session === selected) mutableState.value = state.value.copy(manualCommandPending = false)
+        } }
     }
-
-    suspend fun executeLine(command: String) = session().executeLine(command)
-    suspend fun sendRealtime(command: RealtimeCommand) = session().sendRealtime(command)
+    suspend fun sendRealtime(command: RealtimeCommand) {
+        val selected = synchronized(gate) {
+            val current = session()
+            if (command == RealtimeCommand.CYCLE_START) check(state.value.copy(snapshot = current.state.value).canCycleStart()) {
+                "Cycle Start requires a fresh synchronized Idle or Hold:0 report without an alarm or reset"
+            }
+            current
+        }
+        selected.sendRealtime(command)
+    }
     suspend fun reset() = session().reset()
     suspend fun queryStatus() = session().queryStatus()
 

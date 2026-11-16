@@ -326,7 +326,22 @@ devices absent from discovery.
 from the active session endpoint and a screen's unsaved draft. Its load/save
 workflows serialize configuration access, validate loaded/edited values and
 publish configuration after a successful read/write. Loading occurs through the
-core operation when the form opens; startup never connects an endpoint.
+core operation at application startup and when the form opens. Main owns connection
+and settings above screen lifetimes, launches `initialize()` and cancels/joins its
+application scope at shutdown. The desktop entry point uses
+`application(exitProcessOnExit = false)`: window close returns through Main's
+`finally` block instead of terminating the JVM before cleanup. Main cancels the
+application scope, calls `connection.close()`, awaits `connection.awaitClosed()`
+and joins the application job. This disposes TCP/serial resources, stops polling
+and cancels pending handshake/command work before normal process completion;
+uncertain commands are never replayed. No machine reset, hold or unlock is sent
+as part of exit. `CommanderApp` signals `onUiReady()` after composition.
+Core initialization loads configuration and asynchronously attempts a valid saved
+endpoint at most once. Missing/invalid data skips connection. Manual actions cancel
+pending initialization; direct connection lifecycle intentions also prevent delayed
+automatic replacement. Automatic/manual attempts share the connection lifecycle lock.
+There is no retry, reset, unlock or automatic navigation. Startup failure updates
+core connection state and the header only; settings can inspect its details.
 Connect validates and awaits handshake before persisting its endpoint inside
 core; presentation invokes user intentions and never performs this internal save.
 
@@ -366,15 +381,39 @@ against repeated activation. Interruption still requires explicit confirmation.
 Connection attempts and machine commands are not automatically retried; no
 reset, machine command replay or auto-connect is implicit.
 
-The Util mode owns one persistent stack rooted at `UtilMode`, an empty workspace
-with a connection-settings button. `ControllerConnectionSettings : Screen<Unit>`
-opens above that root using the explicit parent contract; F7 returns to Util and
-F8 selects Connection. F6 is unassigned. The root is reserved for the terminal in
-[#22](https://github.com/skasti/grbl-commander/issues/22). Settings uses its own
-right bank, without inheriting future terminal filters. The form owns draft,
-validation/error display and stack-owned interruption confirmation, never a session.
-Mode changes preserve the form and connection. Closing the form cancels unfinished
+The Util mode owns one persistent stack rooted at `Terminal : Screen<Unit>`.
+`ControllerConnectionSettings` opens above it with the explicit parent contract.
+R7 opens Connection from Terminal and returns to Terminal from the form. No
+self-selection key is shown on Terminal. F8 cycles between the Cycle Start/Feed Hold/command-history
+and reset/copy/clear bottom pages. R6 ⏬ Follow remains available on both pages
+and in Filters. F7 Filters, with a funnel icon, replaces the
+bottom bank with F1–F6 filter toggles and F7 Back. Back restores the selected
+ordinary page; R7 navigation remains available while filtering. F5/F6 are
+unassigned on the ordinary terminal pages.
+The workspace has no action toolbar or explicit status-query key. Settings replaces
+both softkey banks, so Terminal actions cannot leak through. Screen instances and
+compositions retain terminal draft/caret, filters, scrollback and open forms across
+mode changes. The form owns draft, validation/error display and stack-owned
+interruption confirmation, never a session. Closing the form cancels unfinished
 form work; a completed connection outlives the screen.
+
+`ControllerConnection.executeLine` validates with the existing protocol encoder
+and reserves a single manual command slot before dispatch. Admission requires a
+fresh connected, synchronized Idle/Alarm/Check report, no reset boundary and no
+other pending manual command; the session remains the final protocol/alarm gate.
+This prevents normal terminal commands during externally running work. The slot
+ends on acknowledgment or failure, never represents completed physical motion and
+is not transferred across sessions. `sendRealtime(CYCLE_START)` independently
+rechecks a fresh synchronized `Idle` or `Hold:0` report, with no alarm, closing
+connection or reset boundary. The same predicate drives the terminal softkey.
+Acknowledgment is not motion completion: explicit Cycle Start can resume a
+completed Feed Hold even after the line's acknowledgment or for externally initiated
+work. It sends one realtime `~`, without resubmitting a command or predicting
+execution state. Run, Hold:1 (deceleration), Jog, Door, Alarm, missing/unrecognized
+status and stale/disconnected reports are rejected. No diagnostic handoff or
+pending-line ownership is required for this operator action. Program execution
+and broader operation coordination remain planned. Status, Feed Hold and Reset
+remain independent of normal-command admission.
 
 Both header and form read the same authoritative owner state. A presentation clock
 marks retained reports stale after three seconds, even without a new state emission;
@@ -466,17 +505,36 @@ history receives every event. Replay eviction without subscribers and ordinary
 history retention are not subscriber overflow. Observation never changes
 controller state, normal admission, status parsing, priorities or alarm handling.
 
-The application subscribes before connecting, capturing handshake traffic, and
-keeps a bounded deque of at most 5,000 entries independent of screen composition.
-Ingestion appends/evicts in constant time; a dirty deque is copied into an immutable
-observable snapshot at most once every 50 ms (20/s). This bounds allocation and
-UI update frequency independently of controller output bursts. Entries retain
-endpoint, session identity and sequence order. Earlier snapshots never change.
-The dropped counter accumulates across sessions independently of snapshot timing.
-Disconnect, reconfiguration, switch and awaited shutdown collect the remaining
-bounded replay tail without duplicates and immediately publish the final history.
-Debug terminal rendering/filtering, command widgets and persistent/file logging
-are not implemented.
+Core subscribes before connecting, capturing handshake traffic. `traffic` is a
+read-only `SharedFlow<ControllerTraffic>` backed by `MutableSharedFlow` with 1,024
+extra slots, `DROP_OLDEST` and `tryEmit`. Publication never suspends machine I/O;
+successful `tryEmit` does not imply every subscriber received every event.
+A separate 5,000-event deque retains all observed traffic regardless of UI filters.
+`diagnosticSnapshot()` copies it consistently only on explicit request. Entries
+carry endpoint, session identity, source sequence, timestamp and global cursor.
+The cursor advances by source sequence distance across sessions, so a consumer's
+cursor gaps count the union of upstream and core-stream loss once. Multicast-wide
+drop counters describe other subscribers too and must not be added to these gaps.
+Normal diagnostic retention is not loss. Disconnect and awaited shutdown collect
+the remaining session replay tail without duplicate session/sequence identities.
+
+Terminal continuously subscribes while its retained screen is composed, including
+inactive modes and covered Connection settings. Subscription is established before
+seeding from the diagnostic snapshot. Cursor overlap is ignored; bounded overflow
+during handoff remains detectable. The snapshot's oldest retained cursor establishes
+the initial baseline, without warning about earlier normal diagnostic rotation.
+Terminal owns a 10,000-entry Compose-observable indexed ring. Only events admitted
+by current filters consume capacity; all events advance its loss cursor and update
+command recall. Filter changes do not delete or reconstruct existing entries.
+Slots and ring indices update atomically on the desktop UI dispatcher; ingestion
+yields after bounded work, and LazyColumn renders retained entries with stable
+session/sequence keys. Normal rotation is silent. Clear view advances a local
+boundary and clears only displayed rows. Persistent/file logging is not implemented.
+
+Command recall observes ordinary command TX handoffs independently of acknowledgment.
+Local transport rejection removes its exact session/attempt entry; controller error,
+timeout and uncertain handoff retain it. The command operation still awaits its
+acknowledgment. No synthetic TX echo, automatic retry or replay is introduced.
 
 ## 4. Application Operations
 
@@ -584,15 +642,14 @@ slots and seven right softkey slots. Each window retains a `ScreenStack` for
 each UI mode, hosted together by `ScreenStackHost`. Program includes the branded
 welcome screen and a runnable in-memory editor/file-explorer example. Manual has
 a nested details screen with local notes; MDI has an unsent text buffer. Util has
-an empty root and controller connection settings. Mode
+a live interactive Terminal root and controller connection settings. Mode
 changes do not cancel overlays, discard drafts, or alter controller execution
 state. The window icon and header show the supplied app logo. Softkey slots
 render screen-owned labels/icons, reactive enabled/active state, and safe
 in-memory navigation actions. Pointer and keyboard input share guarded slot
-activation. DRO, real mode operations and live machine-status presentation are not
-implemented. A shared core-owned connection coordinates `:infrastructure`; the
-header observes its real health and report freshness. It starts disconnected;
-Util owns explicit connection settings/actions. The shared slot layout is described
+activation. DRO and Program/Manual/MDI execution workflows are not implemented. A shared core-owned connection coordinates `:infrastructure`; the
+header observes its real health and report freshness. Core attempts a valid saved
+endpoint once after UI readiness; Util owns explicit connection settings/actions. The shared slot layout is described
 in [UI layout](ui-layout.md).
 
 ### Screen navigation contract
@@ -689,9 +746,18 @@ changes recompose the presentation without changing the composition key;
 activation always evaluates the latest `enabled` result. The shell previews
 F1–F8 and Shift+F1–F7 (right bank) before workspace input, using the same
 activation path. Mapped key-down events activate and key-up events are consumed;
-repeated key-down events also activate (actions must guard against unsafe
-repetition where applicable). `active` affects presentation only. No central
+repeatable definitions also accept repeated key-downs. Terminal realtime controls
+set `repeatable = false`, so held keys are consumed until release, including across
+navigation changes. Owners independently guard concurrent requests. `active` affects presentation only. No central
 action registry, navigator or mutable softkey store is involved.
+
+`SoftKeyPages<S>` is presentation state owned by an individual screen/bank.
+Screens expose its current map through the existing softkey getters. Common
+navigation keys retain their positions, and a non-repeating Next page action
+wraps to the first page. A single page has no paging action. This does not add
+navigation entries or a separate action dispatcher. Contextual banks such as
+Terminal Filters replace that screen's bottom map without changing the selected
+page, input, right navigation key or the controller. Retained compositions preserve page/menu state.
 
 Each retained mode stack owns its effective bindings through its screens. A
 covered screen can contribute actions only through inheritance explicitly
@@ -701,8 +767,9 @@ FileExplorer example replaces the editor's bottom bank but inherits right keys,
 disables/relabels an editor action, blanks another, and adds its own Info key.
 Pop restores the underlying definitions; switching modes selects a different
 retained stack without copying key state.
-The current mode examples are local UI fixtures; real program/file services
-and machine operations are not implemented. Detailed lifetime, root, rendering
+The Program/Manual/MDI examples are local UI fixtures; real program/file
+services and their execution workflows are not implemented. Util Terminal uses
+the shared connection for explicit manual commands and realtime controls. Detailed lifetime, root, rendering
 and focus behavior are specified in [UI layout](ui-layout.md).
 
 ### 5.2 Application Modes
@@ -716,7 +783,7 @@ Initial modes:
 | Program    | Program selection, editing, toolpath preview, and execution        |
 | Probing    | Macro-driven probing workflows                                     |
 | Macros     | Macro discovery, editing, execution, and synchronization           |
-| Util       | Connection settings; planned terminal, diagnostics and controller inspection |
+| Util       | Live Terminal, manual commands, realtime controls and connection settings; further diagnostics planned |
 
 Tool Management may be presented as a mode or as a workspace accessible from
 Program and Macros.
@@ -726,7 +793,7 @@ Program and Macros.
 Switching UI mode must not implicitly modify machine state or interrupt an
 active operation. Each window retains its mode stacks and their composed
 navigation histories independently. The current demonstration provides Program,
-Manual, MDI and Util contexts; probing, macro and terminal workspaces remain planned.
+Manual, MDI and Util contexts; probing and macro workspaces remain planned.
 
 ### 5.3 DRO
 
@@ -971,8 +1038,8 @@ The application must:
 - Never automatically resume interrupted motion following reconnection.
 - Avoid presenting simulated or predicted outcomes as confirmed machine state.
 
-Planned raw command access belongs in Util mode, but bypassing
-application-level workflows must be explicit.
+Manual command access belongs in Util Terminal and always uses the shared
+application/session admission boundary. It never bypasses machine coordination.
 
 Software validation and toolpath previews cannot guarantee collision-free or
 safe machine execution.
@@ -1246,7 +1313,7 @@ boundaries.
 - Serial connection and GRBL protocol.
 - Machine-state monitoring and DRO.
 - Global controls, overrides, homing, and jogging.
-- Debugging terminal.
+- Util terminal.
 - Simulated controller tests.
 
 ### Phase 2 — Program handling

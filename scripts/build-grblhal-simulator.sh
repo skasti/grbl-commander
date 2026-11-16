@@ -17,6 +17,12 @@ fi
 git -C "$source_dir" fetch "$repository" "$revision"
 git -C "$source_dir" checkout --detach "$revision"
 git -C "$source_dir" submodule update --init --recursive
-cmake -S "$source_dir" -B "$build_dir" -DCMAKE_BUILD_TYPE=Release
+# The pinned core defines powr before including math.h. C23's powr declaration
+# collides with that macro, so keep the upstream build on the GNU C17 dialect.
+cmake -S "$source_dir" -B "$build_dir" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_STANDARD=17 \
+    -DCMAKE_C_STANDARD_REQUIRED=ON \
+    -DCMAKE_C_EXTENSIONS=ON
 cmake --build "$build_dir" --target grblHAL_sim --parallel 2
 printf '\nSimulator binary: %s/grblHAL_sim\n' "$build_dir"

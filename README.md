@@ -44,20 +44,64 @@ connection/settings workflows. `:infrastructure` provides transports, protocol,
 `GrblMachineSession`, serial discovery and actual JVM Preferences storage.
 
 `Main` constructs one core connection/settings pair above every mode/screen
-lifetime, and closes/awaits the connection at exit. Core selects the existing
+lifetime. Closing the application window returns from Compose without terminating
+JVM execution first, so Main cancels startup/background work, closes the TCP/serial
+connection and awaits connection/application cleanup before returning. Closing the
+application does not send Feed Hold, reset, unlock or replay commands. Core selects the existing
 production transport from a typed endpoint and creates a fresh session per
 explicit connection. All retained modes share this owner; the header observes
 its actual health. Save and Connect remain explicit user intentions, while core
 performs validation and Connect's subsequent persistence internally. Screens
-never instantiate sessions, transports or preferences adapters. No endpoint is
-selected or connected automatically.
+never instantiate sessions, transports or preferences adapters. Core loads saved configuration during startup and attempts a valid saved endpoint
+once after the UI signals readiness. The asynchronous attempt shares lifecycle
+coordination with manual actions; no retry occurs. Failure appears only in the
+header status; details remain available in Connection settings.
 
-Select **⚙ Util**, then **Controller connection** or **F8 Connection** to configure
-TCP/network or Serial/USB. Util has one persistent stack and an otherwise empty
-root; its terminal is planned in [#22](https://github.com/skasti/grbl-commander/issues/22).
-**F7 Util** returns to that root, and F8 highlights the settings view. F6 is free;
-connection health remains a separate shared header indicator. Switching modes
-retains an open form and never disconnects the shared session.
+Select **⚙ Util** to open the live Terminal. Its unified console combines a
+virtualized monospaced traffic log and an editable prompt. Enter (including the
+onscreen keyboard action) submits one validated ASCII line through the shared
+connection. There is no Send button. Commands can move the machine; `ok` only
+acknowledges a command. Up/Down and the history softkeys browse the last
+100 transport handoffs; error/timeout/uncertain results remain in recall history,
+while local transport rejection is removed. History is in memory only. Unsent input and selection/caret,
+filters and scrollback survive mode changes. Select text within an output entry
+and use Copy selected text or the normal keyboard copy action. Selection is per
+entry; cross-entry selection/export is not implemented.
+
+The terminal has no workspace action buttons or explicit Status key. Its shared
+connection polls status automatically every 500 ms. F7 **Filters**, with a funnel
+icon, replaces the bottom bank with Status RX, Poll TX, OK, Info, Errors and Time
+on F1–F6; F7 **Back** restores the selected bottom page. Status/poll traffic starts
+hidden; ordinary commands,
+acknowledgments, messages, errors and alarms start visible. Filters and Clear view
+apply to newly received events only; existing rows stay intact. Terminal retains
+10,000 admitted events independently of core's 5,000-event diagnostic buffer.
+Only actual sequence gaps produce a missed-events warning; normal rotation is silent.
+
+F8 **Next page** cycles between two bottom-softkey pages. The first has ▶️ Cycle Start,
+⏸️ Feed Hold, ⬆️ Prev Cmd and ⬇️ Next Cmd on F1–F4. The second has confirmed
+Soft Reset, Copy selected text and Clear view on F1–F3; F4 is unassigned.
+R6 ⏬ Follow remains available on both pages and while the filter menu is open.
+Scrolling upward disables Follow; scrolling back to the bottom reactivates it.
+R6 Follow jumps to the newest retained entry; new traffic preserves manual scrollback.
+The prompt prefix and editable text share typography and alignment inside a single
+touch-friendly input field.
+
+Cycle Start is available with a fresh synchronized `Idle` or completed `Hold:0`
+report, independent of whether a command still awaits acknowledgment. An explicit
+press sends `~` once; acknowledged motion can be resumed after Feed Hold.
+Run, decelerating `Hold:1`, Jog, Door, alarm, reset boundaries and stale/unknown or
+disconnected status prevent Cycle Start. Normal command admission remains separate;
+no motion is automatically resumed or replayed.
+
+**R7 Connection** opens the connection form; there, **R7 Terminal** returns to the
+same terminal state. Terminal has no redundant button selecting itself. This right
+navigation action remains available while the bottom filter menu is open. F5 and
+F6 are unassigned on the ordinary terminal pages. Terminal pages and the filter
+menu survive mode changes and visits to settings. Settings and confirmations
+replace covered terminal actions. Connection health and machine/alarm observations
+remain in the shared header. Switching modes retains an open form and never
+disconnects the shared session.
 
 Enter a TCP host/IP and its configured port (no fixed port is assumed), or refresh
 the optional serial-port list and/or enter a device manually. Serial defaults are
@@ -79,7 +123,7 @@ Confirmation does not stop physical motion or replay commands.
 Close cancels an unfinished form action; it does not disconnect a completed session.
 Storage errors are displayed separately from actual connection health. Settings
 load when opening the form; missing/corrupt/incomplete records use blank endpoint
-fields and normal serial defaults. The application never automatically connects or retries connection attempts.
+fields and normal serial defaults. Startup attempts a valid saved endpoint once, after UI readiness; it never retries.
 
 The screen shows the actual endpoint and lifecycle state. Deliberate Disconnect
 clears the displayed connection error and shows a neutral note that machine state
@@ -180,11 +224,16 @@ counts each event evicted before handoff to any active subscriber once, even if
 that subscriber stays stalled and no further traffic arrives. A subscriber's
 sequence gaps identify its own losses; a global count need not mean the app
 history missed those events. `recentCommunication` provides a bounded replay-tail
-snapshot. `ControllerConnection.history` retains the latest 5,000 events across
-reconnects, tagged with session identity and endpoint, even without a Debug screen.
-Ingestion uses a bounded deque; immutable observable snapshots are published at
-most every 50 ms (20/s), and flushed on disconnect, switch and awaited shutdown.
-This is in-memory diagnostic history, not persistent logging. Terminal rendering/filtering and command widgets remain planned.
+snapshot. `ControllerConnection.traffic` exposes individual events through a read-only
+SharedFlow with a 1,024-event DROP_OLDEST buffer and non-suspending publication.
+A separate 5,000-event diagnostic ring retains all observed traffic across sessions;
+`diagnosticSnapshot()` creates a consistent immutable copy only on request.
+Entries retain session, endpoint, timestamp, source sequence and a global cursor.
+Cursor gaps cover upstream and core-stream loss without adding overlapping global
+counters. Terminal subscribes before seeding from a diagnostic snapshot, deduplicates
+the overlap and retains admitted rows incrementally in a Compose ring. Its
+subscription remains active under other modes/settings. This is in-memory history,
+without an extra transport reader, poller or persistent logging.
 
 Hardware-free transport/parser/session tests run on Linux and Windows:
 
@@ -194,7 +243,11 @@ gradle :infrastructure:test
 
 Linux simulator tests use the official upstream simulator as an external
 process through the production TCP/session stack. Install Git, CMake and a C
-compiler/build tool, then build the pinned revision and its recorded submodules:
+compiler/build tool. The build explicitly selects GNU C17; the pinned core's
+`powr` macro conflicts with the C23 math declaration exposed by newer
+compiler/system-header defaults.
+
+Build the pinned revision and its recorded submodules:
 
 ```bash
 bash scripts/build-grblhal-simulator.sh

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,8 +35,9 @@ fun AppShell(
 ) {
     val liveStack = rememberUpdatedState(currentStack)
     val stack = currentStack()
+    val pressedKeys = remember { mutableSetOf<androidx.compose.ui.input.key.Key>() }
     Column(Modifier.fillMaxSize().background(ShellColors.frame)
-        .onPreviewKeyEvent { handleSoftKeyEvent(it, liveStack.value) }) {
+        .onPreviewKeyEvent { handleSoftKeyEvent(it, liveStack.value, pressedKeys) }) {
         ShellHeader(state, Modifier.fillMaxWidth().height(78.dp), headerControls)
 
         Row(Modifier.fillMaxSize()) {
