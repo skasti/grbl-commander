@@ -91,6 +91,17 @@ filters and scrollback survive mode changes. Select text within an output entry
 and use Copy selected text or the normal keyboard copy action. Selection is per
 entry; cross-entry selection/export is not implemented.
 
+Terminal and MDI provide a touch CNC/G-code keyboard with two independently paged
+square key clusters. The default letter grid starts `O N G P`; the numeric grid
+keeps Backspace, `*`, `+` and Enter in its separated fourth column. Further pages
+provide the remaining letters and macro/editing symbols. Tapping inserts at the
+caret or replaces the selection without taking input focus. Terminal Enter uses
+the existing guarded submission; MDI Enter inserts a local newline. Input and
+keyboard pages survive mode/settings visits. Keymaps, labels, dimensions and gap
+ratios are data configured through `ui.controls.KeypadLayout`; customization is
+in memory, with no visual map editor or saved user preferences. See the
+[configuration example and input contract](docs/ui-layout.md#cncg-code-touch-keyboard).
+
 The terminal has no workspace action buttons or explicit Status key. Its shared
 connection polls status automatically every 500 ms. F7 **Filters**, with a funnel
 icon, replaces the bottom bank with Status RX, Poll TX, OK, Info, Errors and Time

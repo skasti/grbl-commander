@@ -499,3 +499,75 @@ closed, and owned work is awaited. Exit sends no automatic machine-control comma
 See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the
 repository [AGENTS.md](../AGENTS.md).
 
+
+### CNC/G-code touch keyboard
+
+`ui.controls.GCodeKeyboard` composes two `KeyCluster` controls beneath the Util
+Terminal console and the local MDI buffer. Each cluster has independent retained
+`KeyClusterState`, a square grid and one page-count/Next control below it, wrapping
+to the first page. A single-page map disables cycling. Paging preserves focus,
+caret, selection and the other cluster's page. Empty positions retain their space.
+The control does not use F8/R7 or the screen-navigation mechanism.
+
+Default letter pages (each cell lists columns 1–4):
+
+| Row | Page 1 | Page 2 |
+| --- | --- | --- |
+| 1 | `O N G P` | `B C D E` |
+| 2 | `X Y Z A` | `H L Q U` |
+| 3 | `I J K R` | `V W` then two empty slots |
+| 4 | `F S T M` | Four empty slots |
+
+Default numeric/operator pages:
+
+| Row | Page 1 | Page 2 |
+| --- | --- | --- |
+| 1 | `7 8 9 ⌫` | `# / = ⌫` |
+| 2 | `4 5 6 *` | `( ) $ *` |
+| 3 | `1 2 3 +` | `[ ] % +` |
+| 4 | `− 0 . ↵` | `− Space : ↵` |
+
+Minus inserts ASCII `-`; Space inserts one space. Backspace and Enter stay at
+slots 3 and 15 on both numeric pages. `*` and `+` stay at slots 7 and 11.
+
+Keys have ordinary gaps of 30% of their width, with a total 60% gap before numeric
+column four. The clusters have an 80%-width separation. Keys fit available width
+and height up to 60 dp; they can shrink below 44 dp in constrained windows.
+Terminal reserves up to half the workspace height for the keyboard; MDI reserves
+up to 65%, leaving the input above it. Header and softkeys remain outside these
+screen-local layouts. Very small windows cannot provide full-size touch targets.
+
+`KeypadLayout` is a copied configuration snapshot with rows/columns, a list of
+row-major slot maps, labels, typed actions, ordinary spacing and optional total
+gaps before columns. `GCodeKeymaps` supplies defaults. For customization, construct
+screen-owned states and pass them to the same renderer; no renderer changes are
+needed. For example:
+
+```kotlin
+val customLetters = KeyClusterState(KeypadLayout(
+    name = "Macros", rows = 2, columns = 3,
+    pages = listOf(mapOf(0 to KeypadKey("G65", KeypadAction.Insert("G65 ")))),
+    spacing = .30f, gapsBeforeColumns = mapOf(2 to .60f),
+))
+// From a retained screen composition:
+GCodeKeyboard(onAction = ::handleInput, letters = customLetters)
+```
+
+`KeyClusterState` belongs to one cluster/owner. Keep supplied instances stable;
+construct a replacement to install another layout. Default states are remembered
+inside the retained composition. Maps and page choices are in memory only; there
+is no visual keymap editor or persistent UI-preferences schema. Controller endpoint
+settings and their persistence do not own keyboard preferences.
+
+The renderer reports `Insert`, `Backspace`, or `Enter` intentions through a required
+runtime callback. Every owner explicitly binds Enter to its input's semantics;
+there is no synthesized OS key event or global input dispatcher. Keys/page controls
+cannot acquire text-input focus. `editWithKeypad` is an optional input-side helper
+for insertion/selection replacement and Backspace at the caret, including a
+supplementary Unicode code point; an explicit edit finalizes IME composition.
+Enter always invokes the supplied binding rather than inserting text implicitly.
+Physical keyboard, mouse selection, paste and touch remain Compose input behavior.
+Terminal binds Enter to the same guarded `submit()` as physical/IME Enter and
+keeps all validation and shared core admission. MDI binds Enter to local newline
+insertion; it cannot execute the buffer. No keyboard control communicates with a
+session/transport or triggers realtime/motion controls.
