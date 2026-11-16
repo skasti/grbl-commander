@@ -123,9 +123,15 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.Msi)
+            licenseFile.set(rootProject.file("LICENSE.md"))
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("packaging"))
             packageName = "grbl-commander"
             packageVersion = releaseVersion
             description = "Desktop operator interface for GRBL-compatible CNC machines"
+
+            linux {
+                rpmLicenseType = "PolyForm-Noncommercial-1.0.0"
+            }
 
             windows {
                 // Add an entry in the Windows Start menu; no desktop shortcut.
