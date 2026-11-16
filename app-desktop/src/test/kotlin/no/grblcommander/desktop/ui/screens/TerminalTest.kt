@@ -74,6 +74,35 @@ class TerminalTest {
         }
     }
 
+    @Test fun `touch Enter shares physical and IME admission and pages survive navigation`() = runSkikoComposeUiTest(size = androidx.compose.ui.geometry.Size(1024f, 768f)) {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            onNodeWithTag("terminal-prompt").performClick().performTextInput("\$I")
+            onNodeWithTag("keypad-ABC-next").performClick()
+            onNodeWithTag("keypad-123-next").performClick()
+            onNodeWithTag("terminal-prompt").assertIsFocused()
+            onNodeWithTag("keypad-123-15").performClick()
+            assertEquals("\$I\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            enter()
+            onNodeWithTag("terminal-prompt").performImeAction()
+            onNodeWithTag("keypad-123-15").performClick()
+            runOnIdle { assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND }) }
+            onNodeWithTag("softkey-R7").performClick()
+            onNodeWithTag("softkey-R7").performClick()
+            onNodeWithText("ABC 2/2 ▸").assertExists()
+            onNodeWithText("123 2/2 ▸").assertExists()
+            runOnIdle { f.active = f.other }
+            onNodeWithText("Unsent text").performClick().performTextInput("G0 X1")
+            onNodeWithTag("keypad-123-15").performClick()
+            onNodeWithText("Unsent text").performTextInput("M2")
+            onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G0 X1\nM2")))
+            runOnIdle { f.active = f.util }
+            onNodeWithText("ABC 2/2 ▸").assertExists()
+            onNodeWithText("123 2/2 ▸").assertExists()
+            runOnIdle { assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND }) }
+        }
+    }
+
     @Test fun `disconnected multiline and unsynchronized admission preserve input without TX`() = runComposeUiTest {
         Fixture().use { f ->
             host(f)
@@ -223,19 +252,22 @@ class TerminalTest {
         Fixture().use { f ->
             f.connect(); host(f)
             runBlocking { repeat(100) { f.transport.emit("[LINE:$it]\n") } }
-            waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[LINE:99]" } }
-            onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.history.any { it.event.text == "[LINE:99]" } }
+            onNodeWithText("[LINE:99]", substring = true).assertExists()
+            // Keep the drag distance when the keyboard reduces the viewport height.
+            onNodeWithTag("terminal-log").performTouchInput { swipeDown(endY = bottom + 300f) }
             onNodeWithTag("softkey-R6").assertIsNotSelected()
+            runOnIdle { assertEquals("", f.terminal.prompt.text) } // Dragging across the keypad must not type.
             runBlocking { f.transport.emit("[LINE:latest]\n") }
             waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[LINE:latest]" } }
             onNodeWithTag("softkey-R6").assertIsNotSelected().performClick()
             onNodeWithTag("softkey-R6").assertIsSelected()
             onNodeWithText("[LINE:latest]", substring = true).assertExists()
-            onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
+            onNodeWithTag("terminal-log").performTouchInput { swipeDown(endY = bottom + 300f) }
             onNodeWithTag("softkey-R6").assertIsNotSelected()
             repeat(10) {
                 if (!f.util.softKeyDefinition(RightSoftKeySlot.R6)!!.active())
-                    onNodeWithTag("terminal-log").performTouchInput { swipeUp() }
+                    onNodeWithTag("terminal-log").performTouchInput { swipeUp(endY = top - 300f) }
             }
             onNodeWithTag("softkey-R6").assertIsSelected() // Returning to bottom restores Follow.
             runBlocking { f.transport.emit("[LINE:after-bottom]\n") }
