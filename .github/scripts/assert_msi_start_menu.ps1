@@ -94,3 +94,33 @@ try {
 finally {
     $shortcutView.Close()
 }
+
+# The native installer must carry the project and third-party legal notices.
+$filenames = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::OrdinalIgnoreCase
+)
+$fileView = $database.OpenView("SELECT FileName FROM File")
+try {
+    $fileView.Execute()
+    while ($record = $fileView.Fetch()) {
+        $filename = ($record.StringData(1) -split '[|]')[-1]
+        [void]$filenames.Add($filename)
+    }
+}
+finally {
+    $fileView.Close()
+}
+foreach ($required in @(
+    "THIRD_PARTY_NOTICES.txt",
+    "APACHE-2.0.txt",
+    "LGPL-3.0.txt",
+    "GPL-3.0.txt",
+    "OFL-1.1.txt",
+    "SKIA.txt",
+    "JSERIALCOMM_NOTICE.txt"
+)) {
+    if (-not $filenames.Contains($required)) {
+        throw "MSI is missing required legal resource: $required"
+    }
+    Write-Host "Verified MSI legal resource: $required"
+}

@@ -1,0 +1,51 @@
+GRBL Commander — License and third-party notices
+==================================================
+
+Required Notice: Copyright 2026 Stig-Rune Skansgård.
+
+The original GRBL Commander application is licensed under PolyForm
+Noncommercial License 1.0.0:
+https://polyformproject.org/licenses/noncommercial/1.0.0/
+
+That license does not replace the separate licenses of third-party
+libraries, fonts, native components, or the bundled Java runtime.
+
+Principal runtime components
+----------------------------
+
+* Kotlin standard library — Apache License 2.0
+  https://github.com/JetBrains/kotlin
+* Kotlin Coroutines — Apache License 2.0
+  https://github.com/Kotlin/kotlinx.coroutines
+* Compose Multiplatform (Desktop, Material 3, resources) and AndroidX
+  Compose components — Apache License 2.0
+  https://github.com/JetBrains/compose-multiplatform
+  https://android.googlesource.com/platform/frameworks/support/
+* Skiko — Apache License 2.0
+  https://github.com/JetBrains/skiko
+* Skia — BSD-style license; see licenses/SKIA.txt
+  https://github.com/google/skia
+* jSerialComm 2.11.2 — dual-licensed: Apache License 2.0 OR LGPL 3.0+
+  GRBL Commander uses the Apache License 2.0 option.
+  Copyright (C) 2012-2022 Fazecast, Inc.
+  https://github.com/Fazecast/jSerialComm/tree/v2.11.2
+* Noto Sans font assets supplied through Compose where included — SIL
+  Open Font License 1.1. Copyright 2012 Google Inc.
+  https://github.com/JetBrains/compose-multiplatform
+
+The corresponding third-party license texts are bundled under licenses/.
+The GNU (L)GPL copies are provided for jSerialComm's alternative license,
+not as the license selected by GRBL Commander for jSerialComm.
+
+Java runtime
+------------
+
+Native installers bundle a Java 21 runtime generated from the JDK used
+by the packaging job (Eclipse Temurin in release CI). Its OpenJDK code
+is licensed under GPLv2 with the Classpath Exception, with additional
+notices and terms included in the bundled runtime's legal/ directory.
+These runtime terms do not place GRBL Commander's original code under
+the GPL. See https://adoptium.net/docs/faq/.
+
+This document covers the principal identified runtime components and
+does not replace any applicable notices contained in their distributions.
