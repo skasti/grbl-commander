@@ -83,11 +83,12 @@ F4 Follow jumps to the newest retained entry; new traffic preserves manual scrol
 The prompt prefix and editable text share typography and alignment inside a single
 touch-friendly input field.
 
-Cycle Start is deliberately limited to a fresh `Hold:0` while an application-owned
-manual line still awaits acknowledgment. Acknowledged or externally started work
-has no proven owner and cannot be resumed here; broader operation coordination
-is planned. Stale, busy, unsynchronized and disconnected states prevent manual
-submission, while permitted realtime controls remain independent.
+Cycle Start is available with a fresh synchronized `Idle` or completed `Hold:0`
+report, independent of whether a command still awaits acknowledgment. An explicit
+press sends `~` once; acknowledged motion can be resumed after Feed Hold.
+Run, decelerating `Hold:1`, Jog, Door, alarm, reset boundaries and stale/unknown or
+disconnected status prevent Cycle Start. Normal command admission remains separate;
+no motion is automatically resumed or replayed.
 
 **R7 Connection** opens the connection form; there, **R7 Terminal** returns to the
 same terminal state. Terminal has no redundant button selecting itself. This right

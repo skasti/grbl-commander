@@ -431,10 +431,11 @@ filter menu, list and prompt. History/copy actions expose reactive enabled state
 Realtime and paging actions opt out of keyboard repeat; realtime requests
 reserve separate in-flight slots. Reset confirmation warns about interrupting
 work and invalidating
-pending commands. Core enforces manual command admission and Cycle Start ownership;
-a fresh `Hold:0` is insufficient without a still-pending application-owned line.
-Resume after acknowledgment and broader program ownership require future operation
-coordination. The `>` prefix and editable line share font metrics and vertical
+pending commands. Core enforces manual command admission separately from Cycle
+Start. F2 is available for a fresh synchronized `Idle` or completed `Hold:0`,
+including after command acknowledgment. It is disabled during Run, Hold:1,
+Jog, Door, alarm, reset and stale/unknown/disconnected status. Explicit activation
+sends one realtime `~`; it never automatically resumes or resubmits a command. The `>` prefix and editable line share font metrics and vertical
 alignment inside the field decoration; the entire 48 dp prompt is a focus target.
 
 ### Connection form

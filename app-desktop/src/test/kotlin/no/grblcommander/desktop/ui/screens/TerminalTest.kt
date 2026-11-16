@@ -163,7 +163,8 @@ class TerminalTest {
             f.transport.drainWrites()
             onNodeWithTag("softkey-F1").performClick()
             assertEquals("!", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
-            onNodeWithTag("softkey-F2").assertIsNotEnabled()
+            onNodeWithTag("softkey-F2").assertIsEnabled().performClick()
+            assertEquals("~", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
             onNodeWithTag("softkey-F3").performClick()
             onNodeWithText("Reset controller?").assertExists()
             onNodeWithTag("softkey-F8").performClick()
@@ -173,6 +174,42 @@ class TerminalTest {
             assertEquals("\u0018", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
             waitUntil(timeoutMillis = 5_000) { !f.owner.state.value.snapshot.resetInProgress }
             runOnIdle { assertSame(f.terminal, f.util.top) }
+        }
+    }
+
+    @Test fun `Cycle Start is restored after acknowledged motion reaches completed feed hold`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            onNodeWithTag("softkey-F2").assertIsEnabled()
+            onNodeWithTag("terminal-prompt").performTextInput("G1 X100 F100")
+            onNodeWithTag("terminal-prompt").performKeyInput { pressKey(Key.Enter) }
+            assertEquals("G1 X100 F100\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            runBlocking { f.transport.emit("ok\n") }
+            waitUntil(timeoutMillis = 5_000) { !f.owner.state.value.manualCommandPending }
+            f.transport.statusReport = "<Run|MPos:1,0,0>"
+            runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
+            waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Run" }
+            waitUntil(timeoutMillis = 5_000) {
+                runCatching { onNodeWithTag("softkey-F2").assertIsNotEnabled() }.isSuccess
+            }
+            onNodeWithTag("softkey-F2").assertIsNotEnabled()
+            onNodeWithTag("softkey-F1").performClick()
+            assertEquals("!", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            f.transport.statusReport = "<Hold:1|MPos:2,0,0>"
+            runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
+            waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Hold:1" }
+            waitUntil(timeoutMillis = 5_000) {
+                runCatching { onNodeWithTag("softkey-F2").assertIsNotEnabled() }.isSuccess
+            }
+            onNodeWithTag("softkey-F2").assertIsNotEnabled()
+            f.transport.statusReport = "<Hold:0|MPos:3,0,0>"
+            runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
+            waitUntil(timeoutMillis = 5_000) {
+                runCatching { onNodeWithTag("softkey-F2").assertIsEnabled() }.isSuccess
+            }
+            onNodeWithTag("softkey-F2").assertIsEnabled().performClick()
+            assertEquals("~", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            assertTrue(f.transport.drainWrites().all { it == "?" })
         }
     }
 

@@ -395,13 +395,17 @@ fresh connected, synchronized Idle/Alarm/Check report, no reset boundary and no
 other pending manual command; the session remains the final protocol/alarm gate.
 This prevents normal terminal commands during externally running work. The slot
 ends on acknowledgment or failure, never represents completed physical motion and
-is not transferred across sessions. `sendRealtime(CYCLE_START)` rechecks a fresh
-`Hold:0`, synchronization, reset/alarm state and ownership of a still-pending
-manual line with an observed transport handoff. Missing diagnostic evidence
-conservatively leaves Cycle Start disabled. Idle cannot start arbitrary work. Acknowledged or externally started
-operations have no proven application owner and cannot be resumed by this limited
-contract. Program execution and broader operation coordination remain planned.
-Status, Feed Hold and Reset remain independent of normal-command admission.
+is not transferred across sessions. `sendRealtime(CYCLE_START)` independently
+rechecks a fresh synchronized `Idle` or `Hold:0` report, with no alarm, closing
+connection or reset boundary. The same predicate drives the terminal softkey.
+Acknowledgment is not motion completion: explicit Cycle Start can resume a
+completed Feed Hold even after the line's acknowledgment or for externally initiated
+work. It sends one realtime `~`, without resubmitting a command or predicting
+execution state. Run, Hold:1 (deceleration), Jog, Door, Alarm, missing/unrecognized
+status and stale/disconnected reports are rejected. No diagnostic handoff or
+pending-line ownership is required for this operator action. Program execution
+and broader operation coordination remain planned. Status, Feed Hold and Reset
+remain independent of normal-command admission.
 
 Both header and form read the same authoritative owner state. A presentation clock
 marks retained reports stale after three seconds, even without a new state emission;
@@ -636,8 +640,8 @@ state. The window icon and header show the supplied app logo. Softkey slots
 render screen-owned labels/icons, reactive enabled/active state, and safe
 in-memory navigation actions. Pointer and keyboard input share guarded slot
 activation. DRO and Program/Manual/MDI execution workflows are not implemented. A shared core-owned connection coordinates `:infrastructure`; the
-header observes its real health and report freshness. It starts disconnected;
-Util owns explicit connection settings/actions. The shared slot layout is described
+header observes its real health and report freshness. Core attempts a valid saved
+endpoint once after UI readiness; Util owns explicit connection settings/actions. The shared slot layout is described
 in [UI layout](ui-layout.md).
 
 ### Screen navigation contract
