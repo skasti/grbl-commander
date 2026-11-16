@@ -326,7 +326,15 @@ devices absent from discovery.
 from the active session endpoint and a screen's unsaved draft. Its load/save
 workflows serialize configuration access, validate loaded/edited values and
 publish configuration after a successful read/write. Loading occurs through the
-core operation when the form opens; startup never connects an endpoint.
+core operation at application startup and when the form opens. Main owns connection
+and settings above screen lifetimes, launches `initialize()` and cancels/joins its
+application scope at shutdown. `CommanderApp` signals `onUiReady()` after composition.
+Core initialization loads configuration and asynchronously attempts a valid saved
+endpoint at most once. Missing/invalid data skips connection. Manual actions cancel
+pending initialization; direct connection lifecycle intentions also prevent delayed
+automatic replacement. Automatic/manual attempts share the connection lifecycle lock.
+There is no retry, reset, unlock or automatic navigation. Startup failure updates
+core connection state and the header only; settings can inspect its details.
 Connect validates and awaits handshake before persisting its endpoint inside
 core; presentation invokes user intentions and never performs this internal save.
 

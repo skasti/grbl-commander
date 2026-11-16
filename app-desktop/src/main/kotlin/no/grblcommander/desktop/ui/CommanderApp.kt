@@ -8,6 +8,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +40,7 @@ private enum class OperatorMode(val label: String) {
 
 @Composable
 fun CommanderApp(connection: ControllerConnection, settings: ControllerSettings) {
+    LaunchedEffect(settings) { settings.onUiReady() }
     val connectionState by connection.state.collectAsState()
     val now = rememberCurrentTime()
     // Each application window owns one persistent ScreenStack for each UI mode.

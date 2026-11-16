@@ -3,6 +3,11 @@ package no.grblcommander.core.connection
 import java.time.Instant
 import java.util.UUID
 import java.util.prefs.Preferences
+import java.util.prefs.AbstractPreferences
+import java.util.concurrent.CountDownLatch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
@@ -111,6 +116,149 @@ class ControllerSettingsTest {
         assertEquals(MachineSnapshot.Connection.FAILED, connection.state.value.snapshot.connection)
         assertEquals(draft, settings.load())
         assertTrue(transports.all { it.closed })
+    }
+
+    @Test fun `startup waits for UI and connects saved endpoint only once`() = fixture {
+        preferences.save(ControllerEndpointRecord.encode(draft.endpoint()))
+        val startup = scope.async { settings.initialize() }
+        settings.configuration.first { it != null }
+        assertTrue(transports.isEmpty())
+        settings.onUiReady()
+        startup.await()
+        assertEquals(MachineSnapshot.Connection.CONNECTED, connection.state.value.snapshot.connection)
+        settings.onUiReady()
+        settings.initialize()
+        assertEquals(1, transports.size)
+    }
+
+    @Test fun `missing and invalid startup configuration never creates a session`() = fixture {
+        settings.onUiReady()
+        settings.initialize()
+        assertTrue(transports.isEmpty())
+        node.put("endpoint", "version=1\ntransport=TCP\nhost=localhost\nport=0")
+        ControllerSettings(connection, preferences).apply { onUiReady(); initialize() }
+        assertTrue(transports.isEmpty())
+    }
+
+    @Test fun `startup failure retains details without retry or additional commands`() = fixture {
+        preferences.save(ControllerEndpointRecord.encode(draft.endpoint()))
+        autoStatus = false
+        settings.onUiReady()
+        runCatching { settings.initialize() }
+        assertEquals(MachineSnapshot.Connection.FAILED, connection.state.value.snapshot.connection)
+        assertNotNull(connection.state.value.snapshot.failure)
+        settings.initialize()
+        assertEquals(1, transports.size)
+        assertTrue(transports.single().drainWrites().all { it == "?" })
+    }
+
+    @Test fun `manual operation before UI readiness suppresses startup`() = fixture {
+        preferences.save(ControllerEndpointRecord.encode(draft.endpoint()))
+        val startup = scope.async { settings.initialize() }
+        settings.configuration.first { it != null }
+        settings.connect(draft.copy(tcpPort = "5555"))
+        settings.onUiReady()
+        startup.join()
+        settings.initialize()
+        assertEquals(1, transports.size)
+        assertEquals(5555, (connection.state.value.endpoint as ControllerEndpoint.Tcp).port)
+    }
+
+    @Test fun `manual disconnect cancels automatic handshake without competing connection`() = fixture {
+        preferences.save(ControllerEndpointRecord.encode(draft.endpoint()))
+        autoStatus = false
+        settings.onUiReady()
+        val startup = scope.async { settings.initialize() }
+        connection.state.first { it.snapshot.connection == MachineSnapshot.Connection.CONNECTING }
+        settings.disconnect(interruptionConfirmed = true)
+        startup.join()
+        settings.initialize()
+        assertEquals(1, transports.size)
+        assertTrue(transports.single().closed)
+        assertEquals(MachineSnapshot.Connection.DISCONNECTED, connection.state.value.snapshot.connection)
+    }
+
+    @Test fun `direct manual lifecycle intent prevents delayed automatic connection`() = fixture {
+        preferences.save(ControllerEndpointRecord.encode(draft.endpoint()))
+        val startup = scope.async { settings.initialize() }
+        settings.configuration.first { it != null }
+        connection.disconnect()
+        settings.onUiReady()
+        startup.await()
+        assertTrue(transports.isEmpty())
+        assertEquals(MachineSnapshot.Connection.DISCONNECTED, connection.state.value.snapshot.connection)
+    }
+
+    @Test fun `startup storage and session creation failures remain observable without escaping`() = fixture {
+        val removed = node.node("removed")
+        removed.removeNode()
+        ControllerSettings(connection, ControllerEndpointPreferences(removed)).apply { onUiReady(); initialize() }
+        assertEquals(MachineSnapshot.Connection.FAILED, connection.state.value.snapshot.connection)
+        assertNotNull(connection.state.value.snapshot.failure)
+        assertTrue(transports.isEmpty())
+
+        preferences.save(ControllerEndpointRecord.encode(draft.endpoint()))
+        var attempts = 0
+        val failing = ControllerConnection(scope, { _, _ -> attempts++; error("Endpoint unavailable") })
+        try {
+            val startup = ControllerSettings(failing, preferences)
+            startup.onUiReady()
+            startup.initialize()
+            startup.initialize()
+            assertEquals(1, attempts)
+            assertEquals("Endpoint unavailable", failing.state.value.snapshot.failure)
+            assertEquals(draft.endpoint(), failing.state.value.endpoint)
+        } finally { failing.close(); failing.awaitClosed() }
+    }
+
+    @Test fun `manual disconnect during configuration IO suppresses delayed startup`() = fixture {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val record = ControllerEndpointRecord.encode(draft.endpoint())
+        val blockedPreferences = object : AbstractPreferences(null, "") {
+            override fun getSpi(key: String): String? {
+                entered.countDown()
+                check(release.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                return record
+            }
+            override fun putSpi(key: String, value: String) = Unit
+            override fun removeSpi(key: String) = Unit
+            override fun removeNodeSpi() = Unit
+            override fun keysSpi() = arrayOf("endpoint")
+            override fun childrenNamesSpi() = emptyArray<String>()
+            override fun childSpi(name: String): AbstractPreferences = error("No children")
+            override fun syncSpi() = Unit
+            override fun flushSpi() = Unit
+        }
+        val startupSettings = ControllerSettings(connection, ControllerEndpointPreferences(blockedPreferences))
+        startupSettings.onUiReady()
+        val startup = scope.async { startupSettings.initialize() }
+        try {
+            withContext(Dispatchers.IO) { check(entered.await(5, java.util.concurrent.TimeUnit.SECONDS)) }
+            val manual = scope.async(start = CoroutineStart.UNDISPATCHED) { startupSettings.disconnect() }
+            release.countDown()
+            manual.await()
+            startup.join()
+            assertTrue(transports.isEmpty())
+            assertEquals(MachineSnapshot.Connection.DISCONNECTED, connection.state.value.snapshot.connection)
+        } finally { release.countDown(); startup.cancelAndJoin() }
+    }
+
+    @Test fun `direct manual connect replaces automatic handshake and cannot be overwritten by its cleanup`() = fixture {
+        preferences.save(ControllerEndpointRecord.encode(draft.endpoint()))
+        autoStatus = false
+        settings.onUiReady()
+        val startup = scope.async { settings.initialize() }
+        connection.state.first { it.snapshot.connection == MachineSnapshot.Connection.CONNECTING }
+        autoStatus = true
+        val manualEndpoint = draft.copy(tcpPort = "5555").endpoint()
+        connection.connect(manualEndpoint)
+        startup.join()
+        assertEquals(2, transports.size)
+        assertTrue(transports.first().closed)
+        assertFalse(transports.last().closed)
+        assertEquals(manualEndpoint, connection.state.value.endpoint)
+        assertEquals(MachineSnapshot.Connection.CONNECTED, connection.state.value.snapshot.connection)
     }
 
     @Test fun `freshness expires without a new state emission and disconnect invalidates retained report`() {

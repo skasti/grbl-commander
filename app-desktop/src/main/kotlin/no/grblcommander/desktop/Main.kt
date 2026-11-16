@@ -7,6 +7,8 @@ import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import no.grblcommander.core.connection.ControllerConnection
@@ -17,9 +19,11 @@ import no.grblcommander.desktop.ui.CommanderApp
 import org.jetbrains.compose.resources.painterResource
 
 fun main() {
-    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val applicationJob = SupervisorJob()
+    val scope = CoroutineScope(applicationJob + Dispatchers.Default)
     val connection = ControllerConnection(scope)
     val settings = ControllerSettings(connection)
+    scope.launch(start = CoroutineStart.UNDISPATCHED) { settings.initialize() }
     try {
         application {
             Window(
@@ -32,8 +36,8 @@ fun main() {
             }
         }
     } finally {
-        connection.close()
-        runBlocking { connection.awaitClosed() }
         scope.cancel()
+        connection.close()
+        runBlocking { connection.awaitClosed(); applicationJob.join() }
     }
 }

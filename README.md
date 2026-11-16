@@ -49,8 +49,10 @@ production transport from a typed endpoint and creates a fresh session per
 explicit connection. All retained modes share this owner; the header observes
 its actual health. Save and Connect remain explicit user intentions, while core
 performs validation and Connect's subsequent persistence internally. Screens
-never instantiate sessions, transports or preferences adapters. No endpoint is
-selected or connected automatically.
+never instantiate sessions, transports or preferences adapters. Core loads saved configuration during startup and attempts a valid saved endpoint
+once after the UI signals readiness. The asynchronous attempt shares lifecycle
+coordination with manual actions; no retry occurs. Failure appears only in the
+header status; details remain available in Connection settings.
 
 Select **⚙ Util** to open the live Terminal. Its unified console combines a
 virtualized monospaced traffic log and an editable prompt. Enter (including the
@@ -116,7 +118,7 @@ Confirmation does not stop physical motion or replay commands.
 Close cancels an unfinished form action; it does not disconnect a completed session.
 Storage errors are displayed separately from actual connection health. Settings
 load when opening the form; missing/corrupt/incomplete records use blank endpoint
-fields and normal serial defaults. The application never automatically connects or retries connection attempts.
+fields and normal serial defaults. Startup attempts a valid saved endpoint once, after UI readiness; it never retries.
 
 The screen shows the actual endpoint and lifecycle state. Deliberate Disconnect
 clears the displayed connection error and shows a neutral note that machine state

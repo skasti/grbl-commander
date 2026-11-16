@@ -353,6 +353,12 @@ destination, not selected-screen or connection-health indicators. Terminal has n
 self-selection key. Switching modes restores an open settings screen. Settings
 replaces both banks and never inherits Terminal filters or realtime actions.
 
+Startup uses the saved valid endpoint once after UI readiness. The connection
+attempt is asynchronous and cannot navigate, open a modal or toast, or show a
+workspace error. Failure changes the existing header connection indicator;
+Connection settings expose the retained core failure details. Manual actions
+supersede pending startup, and no automatic retry occurs.
+
 ### Terminal console
 
 The workspace has compact endpoint/controller status, a dark virtualized monospaced

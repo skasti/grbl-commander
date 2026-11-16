@@ -85,15 +85,32 @@ class ControllerConnection(
 
     init { owner.invokeOnCompletion { close() } }
 
+    private var manualLifecycleIntent = 0L
+
+    /** Startup shares the ordinary lifecycle lock and never replaces a manual operation. */
+    internal suspend fun connectAtStartup(endpoint: ControllerEndpoint) = connect(endpoint, automatic = true)
+
+    internal fun startupFailed(error: Throwable) = synchronized(gate) {
+        if (!closed && manualLifecycleIntent == 0L) mutableState.value = state.value.copy(
+            snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.FAILED,
+                failure = error.message ?: error.javaClass.simpleName, normalCommandsSynchronized = false),
+        )
+    }
+
     /** Explicit connect/switch; the old one-shot session is fully disposed before creating another. */
-    suspend fun connect(endpoint: ControllerEndpoint) {
+    suspend fun connect(endpoint: ControllerEndpoint) = connect(endpoint, automatic = false)
+
+    private suspend fun connect(endpoint: ControllerEndpoint, automatic: Boolean) {
+        if (!automatic) synchronized(gate) { manualLifecycleIntent++ }
         val entry = lifecycle.withLock {
+            if (automatic && synchronized(gate) { manualLifecycleIntent != 0L || active != null }) return
             checkOpen()
             currentCoroutineContext().ensureActive()
             stopActive()
             currentCoroutineContext().ensureActive()
             synchronized(gate) {
                 checkOpen()
+                if (automatic && manualLifecycleIntent != 0L) return
                 val session = try { sessionFactory(endpoint, scope) } catch (error: Throwable) {
                     mutableState.value = ControllerConnectionState(endpoint, MachineSnapshot(
                         connection = MachineSnapshot.Connection.FAILED, failure = error.message,
@@ -174,22 +191,28 @@ class ControllerConnection(
     }
 
     /** Choose another endpoint without opening it. There is no automatic reconnect. */
-    suspend fun reconfigure(endpoint: ControllerEndpoint) = lifecycle.withLock {
-        checkOpen()
-        currentCoroutineContext().ensureActive()
-        stopActive()
-        currentCoroutineContext().ensureActive()
-        synchronized(gate) { checkOpen(); mutableState.value = ControllerConnectionState(endpoint) }
+    suspend fun reconfigure(endpoint: ControllerEndpoint) {
+        synchronized(gate) { manualLifecycleIntent++ }
+        lifecycle.withLock {
+            checkOpen()
+            currentCoroutineContext().ensureActive()
+            stopActive()
+            currentCoroutineContext().ensureActive()
+            synchronized(gate) { checkOpen(); mutableState.value = ControllerConnectionState(endpoint) }
+        }
     }
 
-    suspend fun disconnect() = lifecycle.withLock {
-        checkOpen()
-        currentCoroutineContext().ensureActive()
-        stopActive()
-        synchronized(gate) {
-            if (!closed) mutableState.value = state.value.copy(
-                snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.DISCONNECTED, failure = null), closing = false,
-            )
+    suspend fun disconnect() {
+        synchronized(gate) { manualLifecycleIntent++ }
+        lifecycle.withLock {
+            checkOpen()
+            currentCoroutineContext().ensureActive()
+            stopActive()
+            synchronized(gate) {
+                if (!closed) mutableState.value = state.value.copy(
+                    snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.DISCONNECTED, failure = null), closing = false,
+                )
+            }
         }
     }
 
