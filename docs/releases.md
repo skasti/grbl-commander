@@ -27,6 +27,14 @@ The Release workflow builds and tests the application on each supported OS using
 | Ubuntu Linux | `.deb` and `.rpm` |
 | Windows | `.msi` |
 
+The application's PolyForm Noncommercial License 1.0.0 is supplied to
+jpackage through `nativeDistributions.licenseFile`. The same packaging
+configuration includes the `app-desktop/packaging/common/` directory in
+each native installer, containing the project copyright notice, principal
+third-party attributions and their license texts. The bundled Java runtime
+retains its own legal notices. These are separate from the GRBL Commander
+license and remain governed by their respective terms.
+
 Native packaging must run on its corresponding operating system. Packages include a
 Java runtime. The Windows MSI adds a launcher in the **GRBL Commander** Start
 menu group; it does not add a desktop shortcut. The Windows native launcher and
