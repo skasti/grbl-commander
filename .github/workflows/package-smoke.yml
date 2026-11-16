@@ -60,7 +60,7 @@ jobs:
           for notice in THIRD_PARTY_NOTICES.txt APACHE-2.0.txt LGPL-3.0.txt GPL-3.0.txt OFL-1.1.txt SKIA.txt JSERIALCOMM_NOTICE.txt; do
             grep -Fq "$notice" <<< "$debContents"
             grep -Fq "$notice" <<< "$rpmContents"
-            printf 'Verified Linux legal resource: %s\\n' "$notice"
+            echo "Verified Linux legal resource: $notice"
           done
       - name: Verify Windows MSI contains Start menu shortcut
         if: runner.os == 'Windows'
