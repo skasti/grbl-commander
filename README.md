@@ -11,6 +11,29 @@ While it is not necessarily easy to use or intuitive for users who are not
 familiar with CNC controllers, it is designed to be a powerful tool for those
 who are.
 
+## License and commercial use
+
+GRBL Commander is **source-available** under the
+[PolyForm Noncommercial License 1.0.0](LICENSE.md). Personal hobby use,
+study, experimentation, modification, and noncommercial redistribution are
+permitted under its terms. The license also explicitly permits use by
+specified educational, charitable, research, public-sector and similar
+organizations.
+
+**Commercial use requires prior permission from the maintainer**, including
+internal use in a commercial workshop even when the software itself is not
+resold. Permission may be granted without a fee, especially to organizations
+that support development, testing, documentation or maintenance. Contributions
+do not automatically grant commercial-use rights; please contact the
+maintainer to agree on the permission separately.
+
+Required Notice: Copyright 2026 Stig-Rune Skansgård.
+
+Bundled third-party software retains its own licenses; see
+[third-party notices](app-desktop/packaging/common/THIRD_PARTY_NOTICES.txt).
+This is a noncommercial software license, not an OSI-approved open-source
+license.
+
 ## Desktop shell
 
 The desktop application uses Kotlin/JVM and Compose Multiplatform Desktop. The
