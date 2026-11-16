@@ -248,6 +248,17 @@ changes the effective definition; changes to predicate results do not require
 rebuilding definitions. An inactive mode's stack can be inspected but cannot
 receive events through the shell's current-stack activation path.
 
+### Softkey pages
+
+`SoftKeyPages<S>` holds the selected page for one screen-owned bank. Screens expose
+its observable `keys` through their existing `bottomKeys` or `rightKeys` getter;
+stack resolution, inheritance and guarded activation remain unchanged. Common keys
+keep their slots and reactive definitions on every page. The reserved Next page
+slot (F8 for the bottom bank, R7 for the right bank) shows the current page count
+and wraps from the last page to the first. A single page has no paging button.
+Next page ignores keyboard repeat. Each screen and bank retains independent page
+state; covered or inactive screens never contribute actions without inheritance.
+
 ### Screen-owned typed results
 
 The editor's file selection uses the actual `FileExplorer` screen, without a
