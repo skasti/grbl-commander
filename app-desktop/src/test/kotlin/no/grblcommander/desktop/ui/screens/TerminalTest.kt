@@ -95,13 +95,27 @@ class TerminalTest {
         }
     }
 
-    @Test fun `filters navigation and inactive input preserve terminal while history keeps receiving`() = runComposeUiTest {
+    @Test fun `bottom Filters restores the selected page and R7 navigation preserves menu and input`() = runComposeUiTest {
         Fixture().use { f ->
             f.connect(); host(f)
             onNodeWithTag("terminal-prompt").performClick().performTextInput("unsent")
-            onNodeWithTag("softkey-R1").performClick() // Filters replaces the right bank only.
-            onNodeWithTag("softkey-R1").assertIsNotSelected().performClick().assertIsSelected()
             onNodeWithTag("softkey-F4").assertIsSelected().performClick().assertIsNotSelected()
+            onNodeWithTag("softkey-F8").performClick() // Utilities page.
+            runOnIdle {
+                assertNotNull(f.util.softKeyDefinition(BottomSoftKeySlot.F7)!!.icon)
+                assertEquals("Filters", f.util.softKeyDefinition(BottomSoftKeySlot.F7)!!.label)
+                assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F5))
+                assertEquals(setOf(RightSoftKeySlot.R7), f.util.effectiveRightKeys.keys)
+            }
+            onNodeWithTag("softkey-F7").performClick()
+            onNodeWithTag("softkey-F1").assertIsNotSelected().performClick().assertIsSelected()
+            runOnIdle {
+                assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F8))
+                assertFalse(activateSoftKey({ f.util }, BottomSoftKeySlot.F8))
+            }
+            onNodeWithTag("softkey-F3").performClick() // OK filter, never Reset.
+            onNodeWithText("Reset controller?").assertDoesNotExist()
+            assertTrue(f.transport.drainWrites().all { it == "?" }) // No realtime action leaked.
             runOnIdle { f.active = f.other }
             onNodeWithTag("terminal-prompt").assertDoesNotExist()
             onNodeWithText("Unsent text").performClick().performTextInput("G0 X999")
@@ -111,23 +125,27 @@ class TerminalTest {
             waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[EXT:299]" } }
             runOnIdle { f.active = f.util }
             onNodeWithTag("terminal-prompt").assertPromptText("unsent")
-            onNodeWithTag("softkey-R1").assertIsSelected()
-            onNodeWithTag("softkey-F4").assertIsNotSelected()
-            onNodeWithTag("softkey-R7").performClick() // Back restores the normal bank.
-            onNodeWithText("Filters").assertExists()
-            onNodeWithText("🔄\nShow all").assertDoesNotExist()
-            onNodeWithTag("softkey-F8").performClick() // Utility page.
-            onNodeWithTag("softkey-F5").performClick()
+            onNodeWithTag("softkey-F1").assertIsSelected() // Filter bank survived the mode switch.
+            onNodeWithTag("softkey-R7").performClick()
             runOnIdle {
                 assertIs<ControllerConnectionSettings>(f.util.top)
-                assertTrue(f.util.effectiveRightKeys.isEmpty())
+                assertEquals(setOf(RightSoftKeySlot.R7), f.util.effectiveRightKeys.keys)
+                assertEquals("⌨\nTerminal", f.util.softKeyDefinition(RightSoftKeySlot.R7)!!.label)
                 assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F6))
+                assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F7))
             }
-            onNodeWithTag("softkey-F7").performClick()
+            onNodeWithTag("softkey-R7").performClick()
             onNodeWithTag("terminal-prompt").assertPromptText("unsent")
-            onNodeWithText("Previous\ncommand").assertExists() // Page survived settings.
+            onNodeWithTag("softkey-F1").assertIsSelected() // Settings restores the filter menu too.
+            onNodeWithTag("softkey-F7").performClick() // Back to the same utilities page.
+            onNodeWithText("Previous\ncommand").assertExists()
+            onNodeWithText("Filters").assertExists()
+            onNodeWithText("🔄\nShow all").assertDoesNotExist()
             onNodeWithTag("softkey-F4").performClick()
             runOnIdle { assertTrue(f.owner.history.value.isNotEmpty()); assertEquals("unsent", f.terminal.prompt.text) }
+            onNodeWithTag("softkey-F8").performClick() // Wrap to realtime page.
+            onNodeWithTag("softkey-F4").assertIsNotSelected()
+            onNodeWithText("⌨\nTerminal").assertDoesNotExist()
         }
     }
 

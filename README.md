@@ -63,9 +63,10 @@ and use Copy selected text or the normal keyboard copy action. Selection is per
 entry; cross-entry selection/export is not implemented.
 
 The terminal has no workspace action buttons or explicit Status key. Its shared
-connection polls status automatically every 500 ms. R1 **Filters** replaces the
-right bank with Status RX, Poll TX, OK, Info, Errors and Time toggles; R7 **Back**
-restores the ordinary bank. Status/poll traffic starts hidden; ordinary commands,
+connection polls status automatically every 500 ms. F7 **Filters**, with a funnel
+icon, replaces the bottom bank with Status RX, Poll TX, OK, Info, Errors and Time
+on F1–F6; F7 **Back** restores the selected bottom page. Status/poll traffic starts
+hidden; ordinary commands,
 acknowledgments, messages, errors and alarms start visible. Filters and Clear view
 change presentation only. The console displays lost/evicted history counts.
 
@@ -82,13 +83,14 @@ has no proven owner and cannot be resumed here; broader operation coordination
 is planned. Stale, busy, unsynchronized and disconnected states prevent manual
 submission, while permitted realtime controls remain independent.
 
-**F5 Connection** opens the connection form and **F7 Terminal** selects the root.
-These positions stay fixed on both terminal pages and in settings; F5 highlights
-the settings view. F6 is unassigned. Terminal pages and the filter menu survive
-mode changes and visits to settings. Settings and confirmations replace covered
-terminal actions. Connection health and machine/alarm observations remain in the
-shared header. Switching modes retains an open form and never disconnects the
-shared session.
+**R7 Connection** opens the connection form; there, **R7 Terminal** returns to the
+same terminal state. Terminal has no redundant button selecting itself. This right
+navigation action remains available while the bottom filter menu is open. F5 and
+F6 are unassigned on the ordinary terminal pages. Terminal pages and the filter
+menu survive mode changes and visits to settings. Settings and confirmations
+replace covered terminal actions. Connection health and machine/alarm observations
+remain in the shared header. Switching modes retains an open form and never
+disconnects the shared session.
 
 Enter a TCP host/IP and its configured port (no fixed port is assumed), or refresh
 the optional serial-port list and/or enter a device manually. Serial defaults are

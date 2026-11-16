@@ -346,17 +346,18 @@ header indicator, with the current endpoint in the header context. No settings
 screen is pushed onto Program, Manual or MDI stacks.
 
 Util owns one persistent `ScreenStack(Terminal(...))`. Terminal is visible on first
-entry. F7 **⌨ Terminal** selects the root; F5 **🔗 Connection** opens
-`ControllerConnectionSettings` above it with an explicit parent. These navigation
-positions remain stable on both screens and indicate selected view independently of machine
-health. F6 is unassigned (reserved for Overrides). Switching modes restores an
-open settings screen; F7 explicitly returns to Terminal. Settings replaces both
-banks and never inherits Terminal filters or realtime actions.
+entry. Its R7 **🔗 Connection** opens `ControllerConnectionSettings` above it with
+an explicit parent. The form replaces this key with R7 **⌨ Terminal**, which
+returns to the same root state. These are navigation actions labelled for their
+destination, not selected-screen or connection-health indicators. Terminal has no
+self-selection key. Switching modes restores an open settings screen. Settings
+replaces both banks and never inherits Terminal filters or realtime actions.
 
 ### Terminal console
 
 The workspace has compact endpoint/controller status, a dark virtualized monospaced
-output region and an editable `>` prompt inside the same console surface. Output entries distinguish TX, RX, category,
+output region and an editable `>` prompt inside the same console surface. Output
+entries distinguish TX, RX, category,
 timestamps and failed/uncertain handoffs. Original unfamiliar text is retained;
 control characters are escaped. Selection and copying are supported within one
 output entry; selection spanning multiple lazy entries is not implemented.
@@ -371,20 +372,22 @@ unchanged line after acknowledgment, without claiming motion completion. Up/Down
 and the second bottom-softkey page browse up to 100 recent submitted commands
 and restore the unsent draft. Nothing persists command history.
 
-The ordinary right bank offers R1 **Filters**. Activating it replaces only that
-bank with the contextual filter menu; R7 **Back** restores the preceding bank.
-The bottom page, prompt, scrollback and filter values are unchanged. There is no
-Show all action and no filter buttons in the workspace.
+F7 **Filters**, with a funnel icon, replaces the current bottom bank with a
+contextual filter menu. F7 **↩ Back** restores the previously selected bottom
+page. Paging is unavailable while filtering; R7 Connection remains available.
+Input, scrollback and filter values are unchanged. There is no Show all action
+and no filter buttons in the workspace.
 
-| Right slot in Filters | Filter/action | Initially visible |
+| Bottom slot in Filters | Filter/action | Initially visible |
 | --- | --- | --- |
-| R1 | Status RX | No |
-| R2 | Poll TX | No |
-| R3 | OK | Yes |
-| R4 | Info and startup | Yes |
-| R5 | Errors and alarms | Yes |
-| R6 | Time | Yes |
-| R7 | Back | Restores ordinary keys |
+| F1 | Status RX | No |
+| F2 | Poll TX | No |
+| F3 | OK | Yes |
+| F4 | Info and startup | Yes |
+| F5 | Errors and alarms | Yes |
+| F6 | Time | Yes |
+| F7 | Back | Restores the selected ordinary page |
+| F8 | Unassigned | No paging behind the menu |
 
 Active filters mean visible. Normal/realtime commands always remain visible.
 Filtering is category-based and affects neither session processing nor shared
@@ -392,9 +395,10 @@ alarm/connection indicators. Clear view records a local history boundary; it nev
 clears session state, pending commands or the shared history. A visible counter
 separates evicted entries from events missed by the history consumer.
 
-F8 **Next page** cycles between two bottom pages, with a page indicator. F5
-Connection and F7 Terminal remain fixed on both pages and the settings screen.
-F6 is unassigned. The terminal workspace has no action toolbar and no explicit
+F8 **Next page** cycles between two bottom pages, with a page indicator. F7
+Filters remains fixed on both pages. R7 navigates to Connection settings and back
+to Terminal; F5 and F6 are unassigned on ordinary terminal pages. The terminal
+workspace has no action toolbar and no explicit
 status-query action; shared background polling remains responsible for status.
 
 | Bottom slot | Page 1 | Page 2 |
@@ -403,9 +407,9 @@ status-query action; shared background polling remains responsible for status.
 | F2 | Guarded `sendRealtime(CYCLE_START)` | Next command |
 | F3 | Confirm, then `reset()` handshake | Copy selected log text |
 | F4 | Follow, with reactive active state | Clear view |
-| F5 | Connection | Connection |
+| F5 | Unassigned | Unassigned |
 | F6 | Unassigned | Unassigned |
-| F7 | Terminal, selected at root | Terminal, selected at root |
+| F7 | Filters (funnel icon) | Filters (funnel icon) |
 | F8 | Next page (1/2) | Next page (2/2), wrapping to page 1 |
 
 Manual scroll gestures disable Follow. Enabling Follow jumps to the newest visible
@@ -413,7 +417,8 @@ event and follows incoming output; disabled Follow preserves scrollback with sta
 session/sequence keys. Switching modes or visiting settings retains the page,
 filter menu, list and prompt. History/copy actions expose reactive enabled states.
 Realtime and paging actions opt out of keyboard repeat; realtime requests
-reserve separate in-flight slots. Reset confirmation warns about interrupting work and invalidating
+reserve separate in-flight slots. Reset confirmation warns about interrupting
+work and invalidating
 pending commands. Core enforces manual command admission and Cycle Start ownership;
 a fresh `Hold:0` is insufficient without a still-pending application-owned line.
 Resume after acknowledgment and broader program ownership require future operation
@@ -429,7 +434,7 @@ Advanced exposes bits, parity, stop bits, flow control and DTR/RTS. Manual entry
 remains enabled when discovery is empty or fails. Defaults are 115200, 8N1, no
 flow control, DTR/RTS false. Edits never change the current endpoint/session.
 
-F1 **Save**, F2 **Connect**, F3 **Disconnect**, F5 **Connection** and F7 **Terminal**
+F1 **Save**, F2 **Connect**, F3 **Disconnect** and R7 **Terminal**
 use the existing guarded softkey activation. Close remains a workspace button;
 there is no separate Close softkey. Matching workspace actions
 use the same screen callbacks. Invalid values show validation errors before any

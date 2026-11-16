@@ -32,15 +32,14 @@ class UtilModeTest {
             onNodeWithTag("terminal-prompt").assertExists()
             runOnIdle {
                 assertNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
-                assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F7)!!.active())
-                activateSoftKey({ util }, BottomSoftKeySlot.F5)
+                assertEquals("Filters", util.softKeyDefinition(BottomSoftKeySlot.F7)!!.label)
+                activateSoftKey({ util }, RightSoftKeySlot.R7)
                 assertIs<ControllerConnectionSettings>(util.top)
                 assertNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
-                assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F5)!!.active())
-                assertFalse(util.softKeyDefinition(BottomSoftKeySlot.F7)!!.active())
-                assertTrue(util.effectiveRightKeys.isEmpty())
-                assertEquals(2, util.size)
-                activateSoftKey({ util }, BottomSoftKeySlot.F5)
+                assertNull(util.softKeyDefinition(BottomSoftKeySlot.F5))
+                assertNull(util.softKeyDefinition(BottomSoftKeySlot.F7))
+                assertEquals(setOf(RightSoftKeySlot.R7), util.effectiveRightKeys.keys)
+                assertEquals("⌨\nTerminal", util.softKeyDefinition(RightSoftKeySlot.R7)!!.label)
                 assertEquals(2, util.size)
             }
             waitUntil(timeoutMillis = 5_000) {
@@ -58,11 +57,11 @@ class UtilModeTest {
             }
             onNodeWithText("Controller connection").assertExists()
             runOnIdle {
-                activateSoftKey({ util }, BottomSoftKeySlot.F7)
+                activateSoftKey({ util }, RightSoftKeySlot.R7)
                 assertSame(root, util.top)
                 assertNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
-                assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F7)!!.active())
-                assertFalse(util.softKeyDefinition(BottomSoftKeySlot.F5)!!.active())
+                assertEquals("Filters", util.softKeyDefinition(BottomSoftKeySlot.F7)!!.label)
+                assertNull(util.softKeyDefinition(BottomSoftKeySlot.F5))
                 assertNull(owner.state.value.endpoint)
             }
         } finally {

@@ -16,6 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -71,18 +73,17 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
 
     private var filtersOpen by mutableStateOf(false)
     private var copySelection by mutableStateOf<(() -> Unit)?>(null)
-    private val normalRightKeys = mapOf(
-        RightSoftKeySlot.R1 to SoftKeyDefinition("Filters", action = { filtersOpen = true }, repeatable = false),
+    override val rightKeys = mapOf(
+        RightSoftKeySlot.R7 to SoftKeyDefinition("🔗\nConnection", action = ::openConnection, repeatable = false),
     )
-    override val rightKeys get() = if (filtersOpen) filterKeys else normalRightKeys
     private val filterKeys = mapOf(
-        RightSoftKeySlot.R1 to SoftKeyDefinition("📊\nStatus RX", action = { filters.status = !filters.status }, active = { filters.status }),
-        RightSoftKeySlot.R2 to SoftKeyDefinition("❔\nPoll TX", action = { filters.polling = !filters.polling }, active = { filters.polling }),
-        RightSoftKeySlot.R3 to SoftKeyDefinition("✅\nOK", action = { filters.acknowledgments = !filters.acknowledgments }, active = { filters.acknowledgments }),
-        RightSoftKeySlot.R4 to SoftKeyDefinition("💬\nInfo", action = { filters.information = !filters.information }, active = { filters.information }),
-        RightSoftKeySlot.R5 to SoftKeyDefinition("⚠\nErrors", action = { filters.errors = !filters.errors }, active = { filters.errors }),
-        RightSoftKeySlot.R6 to SoftKeyDefinition("⏱\nTime", action = { filters.time = !filters.time }, active = { filters.time }),
-        RightSoftKeySlot.R7 to SoftKeyDefinition("Back", action = { filtersOpen = false }, repeatable = false),
+        BottomSoftKeySlot.F1 to SoftKeyDefinition("📊\nStatus RX", action = { filters.status = !filters.status }, active = { filters.status }),
+        BottomSoftKeySlot.F2 to SoftKeyDefinition("❔\nPoll TX", action = { filters.polling = !filters.polling }, active = { filters.polling }),
+        BottomSoftKeySlot.F3 to SoftKeyDefinition("✅\nOK", action = { filters.acknowledgments = !filters.acknowledgments }, active = { filters.acknowledgments }),
+        BottomSoftKeySlot.F4 to SoftKeyDefinition("💬\nInfo", action = { filters.information = !filters.information }, active = { filters.information }),
+        BottomSoftKeySlot.F5 to SoftKeyDefinition("⚠\nErrors", action = { filters.errors = !filters.errors }, active = { filters.errors }),
+        BottomSoftKeySlot.F6 to SoftKeyDefinition("⏱\nTime", action = { filters.time = !filters.time }, active = { filters.time }),
+        BottomSoftKeySlot.F7 to SoftKeyDefinition("↩\nBack", action = { filtersOpen = false }, repeatable = false),
     )
     private val bottomPages = SoftKeyPages(
         pages = listOf(
@@ -101,11 +102,10 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
         ),
         nextSlot = BottomSoftKeySlot.F8,
         commonKeys = mapOf(
-            BottomSoftKeySlot.F5 to SoftKeyDefinition("🔗\nConnection", action = ::openConnection, repeatable = false),
-            BottomSoftKeySlot.F7 to SoftKeyDefinition("⌨\nTerminal", action = {}, active = { true }),
+            BottomSoftKeySlot.F7 to SoftKeyDefinition("Filters", icon = filterIcon, action = { filtersOpen = true }, repeatable = false),
         ),
     )
-    override val bottomKeys get() = bottomPages.keys
+    override val bottomKeys get() = if (filtersOpen) filterKeys else bottomPages.keys
 
     private fun clearView() {
         clearedThrough = connection.history.value.lastOrNull()?.let { it.sessionId to it.event.sequence }
@@ -264,6 +264,20 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
 
     private var enterHeld = false
     private companion object {
+        val filterIcon = ImageVector.Builder(
+            name = "Filter funnel", defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(fill = SolidColor(Color.Black)) {
+                moveTo(3f, 4f)
+                lineTo(21f, 4f)
+                lineTo(14f, 12f)
+                lineTo(14f, 19f)
+                lineTo(10f, 21f)
+                lineTo(10f, 12f)
+                close()
+            }
+        }.build()
         val consoleStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 18.sp, letterSpacing = 0.sp)
         val timeFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS").withZone(ZoneId.systemDefault())
         fun render(event: CommunicationEvent, time: Boolean): String = buildString {
