@@ -1,0 +1,27 @@
+package no.grblcommander.desktop.ui.controls
+
+/** Immutable configuration snapshot. Missing slots stay empty on every page. */
+class KeypadLayout(
+    val name: String,
+    val rows: Int = 4,
+    val columns: Int = 4,
+    pages: List<Map<Int, KeypadKey>>,
+    val spacing: Float = .30f,
+    gapsBeforeColumns: Map<Int, Float> = emptyMap(),
+) {
+    val pages = pages.map { it.toMap() }
+    /** Total gap before a column, in key widths (overrides ordinary spacing). */
+    val gapsBeforeColumns = gapsBeforeColumns.toMap()
+
+    init {
+        require(rows in 1..32 && columns in 1..32)
+        require(this.pages.isNotEmpty())
+        require(spacing.isFinite() && spacing >= 0f)
+        require(this.gapsBeforeColumns.all { (column, gap) -> column in 1 until columns && gap.isFinite() && gap >= 0f })
+        require(this.pages.all { page -> page.keys.all { it in 0 until rows * columns } })
+    }
+
+    fun gapBefore(column: Int): Float = if (column == 0) 0f else gapsBeforeColumns[column] ?: spacing
+    val widthInKeys: Float get() = columns + (1 until columns).sumOf { gapBefore(it).toDouble() }.toFloat()
+    val heightInKeys: Float get() = rows + (rows - 1) * spacing
+}
