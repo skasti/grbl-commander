@@ -26,6 +26,8 @@ data class SoftKeyDefinition(
     val action: (() -> Unit)? = null,
     val enabled: () -> Boolean = { true },
     val active: () -> Boolean = { false },
+    /** Machine actions can opt out of OS key-repeat until physical key release. */
+    val repeatable: Boolean = true,
 ) : SoftKeyOverride {
     companion object {
         val Blank = SoftKeyDefinition(label = "", enabled = { false })

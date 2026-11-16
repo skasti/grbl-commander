@@ -1,0 +1,154 @@
+package no.grblcommander.desktop.ui.screens
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.*
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.*
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import java.util.UUID
+import java.util.prefs.Preferences
+import kotlinx.coroutines.*
+import no.grblcommander.configuration.ControllerEndpointPreferences
+import no.grblcommander.core.connection.*
+import no.grblcommander.desktop.ui.layout.AppShell
+import no.grblcommander.desktop.ui.layout.ShellState
+import no.grblcommander.desktop.ui.navigation.*
+import no.grblcommander.machine.session.GrblMachineSession
+import no.grblcommander.machine.session.CommunicationEvent
+import kotlin.test.*
+
+@OptIn(ExperimentalTestApi::class)
+class TerminalTest {
+    private class Fixture : AutoCloseable {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val transport = ConnectionTestTransport()
+        val owner = ControllerConnection(scope, { _, child -> GrblMachineSession(transport, child) })
+        val node = Preferences.userRoot().node("no/grblcommander/tests/${UUID.randomUUID()}")
+        val terminal = Terminal(ControllerSettings(owner, ControllerEndpointPreferences(node)))
+        val util = ScreenStack(terminal)
+        val other = ScreenStack(MdiMode())
+        var active by mutableStateOf(util)
+        fun connect() = runBlocking { owner.connect(ControllerEndpoint.Tcp("localhost", 4321)) }
+        override fun close() {
+            owner.close(); runBlocking { owner.awaitClosed() }; scope.cancel()
+            node.removeNode(); Preferences.userRoot().flush()
+        }
+    }
+    private fun ComposeUiTest.host(f: Fixture) {
+        setContent {
+            MaterialTheme { AppShell(ShellState.startup(), { f.active }) { ScreenStackHost(listOf(f.util, f.other), f.active) } }
+        }
+    }
+    private fun ComposeUiTest.enter() = onNodeWithTag("terminal-prompt").performKeyInput { pressKey(Key.Enter) }
+
+    @Test fun `Enter submits once without echo duplication and incoming output preserves draft caret`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            onNodeWithTag("terminal-prompt").performClick().performTextInput("\$I")
+            enter()
+            assertEquals("\$I\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            enter() // An additional Enter while awaiting ok cannot enqueue another line.
+            runOnIdle { f.terminal.prompt = TextFieldValue("G0 X12", TextRange(3)) }
+            runBlocking { f.transport.emit("[EXT:unfamiliar]\nok\n") }
+            waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[EXT:unfamiliar]" } }
+            runOnIdle {
+                assertEquals(TextFieldValue("G0 X12", TextRange(3)), f.terminal.prompt)
+                assertEquals(1, f.owner.history.value.count { it.event.category == CommunicationEvent.Category.COMMAND })
+                f.terminal.browseHistory(-1)
+                assertEquals("\$I", f.terminal.prompt.text)
+                f.terminal.browseHistory(1)
+                assertEquals(TextFieldValue("G0 X12", TextRange(3)), f.terminal.prompt)
+            }
+            onNodeWithText("Send").assertDoesNotExist()
+        }
+    }
+
+    @Test fun `disconnected multiline and unsynchronized admission preserve input without TX`() = runComposeUiTest {
+        Fixture().use { f ->
+            host(f)
+            onNodeWithTag("terminal-prompt").performClick().performTextInput("G0 X1")
+            enter()
+            runOnIdle { assertNotNull(f.terminal.localError); assertEquals("G0 X1", f.terminal.prompt.text) }
+            f.connect()
+            runOnIdle { f.terminal.prompt = TextFieldValue("G0 X1\nG0 X2") }
+            onNodeWithTag("terminal-prompt").performImeAction()
+            runOnIdle { assertContains(f.terminal.localError.orEmpty(), "ASCII"); assertContains(f.terminal.prompt.text, "\n") }
+            runBlocking { f.transport.emit("ok\n") } // Unowned acknowledgment invalidates correlation.
+            waitUntil(timeoutMillis = 5_000) { !f.owner.state.value.snapshot.normalCommandsSynchronized }
+            runOnIdle { f.terminal.prompt = TextFieldValue("\$I") }
+            onNodeWithTag("terminal-prompt").performImeAction()
+            runOnIdle { assertEquals("\$I", f.terminal.prompt.text); assertNotNull(f.terminal.localError) }
+            assertTrue(f.owner.history.value.none { it.event.category == CommunicationEvent.Category.COMMAND })
+        }
+    }
+
+    @Test fun `filters navigation and inactive input preserve terminal while history keeps receiving`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            onNodeWithTag("terminal-prompt").performClick().performTextInput("unsent")
+            onNodeWithTag("softkey-R1").assertIsNotSelected().performClick().assertIsSelected()
+            onNodeWithTag("softkey-F5").assertIsSelected().performClick().assertIsNotSelected()
+            runOnIdle { f.active = f.other }
+            onNodeWithTag("terminal-prompt").assertDoesNotExist()
+            onNodeWithText("Unsent text").performClick().performTextInput("G0 X999")
+            onNodeWithText("Unsent text").performKeyInput { pressKey(Key.Enter) }
+            assertTrue(f.owner.history.value.none { it.event.category == CommunicationEvent.Category.COMMAND })
+            runBlocking { repeat(300) { f.transport.emit("[EXT:$it]\n") } }
+            waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[EXT:299]" } }
+            runOnIdle { f.active = f.util }
+            onNodeWithTag("terminal-prompt").assertTextEquals("unsent")
+            onNodeWithTag("softkey-R1").assertIsSelected()
+            onNodeWithTag("softkey-F5").assertIsNotSelected()
+            onNodeWithTag("softkey-F8").performClick()
+            runOnIdle {
+                assertIs<ControllerConnectionSettings>(f.util.top)
+                assertTrue(f.util.effectiveRightKeys.isEmpty())
+                assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F6))
+            }
+            onNodeWithTag("softkey-F7").performClick()
+            onNodeWithTag("terminal-prompt").assertTextEquals("unsent")
+            onNodeWithText("🧹 Clear view").performClick()
+            runOnIdle { assertTrue(f.owner.history.value.isNotEmpty()); assertEquals("unsent", f.terminal.prompt.text) }
+        }
+    }
+
+    @Test fun `realtime controls use correct shared path and Reset requires explicit confirmation`() = runComposeUiTest {
+        Fixture().use { f ->
+            host(f)
+            onNodeWithTag("softkey-F1").assertIsNotEnabled()
+            onNodeWithTag("softkey-F2").assertIsNotEnabled()
+            f.connect()
+            waitUntil(timeoutMillis = 5_000) { f.util.softKeyDefinition(BottomSoftKeySlot.F1)!!.enabled() }
+            f.transport.drainWrites()
+            onNodeWithTag("softkey-F1").performClick()
+            onNodeWithTag("softkey-F2").performClick()
+            assertEquals("!", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            onNodeWithTag("softkey-F3").assertIsNotEnabled()
+            onNodeWithTag("softkey-F4").performClick()
+            onNodeWithText("Reset controller?").assertExists()
+            onNodeWithTag("softkey-F8").performClick()
+            assertTrue(f.transport.drainWrites().all { it == "?" })
+            onNodeWithTag("softkey-F4").performClick()
+            onNodeWithTag("softkey-F1").performClick()
+            assertEquals("\u0018", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            waitUntil(timeoutMillis = 5_000) { !f.owner.state.value.snapshot.resetInProgress }
+            runOnIdle { assertSame(f.terminal, f.util.top) }
+        }
+    }
+
+    @Test fun `manual scrollback is preserved during incoming traffic and Follow explicitly jumps to latest`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            runBlocking { repeat(100) { f.transport.emit("[LINE:$it]\n") } }
+            waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[LINE:99]" } }
+            onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
+            onNodeWithTag("softkey-F5").assertIsNotSelected()
+            runBlocking { f.transport.emit("[LINE:latest]\n") }
+            waitUntil(timeoutMillis = 5_000) { f.owner.history.value.any { it.event.text == "[LINE:latest]" } }
+            onNodeWithTag("softkey-F5").assertIsNotSelected().performClick()
+            onNodeWithTag("softkey-F5").assertIsSelected()
+            onNodeWithText("[LINE:latest]", substring = true).assertExists()
+        }
+    }
+}

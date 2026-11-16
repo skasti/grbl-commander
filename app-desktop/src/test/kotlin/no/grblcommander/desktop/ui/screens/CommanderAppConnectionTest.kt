@@ -24,7 +24,7 @@ class CommanderAppConnectionTest {
             val settings = ControllerSettings(owner)
             setContent { CommanderApp(owner, settings) }
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
-            onNodeWithText("Controller connection").performClick()
+            onNodeWithTag("softkey-F8").performClick()
             waitUntil(timeoutMillis = 5_000) {
                 runCatching { onNodeWithText("TCP / network", substring = true).assertIsEnabled() }.isSuccess
             }
@@ -38,7 +38,7 @@ class CommanderAppConnectionTest {
             onNodeWithContentDescription("Util").performClick()
             onNodeWithText("controller.example").assertExists()
             onRoot().performKeyInput { pressKey(Key.F7) }
-            onNodeWithText("Controller connection").assertExists()
+            onNodeWithTag("terminal-prompt").assertExists()
             onNodeWithText("Hostname / IP address").assertDoesNotExist()
             runOnIdle { assertEquals(0, opened) }
         } finally { owner.close(); runBlocking { owner.awaitClosed() }; scope.cancel() }

@@ -332,6 +332,7 @@ class ControllerConnectionTest {
                 owner.droppedCommunicationEvents.first { it > 0 }
                 assertEquals(originalValues, original)
                 assertEquals(5, owner.history.value.size)
+                assertTrue(owner.evictedHistoryEvents.value > 0)
                 assertTrue(owner.history.value.zipWithNext().all { (a, b) -> a.event.sequence < b.event.sequence })
                 // No traffic follows this final line; disconnect must flush the unsampled tail.
                 transport.emit("[EXT:final]\n")

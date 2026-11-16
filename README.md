@@ -52,12 +52,34 @@ performs validation and Connect's subsequent persistence internally. Screens
 never instantiate sessions, transports or preferences adapters. No endpoint is
 selected or connected automatically.
 
-Select **⚙ Util**, then **Controller connection** or **F8 Connection** to configure
-TCP/network or Serial/USB. Util has one persistent stack and an otherwise empty
-root; its terminal is planned in [#22](https://github.com/skasti/grbl-commander/issues/22).
-**F7 Util** returns to that root, and F8 highlights the settings view. F6 is free;
-connection health remains a separate shared header indicator. Switching modes
-retains an open form and never disconnects the shared session.
+Select **⚙ Util** to open the live Terminal. Its unified console combines a
+virtualized monospaced traffic log and an editable prompt. Enter (including the
+onscreen keyboard action) submits one validated ASCII line through the shared
+connection. There is no Send button. Commands can move the machine; `ok` only
+acknowledges a command. Up/Down and the workspace history buttons browse the last
+100 submitted lines; history is in memory only. Unsent input and selection/caret,
+filters and scrollback survive mode changes. Select text within an output entry
+and use Copy selected text or the normal keyboard copy action. Selection is per
+entry; cross-entry selection/export is not implemented.
+
+Right R1–R7 control Status RX, Poll TX, OK, Info, Errors, Time and Show all.
+Status/poll traffic starts hidden; ordinary commands, acknowledgments, messages,
+errors and alarms start visible. Filters and Clear view change presentation only.
+The console displays lost/evicted history counts. Manual scrolling disables Follow;
+F5 enables it and jumps to the newest visible entry. F1 explicitly queries status,
+F2 sends Feed Hold, F3 requests guarded Cycle Start and F4 confirms Soft Reset via
+bottom softkeys before using the session reset handshake. F6 is unassigned.
+Cycle Start is deliberately limited to a fresh `Hold:0` while an application-owned
+manual line still awaits acknowledgment. Acknowledged or externally started work
+has no proven owner and cannot be resumed here; broader operation coordination
+is planned. Stale, busy, unsynchronized and disconnected states prevent manual
+submission, while permitted realtime controls remain independent.
+
+**F7 Terminal** selects the root and **F8 Connection** opens the connection form
+above it on the same persistent stack. F8 highlights the settings view; terminal
+filters/actions are unavailable while settings or a confirmation is topmost.
+Connection health and machine/alarm observations remain in the shared header.
+Switching modes retains an open form and never disconnects the shared session.
 
 Enter a TCP host/IP and its configured port (no fixed port is assumed), or refresh
 the optional serial-port list and/or enter a device manually. Serial defaults are
@@ -181,10 +203,10 @@ that subscriber stays stalled and no further traffic arrives. A subscriber's
 sequence gaps identify its own losses; a global count need not mean the app
 history missed those events. `recentCommunication` provides a bounded replay-tail
 snapshot. `ControllerConnection.history` retains the latest 5,000 events across
-reconnects, tagged with session identity and endpoint, even without a Debug screen.
+reconnects, tagged with session identity and endpoint, independently of the selected mode.
 Ingestion uses a bounded deque; immutable observable snapshots are published at
 most every 50 ms (20/s), and flushed on disconnect, switch and awaited shutdown.
-This is in-memory diagnostic history, not persistent logging. Terminal rendering/filtering and command widgets remain planned.
+This is in-memory diagnostic history, not persistent logging. Terminal consumes these snapshots without adding a transport reader or poller.
 
 Hardware-free transport/parser/session tests run on Linux and Windows:
 

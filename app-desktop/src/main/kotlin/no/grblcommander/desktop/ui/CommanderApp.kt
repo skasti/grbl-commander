@@ -30,7 +30,7 @@ import no.grblcommander.desktop.ui.screens.MdiMode
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
 import no.grblcommander.desktop.ui.screens.Welcome
-import no.grblcommander.desktop.ui.screens.UtilMode
+import no.grblcommander.desktop.ui.screens.Terminal
 
 /** Stable UI context identities, separate from GRBL controller execution states. */
 private enum class OperatorMode(val label: String) {
@@ -47,7 +47,7 @@ fun CommanderApp(connection: ControllerConnection, settings: ControllerSettings)
             OperatorMode.Program to ScreenStack(Welcome()),
             OperatorMode.Manual to ScreenStack(ManualMode()),
             OperatorMode.Mdi to ScreenStack(MdiMode()),
-            OperatorMode.Util to ScreenStack(UtilMode(settings)),
+            OperatorMode.Util to ScreenStack(Terminal(settings)),
         )
     }
     var activeMode by remember { mutableStateOf(OperatorMode.Program) }
@@ -56,11 +56,13 @@ fun CommanderApp(connection: ControllerConnection, settings: ControllerSettings)
         MaterialTheme(colorScheme = darkColorScheme()) {
             AppShell(
                 state = ShellState.startup().copy(
-                    title = activeMode.label,
+                    title = if (activeMode == OperatorMode.Util) "Terminal / Connection" else activeMode.label,
                     context = connectionState.endpoint?.description() ?: "No controller endpoint selected",
                     connectionStatus = (if (connectionState.closing) "Closing" else connectionState.snapshot.connection.name) +
-                        if (!connectionState.closing && connectionState.snapshot.connection == Connection.CONNECTED &&
-                            connectionState.reportIsStale(now)) " · stale" else "",
+                        (if (!connectionState.closing && connectionState.snapshot.connection == Connection.CONNECTED &&
+                            connectionState.reportIsStale(now)) " · stale" else "") +
+                        (connectionState.snapshot.alarmCode?.let { " · ALARM:$it" }
+                            ?: connectionState.snapshot.status?.executionState?.let { " · $it" }.orEmpty()),
                 ),
                 currentStack = { stacks.getValue(activeMode) },
                 headerControls = {

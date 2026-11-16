@@ -75,7 +75,7 @@ class ControllerConnectionSettingsTest {
             }
         })
         val settings = ControllerSettings(owner, ControllerEndpointPreferences(preferences))
-        val root = UtilMode(settings)
+        val root = Terminal(settings)
         val stack = ScreenStack(root)
         val draft = ControllerEndpointDraft(ControllerEndpointDraft.Transport.TCP, "localhost", "4321")
         override fun close() {

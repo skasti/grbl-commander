@@ -366,15 +366,28 @@ against repeated activation. Interruption still requires explicit confirmation.
 Connection attempts and machine commands are not automatically retried; no
 reset, machine command replay or auto-connect is implicit.
 
-The Util mode owns one persistent stack rooted at `UtilMode`, an empty workspace
-with a connection-settings button. `ControllerConnectionSettings : Screen<Unit>`
-opens above that root using the explicit parent contract; F7 returns to Util and
-F8 selects Connection. F6 is unassigned. The root is reserved for the terminal in
-[#22](https://github.com/skasti/grbl-commander/issues/22). Settings uses its own
-right bank, without inheriting future terminal filters. The form owns draft,
-validation/error display and stack-owned interruption confirmation, never a session.
-Mode changes preserve the form and connection. Closing the form cancels unfinished
+The Util mode owns one persistent stack rooted at `Terminal : Screen<Unit>`.
+`ControllerConnectionSettings` opens above it with the explicit parent contract.
+F7 selects Terminal and F8 selects Connection; F6 is unassigned. Settings replaces
+both softkey banks, so Terminal actions cannot leak through. Screen instances and
+compositions retain terminal draft/caret, filters, scrollback and open forms across
+mode changes. The form owns draft, validation/error display and stack-owned
+interruption confirmation, never a session. Closing the form cancels unfinished
 form work; a completed connection outlives the screen.
+
+`ControllerConnection.executeLine` validates with the existing protocol encoder
+and reserves a single manual command slot before dispatch. Admission requires a
+fresh connected, synchronized Idle/Alarm/Check report, no reset boundary and no
+other pending manual command; the session remains the final protocol/alarm gate.
+This prevents normal terminal commands during externally running work. The slot
+ends on acknowledgment or failure, never represents completed physical motion and
+is not transferred across sessions. `sendRealtime(CYCLE_START)` rechecks a fresh
+`Hold:0`, synchronization, reset/alarm state and ownership of a still-pending
+manual line with an observed transport handoff. Missing diagnostic evidence
+conservatively leaves Cycle Start disabled. Idle cannot start arbitrary work. Acknowledged or externally started
+operations have no proven application owner and cannot be resumed by this limited
+contract. Program execution and broader operation coordination remain planned.
+Status, Feed Hold and Reset remain independent of normal-command admission.
 
 Both header and form read the same authoritative owner state. A presentation clock
 marks retained reports stale after three seconds, even without a new state emission;
@@ -475,8 +488,12 @@ endpoint, session identity and sequence order. Earlier snapshots never change.
 The dropped counter accumulates across sessions independently of snapshot timing.
 Disconnect, reconfiguration, switch and awaited shutdown collect the remaining
 bounded replay tail without duplicates and immediately publish the final history.
-Debug terminal rendering/filtering, command widgets and persistent/file logging
-are not implemented.
+`evictedHistoryEvents` counts bounded-history retention evictions;
+`missedHistoryEvents` counts this consumer's sequence gaps across sessions. These
+are independent of the multicast-wide overflow count. Terminal renders immutable
+history snapshots lazily, filters supplied categories only in presentation, and
+uses a screen-local boundary for Clear view. It has no reader, session or poller.
+Persistent/file logging is not implemented.
 
 ## 4. Application Operations
 
@@ -584,13 +601,12 @@ slots and seven right softkey slots. Each window retains a `ScreenStack` for
 each UI mode, hosted together by `ScreenStackHost`. Program includes the branded
 welcome screen and a runnable in-memory editor/file-explorer example. Manual has
 a nested details screen with local notes; MDI has an unsent text buffer. Util has
-an empty root and controller connection settings. Mode
+a live interactive Terminal root and controller connection settings. Mode
 changes do not cancel overlays, discard drafts, or alter controller execution
 state. The window icon and header show the supplied app logo. Softkey slots
 render screen-owned labels/icons, reactive enabled/active state, and safe
 in-memory navigation actions. Pointer and keyboard input share guarded slot
-activation. DRO, real mode operations and live machine-status presentation are not
-implemented. A shared core-owned connection coordinates `:infrastructure`; the
+activation. DRO and Program/Manual/MDI execution workflows are not implemented. A shared core-owned connection coordinates `:infrastructure`; the
 header observes its real health and report freshness. It starts disconnected;
 Util owns explicit connection settings/actions. The shared slot layout is described
 in [UI layout](ui-layout.md).
@@ -689,8 +705,9 @@ changes recompose the presentation without changing the composition key;
 activation always evaluates the latest `enabled` result. The shell previews
 F1–F8 and Shift+F1–F7 (right bank) before workspace input, using the same
 activation path. Mapped key-down events activate and key-up events are consumed;
-repeated key-down events also activate (actions must guard against unsafe
-repetition where applicable). `active` affects presentation only. No central
+repeatable definitions also accept repeated key-downs. Terminal realtime controls
+set `repeatable = false`, so held keys are consumed until release, including across
+navigation changes. Owners independently guard concurrent requests. `active` affects presentation only. No central
 action registry, navigator or mutable softkey store is involved.
 
 Each retained mode stack owns its effective bindings through its screens. A
@@ -701,8 +718,9 @@ FileExplorer example replaces the editor's bottom bank but inherits right keys,
 disables/relabels an editor action, blanks another, and adds its own Info key.
 Pop restores the underlying definitions; switching modes selects a different
 retained stack without copying key state.
-The current mode examples are local UI fixtures; real program/file services
-and machine operations are not implemented. Detailed lifetime, root, rendering
+The Program/Manual/MDI examples are local UI fixtures; real program/file
+services and their execution workflows are not implemented. Util Terminal uses
+the shared connection for explicit manual commands and realtime controls. Detailed lifetime, root, rendering
 and focus behavior are specified in [UI layout](ui-layout.md).
 
 ### 5.2 Application Modes
@@ -716,7 +734,7 @@ Initial modes:
 | Program    | Program selection, editing, toolpath preview, and execution        |
 | Probing    | Macro-driven probing workflows                                     |
 | Macros     | Macro discovery, editing, execution, and synchronization           |
-| Util       | Connection settings; planned terminal, diagnostics and controller inspection |
+| Util       | Live Terminal, manual commands, realtime controls and connection settings; further diagnostics planned |
 
 Tool Management may be presented as a mode or as a workspace accessible from
 Program and Macros.
@@ -726,7 +744,7 @@ Program and Macros.
 Switching UI mode must not implicitly modify machine state or interrupt an
 active operation. Each window retains its mode stacks and their composed
 navigation histories independently. The current demonstration provides Program,
-Manual, MDI and Util contexts; probing, macro and terminal workspaces remain planned.
+Manual, MDI and Util contexts; probing and macro workspaces remain planned.
 
 ### 5.3 DRO
 
@@ -971,8 +989,8 @@ The application must:
 - Never automatically resume interrupted motion following reconnection.
 - Avoid presenting simulated or predicted outcomes as confirmed machine state.
 
-Planned raw command access belongs in Util mode, but bypassing
-application-level workflows must be explicit.
+Manual command access belongs in Util Terminal and always uses the shared
+application/session admission boundary. It never bypasses machine coordination.
 
 Software validation and toolpath previews cannot guarantee collision-free or
 safe machine execution.
@@ -1246,7 +1264,7 @@ boundaries.
 - Serial connection and GRBL protocol.
 - Machine-state monitoring and DRO.
 - Global controls, overrides, homing, and jogging.
-- Debugging terminal.
+- Util terminal.
 - Simulated controller tests.
 
 ### Phase 2 — Program handling

@@ -27,12 +27,11 @@ workspace, and exposes an optional header-controls slot for UI-mode selection.
 observed from the shared application-owned `ControllerConnection`. The application
 composition root creates one core-owned connection/settings pair. All modes
 receive that same connection owner through `LocalControllerConnection`; it outlives their
-stacks and compositions. Util supplies controller connection settings; a terminal
-command UI is not implemented. Screen instances own
+stacks and compositions. Util supplies the live Terminal and controller connection settings. Screen instances own
 softkey bindings; the shell reads them from the selected persistent stack. The
 Program, Manual, MDI and icon-only ⚙ Util buttons change presentation context
 only. Util connection actions use the shared owner; other mode examples are
-in-memory fixtures. No UI exposes motion commands.
+in-memory fixtures. Terminal accepts explicit manual commands and guarded realtime controls.
 
 The application icon and header logo use the Compose resource
 `drawable/grbl_commander_icon.png` (384 × 256), while the workspace uses
@@ -235,8 +234,10 @@ shortcuts
 with Ctrl, Alt or Meta are unmapped. The shell handles mapped key-down events
 and
 consumes their key-up events, even for blank/disabled slots, before workspace
-children can process them. Every key-down, including OS key-repeat, triggers
-activation; repeated actions require appropriate preconditions in their owners.
+children can process them. Definitions default to repeatable key-down activation. `repeatable = false`
+consumes repeated key-downs until physical release; Terminal realtime actions use
+this option. The shell remembers physical keys across navigation, preventing held
+keys from activating a replacement binding. Owners also guard in-flight requests.
 Future physical-panel input can call the same slot activation function.
 Hardware-panel integration is not implemented.
 
@@ -322,7 +323,7 @@ disabled/active state and typed slot activation with screen-owned callbacks. The
 action dispatch layer must remain separate from GRBL transports and physical
 execution.
 
-Machine position/DRO, machine operation pages, terminal command UI,
+Machine position/DRO, machine operation pages,
 programmable actions, and physical CNC operations are planned and are not part
 of the desktop demonstration.
 
@@ -333,15 +334,71 @@ selected semantics/color. Connection health stays in the separate display-only
 header indicator, with the current endpoint in the header context. No settings
 screen is pushed onto Program, Manual or MDI stacks.
 
-Util owns a persistent `ScreenStack(UtilMode(...))`. Its initial root is an empty
-workspace containing **Controller connection**; the terminal root is planned in
-[#22](https://github.com/skasti/grbl-commander/issues/22). F7 **⌨ Util** selects the
-root; F8 **🔗 Connection** opens `ControllerConnectionSettings` above it using the
-root as explicit parent. F6 is unassigned. F8 while settings is active cannot
-create another screen.
-These slots show selected view, independently of actual controller health. Closing
-settings returns to the same root. Each screen owns its banks; settings does not
-inherit the right bank, so future terminal filters are covered automatically.
+Util owns one persistent `ScreenStack(Terminal(...))`. Terminal is visible on first
+entry. F7 **⌨ Terminal** selects the root; F8 **🔗 Connection** opens
+`ControllerConnectionSettings` above it with an explicit parent. These positions
+remain stable on both screens and indicate selected view independently of machine
+health. F6 is unassigned (reserved for Overrides). Switching modes restores an
+open settings screen; F7 explicitly returns to Terminal. Settings replaces both
+banks and never inherits Terminal filters or realtime actions.
+
+### Terminal console
+
+The workspace has compact endpoint/controller status, a small history/copy/clear
+toolbar, a dark virtualized monospaced output region and an editable `>` prompt
+inside the same console surface. Output entries distinguish TX, RX, category,
+timestamps and failed/uncertain handoffs. Original unfamiliar text is retained;
+control characters are escaped. Selection and copying are supported within one
+output entry; selection spanning multiple lazy entries is not implemented.
+
+Incoming snapshots never replace the prompt value, caret or focus. Ordinary
+text editing, selection and paste use Compose text input. Enter or the onscreen
+keyboard Done/Enter action is the only submission action; held Enter and concurrent
+IME/key submission cannot duplicate a pending request. Blank, multiline, overlong,
+non-ASCII and embedded realtime input is rejected. Local admission/failure feedback
+appears beneath the prompt, and failed submission preserves it. Success clears the
+unchanged line after acknowledgment, without claiming motion completion. Up/Down
+and touch workspace actions browse up to 100 recent submitted commands and restore
+the unsent draft. Nothing persists command history.
+
+| Right slot | Filter/action | Initially visible |
+| --- | --- | --- |
+| R1 | Status RX | No |
+| R2 | Poll TX | No |
+| R3 | OK | Yes |
+| R4 | Info and startup | Yes |
+| R5 | Errors and alarms | Yes |
+| R6 | Time | Yes |
+| R7 | Show all | Reveals every category and timestamps |
+
+Active filters mean visible. Normal/realtime commands always remain visible.
+Filtering is category-based and affects neither session processing nor shared
+alarm/connection indicators. Clear view records a local history boundary; it never
+clears session state, pending commands or the shared history. A visible counter
+separates evicted entries from events missed by the history consumer.
+
+| Bottom slot | Terminal action |
+| --- | --- |
+| F1 | Explicit `queryStatus()` |
+| F2 | `sendRealtime(FEED_HOLD)` |
+| F3 | Guarded `sendRealtime(CYCLE_START)` |
+| F4 | Confirm with `ModalDialog<Boolean>`, then `reset()` handshake |
+| F5 | Follow, with reactive active state |
+| F6 | Unassigned |
+| F7 | Terminal, selected at root |
+| F8 | Connection |
+
+Manual scroll gestures disable Follow. Enabling F5 jumps to the newest visible
+event and follows incoming output; disabled Follow preserves scrollback with stable
+session/sequence keys. Switching modes retains the list, filters and prompt.
+Realtime actions opt out of keyboard repeat and reserve separate in-flight slots,
+so a waiting status query cannot block Feed Hold or Reset. Reset confirmation
+warns about interrupting work and invalidating pending commands. Core enforces
+manual command admission and Cycle Start ownership; a fresh `Hold:0` is insufficient
+without a still-pending application-owned line. Resume after acknowledgment and
+broader program ownership require future operation coordination.
+
+### Connection form
 
 Settings is a scrolling touch-friendly form with Serial/USB and TCP/network
 selection. TCP requires host/IP and port 1–65535; serial supports optional refresh,
@@ -350,7 +407,7 @@ Advanced exposes bits, parity, stop bits, flow control and DTR/RTS. Manual entry
 remains enabled when discovery is empty or fails. Defaults are 115200, 8N1, no
 flow control, DTR/RTS false. Edits never change the current endpoint/session.
 
-F1 **Save**, F2 **Connect**, F3 **Disconnect**, F7 **Util** and F8 **Connection**
+F1 **Save**, F2 **Connect**, F3 **Disconnect**, F7 **Terminal** and F8 **Connection**
 use the existing guarded softkey activation. Close remains a workspace button;
 there is no separate Close softkey. Matching workspace actions
 use the same screen callbacks. Invalid values show validation errors before any

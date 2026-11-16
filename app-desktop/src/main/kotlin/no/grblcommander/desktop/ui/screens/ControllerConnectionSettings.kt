@@ -73,10 +73,10 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
         BottomSoftKeySlot.F1 to SoftKeyDefinition("Save", action = ::save, enabled = { !busy && confirmation == null }),
         BottomSoftKeySlot.F2 to SoftKeyDefinition("Connect", action = { request(Action.CONNECT) }, enabled = { !busy && confirmation == null }),
         BottomSoftKeySlot.F3 to SoftKeyDefinition("Disconnect", action = { request(Action.DISCONNECT) }, enabled = { canDisconnect }),
-        BottomSoftKeySlot.F7 to SoftKeyDefinition("⌨\nUtil", action = ::close, enabled = { confirmation == null }),
+        BottomSoftKeySlot.F7 to SoftKeyDefinition("⌨\nTerminal", action = ::close, enabled = { confirmation == null }),
         BottomSoftKeySlot.F8 to SoftKeyDefinition("🔗\nConnection", action = {}, active = { true }),
     )
-    // No right-key inheritance: future Terminal traffic filters are inactive while this screen is topmost.
+    // No right-key inheritance: Terminal traffic filters are inactive while this screen is topmost.
 
     private fun close() { if (confirmation == null) finish(Unit) }
 

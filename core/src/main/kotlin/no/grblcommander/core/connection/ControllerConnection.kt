@@ -30,6 +30,7 @@ import no.grblcommander.machine.session.CommunicationEvent
 import no.grblcommander.machine.session.MachineSession
 import no.grblcommander.machine.session.MachineSnapshot
 import no.grblcommander.machine.session.RealtimeCommand
+import no.grblcommander.machine.protocol.GrblProtocol
 
 /** App-lifetime command boundary. Screens never receive a transport or replace its session. */
 class ControllerConnection(
@@ -51,6 +52,12 @@ class ControllerConnection(
     val state = mutableState.asStateFlow()
     private val mutableHistory = MutableStateFlow<List<ControllerTraffic>>(emptyList())
     val history = mutableHistory.asStateFlow()
+    private val mutableEvicted = MutableStateFlow(0L)
+    val evictedHistoryEvents = mutableEvicted.asStateFlow()
+    private val mutableMissed = MutableStateFlow(0L)
+    val missedHistoryEvents = mutableMissed.asStateFlow()
+    private var historyEvictions = 0L
+    private var historyMisses = 0L
     private val recentTraffic = ArrayDeque<ControllerTraffic>(historyCapacity)
     private var historyDirty = false
     private val mutableDropped = MutableStateFlow(0L)
@@ -62,6 +69,8 @@ class ControllerConnection(
         val observers = mutableListOf<Job>()
         var dropped = 0L
         var lastObservedSequence = 0L
+        var manualCommandAfterSequence = Long.MAX_VALUE
+        var manualCommandText: String? = null
         private val closed = AtomicBoolean()
         fun close() { if (closed.compareAndSet(false, true)) session.close() }
     }
@@ -201,7 +210,7 @@ class ControllerConnection(
                     // Retain the last observation, but not the session's technical close reason.
                     snapshot = old.session.state.value.copy(connection = if (closed) MachineSnapshot.Connection.CLOSED
                         else MachineSnapshot.Connection.DISCONNECTED, failure = null),
-                    closing = false,
+                    closing = false, manualCommandPending = false, manualCommandTransmitted = false,
                 )
             }
         }
@@ -219,7 +228,13 @@ class ControllerConnection(
 
     /** Called under gate; ingestion is constant-space/constant-time per event. */
     private fun recordTraffic(entry: Active, event: CommunicationEvent) {
-        if (recentTraffic.size == historyCapacity) recentTraffic.removeFirst()
+        if (active === entry && state.value.manualCommandPending &&
+            event.sequence > entry.manualCommandAfterSequence && event.text == entry.manualCommandText &&
+            event.category == CommunicationEvent.Category.COMMAND && event.outcome == CommunicationEvent.Outcome.ATTEMPTED) {
+            mutableState.value = state.value.copy(manualCommandTransmitted = true)
+        }
+        if (recentTraffic.size == historyCapacity) { recentTraffic.removeFirst(); historyEvictions++ }
+        historyMisses += (event.sequence - entry.lastObservedSequence - 1).coerceAtLeast(0)
         recentTraffic.addLast(ControllerTraffic(entry.id, entry.endpoint, event))
         entry.lastObservedSequence = event.sequence
         historyDirty = true
@@ -227,13 +242,37 @@ class ControllerConnection(
 
     private fun publishHistory() {
         if (historyDirty) {
+            mutableEvicted.value = historyEvictions
+            mutableMissed.value = historyMisses
             mutableHistory.value = Collections.unmodifiableList(recentTraffic.toList())
             historyDirty = false
         }
     }
 
-    suspend fun executeLine(command: String) = session().executeLine(command)
-    suspend fun sendRealtime(command: RealtimeCommand) = session().sendRealtime(command)
+    suspend fun executeLine(command: String): no.grblcommander.machine.session.CommandAcknowledgment {
+        GrblProtocol.encodeCommand(command)
+        val selected = synchronized(gate) {
+            val selected = session()
+            if (!state.value.copy(snapshot = selected.state.value).canExecuteLine()) throw IOException("Manual command unavailable: controller must be synchronized and idle")
+            active!!.manualCommandAfterSequence = selected.recentCommunication.lastOrNull()?.sequence ?: 0L
+            active!!.manualCommandText = command + "\n"
+            selected.also { mutableState.value = state.value.copy(manualCommandPending = true, manualCommandTransmitted = false) }
+        }
+        try { return selected.executeLine(command) }
+        finally { synchronized(gate) {
+            if (active?.session === selected) mutableState.value = state.value.copy(manualCommandPending = false, manualCommandTransmitted = false)
+        } }
+    }
+    suspend fun sendRealtime(command: RealtimeCommand) {
+        val selected = synchronized(gate) {
+            val current = session()
+            if (command == RealtimeCommand.CYCLE_START) check(state.value.copy(snapshot = current.state.value).canCycleStart()) {
+                "Resume requires a fresh Hold:0 report and a pending application-owned manual command"
+            }
+            current
+        }
+        selected.sendRealtime(command)
+    }
     suspend fun reset() = session().reset()
     suspend fun queryStatus() = session().queryStatus()
 

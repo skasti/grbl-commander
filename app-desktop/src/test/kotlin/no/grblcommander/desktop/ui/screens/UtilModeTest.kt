@@ -24,12 +24,12 @@ class UtilModeTest {
         val owner = ControllerConnection(scope)
         val node = Preferences.userRoot().node("no/grblcommander/tests/${UUID.randomUUID()}")
         try {
-            val root = UtilMode(ControllerSettings(owner, ControllerEndpointPreferences(node)))
+            val root = Terminal(ControllerSettings(owner, ControllerEndpointPreferences(node)))
             val util = ScreenStack(root)
             val program = ScreenStack(ManualMode())
             var active by mutableStateOf(util)
             setContent { ScreenStackHost(listOf(util, program), active) }
-            onNodeWithText("Controller connection").assertExists()
+            onNodeWithTag("terminal-prompt").assertExists()
             runOnIdle {
                 assertNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
                 assertTrue(util.softKeyDefinition(BottomSoftKeySlot.F7)!!.active())
