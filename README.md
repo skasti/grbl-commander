@@ -216,7 +216,11 @@ gradle :infrastructure:test
 
 Linux simulator tests use the official upstream simulator as an external
 process through the production TCP/session stack. Install Git, CMake and a C
-compiler/build tool, then build the pinned revision and its recorded submodules:
+compiler/build tool. The build explicitly selects GNU C17; the pinned core's
+`powr` macro conflicts with the C23 math declaration exposed by newer
+compiler/system-header defaults.
+
+Build the pinned revision and its recorded submodules:
 
 ```bash
 bash scripts/build-grblhal-simulator.sh
