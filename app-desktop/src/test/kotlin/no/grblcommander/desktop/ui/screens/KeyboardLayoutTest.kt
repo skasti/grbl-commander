@@ -43,7 +43,10 @@ class KeyboardLayoutTest {
                 val last = onNodeWithTag("keypad-123-15").fetchSemanticsNode().boundsInRoot
                 val footer = onNodeWithTag("keypad-123-next").fetchSemanticsNode().boundsInRoot
                 assertTrue(field.height >= 48f, "Input remains a usable touch target: $field")
-                assertTrue(first.top >= field.bottom, "Keyboard must not overlap input")
+                assertTrue(first.left >= field.right, "Keyboard must stay to the right of the input")
+                val lettersFooter = onNodeWithTag("keypad-ABC-next").fetchSemanticsNode().boundsInRoot
+                val numbersFirst = onNodeWithTag("keypad-123-0").fetchSemanticsNode().boundsInRoot
+                assertTrue(numbersFirst.top >= lettersFooter.bottom, "Numbers must be below letters")
                 assertTrue(footer.bottom <= bottom.top, "Keyboard must not overlap bottom softkeys")
                 assertTrue(first.left >= 0 && last.right <= right.left, "Keyboard must stay inside workspace")
                 assertEquals(first.width, first.height, 1f)

@@ -42,8 +42,7 @@ class TerminalPerformanceTest {
             waitForIdle()
             val loadMillis = (System.nanoTime() - started) / 1_000_000.0
             val initialTail = terminal.history.last().cursor
-            // Preserve a full drag distance in the reduced log viewport above the keypad.
-            onNodeWithTag("terminal-log").performTouchInput { swipeDown(endY = bottom + 300f) }
+            onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
             onNodeWithTag("softkey-R6").assertIsNotSelected()
             val log = onNodeWithTag("terminal-log").fetchSemanticsNode()
             val prompt = onNodeWithTag("terminal-prompt").fetchSemanticsNode()

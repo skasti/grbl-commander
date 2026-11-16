@@ -21,22 +21,24 @@ class MdiMode : Screen<Unit>(Unit) {
         var buffer by remember { mutableStateOf(TextFieldValue()) }
         Surface(Modifier.fillMaxSize()) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
-                val keyboardHeight = minOf(340.dp, maxHeight * .65f)
-                Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("MDI · local text buffer only (not executable)")
-                    OutlinedTextField(
-                        value = buffer,
-                        onValueChange = { buffer = it },
-                        label = { Text("Unsent text") },
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                    )
+                val keyboardWidth = minOf(340.dp, maxWidth * .40f)
+                Row(Modifier.fillMaxSize().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("MDI · local text buffer only (not executable)")
+                        OutlinedTextField(
+                            value = buffer,
+                            onValueChange = { buffer = it },
+                            label = { Text("Unsent text") },
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                        )
+                    }
                     GCodeKeyboard(
                         onAction = { action ->
                             editWithKeypad(buffer, action, { buffer = it }, {
                                 editWithKeypad(buffer, KeypadAction.Insert("\n"), { buffer = it }, {})
                             })
                         },
-                        modifier = Modifier.heightIn(max = keyboardHeight),
+                        modifier = Modifier.widthIn(max = keyboardWidth).fillMaxHeight(),
                     )
                 }
             }

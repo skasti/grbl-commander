@@ -25,7 +25,7 @@ class GCodeKeyboardTest {
                 Column {
                     BasicTextField(value, { value = it }, Modifier.testTag("input"))
                     GCodeKeyboard({ action -> editWithKeypad(value, action, { value = it }, { enter() }) },
-                        Modifier.heightIn(max = 350.dp), letters, numbers)
+                        Modifier.heightIn(max = 740.dp), letters, numbers)
                 }
             }
         }

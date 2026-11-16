@@ -15,14 +15,14 @@ fun GCodeKeyboard(
     letters: KeyClusterState = remember { KeyClusterState(GCodeKeymaps.letters) },
     numbers: KeyClusterState = remember { KeyClusterState(GCodeKeymaps.numbers) },
 ) {
-    BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        val widthFactor = letters.layout.widthInKeys + numbers.layout.widthInKeys + .8f
-        val heightFactor = maxOf(letters.layout.heightInKeys, numbers.layout.heightInKeys)
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val widthFactor = maxOf(letters.layout.widthInKeys, numbers.layout.widthInKeys)
+        val heightFactor = letters.layout.heightInKeys + numbers.layout.heightInKeys + .8f
         val size = minOf(60.dp, maxWidth / widthFactor,
-            if (constraints.hasBoundedHeight) ((maxHeight - 52.dp).coerceAtLeast(0.dp) / heightFactor) else 60.dp)
-        Row(verticalAlignment = Alignment.Top) {
+            if (constraints.hasBoundedHeight) ((maxHeight - 104.dp).coerceAtLeast(0.dp) / heightFactor) else 60.dp)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             KeyCluster(letters, size, onAction)
-            Spacer(Modifier.width(size * .8f))
+            Spacer(Modifier.height(size * .8f))
             KeyCluster(numbers, size, onAction)
         }
     }

@@ -92,7 +92,9 @@ and use Copy selected text or the normal keyboard copy action. Selection is per
 entry; cross-entry selection/export is not implemented.
 
 Terminal and MDI provide a touch CNC/G-code keyboard with two independently paged
-square key clusters. The default letter grid starts `O N G P`; the numeric grid
+square key clusters stacked in a panel to the right of the console/editor,
+with letters above numbers. The terminal keeps its full-height log and prompt.
+The default letter grid starts `O N G P`; the numeric grid
 keeps Backspace, `*`, `+` and Enter in its separated fourth column. Further pages
 provide the remaining letters and macro/editing symbols. Tapping inserts at the
 caret or replaces the selection without taking input focus. Terminal Enter uses

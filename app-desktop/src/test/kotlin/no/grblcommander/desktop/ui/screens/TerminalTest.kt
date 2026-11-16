@@ -254,20 +254,19 @@ class TerminalTest {
             runBlocking { repeat(100) { f.transport.emit("[LINE:$it]\n") } }
             waitUntil(timeoutMillis = 5_000) { f.terminal.history.any { it.event.text == "[LINE:99]" } }
             onNodeWithText("[LINE:99]", substring = true).assertExists()
-            // Keep the drag distance when the keyboard reduces the viewport height.
-            onNodeWithTag("terminal-log").performTouchInput { swipeDown(endY = bottom + 300f) }
+            onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
             onNodeWithTag("softkey-R6").assertIsNotSelected()
-            runOnIdle { assertEquals("", f.terminal.prompt.text) } // Dragging across the keypad must not type.
+            runOnIdle { assertEquals("", f.terminal.prompt.text) } // Scrolling must not edit the prompt.
             runBlocking { f.transport.emit("[LINE:latest]\n") }
             waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[LINE:latest]" } }
             onNodeWithTag("softkey-R6").assertIsNotSelected().performClick()
             onNodeWithTag("softkey-R6").assertIsSelected()
             onNodeWithText("[LINE:latest]", substring = true).assertExists()
-            onNodeWithTag("terminal-log").performTouchInput { swipeDown(endY = bottom + 300f) }
+            onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
             onNodeWithTag("softkey-R6").assertIsNotSelected()
             repeat(10) {
                 if (!f.util.softKeyDefinition(RightSoftKeySlot.R6)!!.active())
-                    onNodeWithTag("terminal-log").performTouchInput { swipeUp(endY = top - 300f) }
+                    onNodeWithTag("terminal-log").performTouchInput { swipeUp() }
             }
             onNodeWithTag("softkey-R6").assertIsSelected() // Returning to bottom restores Follow.
             runBlocking { f.transport.emit("[LINE:after-bottom]\n") }

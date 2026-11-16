@@ -502,8 +502,10 @@ repository [AGENTS.md](../AGENTS.md).
 
 ### CNC/G-code touch keyboard
 
-`ui.controls.GCodeKeyboard` composes two `KeyCluster` controls beneath the Util
-Terminal console and the local MDI buffer. Each cluster has independent retained
+`ui.controls.GCodeKeyboard` stacks the letter `KeyCluster` above the numeric
+cluster in a right-hand workspace panel beside the Util Terminal console and
+the local MDI buffer. The console/input occupies the full available height.
+Each cluster has independent retained
 `KeyClusterState`, a square grid and one page-count/Next control below it, wrapping
 to the first page. A single-page map disables cycling. Paging preserves focus,
 caret, selection and the other cluster's page. Empty positions retain their space.
@@ -531,11 +533,14 @@ Minus inserts ASCII `-`; Space inserts one space. Backspace and Enter stay at
 slots 3 and 15 on both numeric pages. `*` and `+` stay at slots 7 and 11.
 
 Keys have ordinary gaps of 30% of their width, with a total 60% gap before numeric
-column four. The clusters have an 80%-width separation. Keys fit available width
+column four. The clusters have an 80%-key-width vertical separation. Keys fit
+available width
 and height up to 60 dp; they can shrink below 44 dp in constrained windows.
-Terminal reserves up to half the workspace height for the keyboard; MDI reserves
-up to 65%, leaving the input above it. Header and softkeys remain outside these
-screen-local layouts. Very small windows cannot provide full-size touch targets.
+Terminal and MDI allocate up to 40% of the workspace width (capped at 340 dp)
+to the keyboard panel, with a 16 dp gap from the console/editor. Both clusters
+share a key size fitted to the panel height and width. Header and softkeys remain
+outside these screen-local layouts. Very small windows cannot provide full-size
+touch targets.
 
 `KeypadLayout` is a copied configuration snapshot with rows/columns, a list of
 row-major slot maps, labels, typed actions, ordinary spacing and optional total
