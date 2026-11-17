@@ -1,6 +1,13 @@
 package no.grblcommander.desktop.ui.screens
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import no.grblcommander.core.connection.PostConnectActions
+import no.grblcommander.core.connection.description
+import no.grblcommander.desktop.ui.rememberCurrentTime
+import no.grblcommander.desktop.ui.runAtScreenshotSizes
 import androidx.compose.ui.test.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -61,13 +68,14 @@ class ControllerConnectionSettingsTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val preferences = Preferences()
         var autoStatus = true
+        var commandTimeoutMillis = 5_000L
         val transports = java.util.concurrent.CopyOnWriteArrayList<ConnectionTestTransport>()
         val awaitEntered = AtomicInteger()
         var releaseClose: CompletableDeferred<Unit>? = null
         val owner = ControllerConnection(scope, { _, child ->
             val transport = ConnectionTestTransport().apply { autoStatus = this@Fixture.autoStatus }
             transports += transport
-            val session = GrblMachineSession(transport, child, handshakeTimeoutMillis = 30_000)
+            val session = GrblMachineSession(transport, child, handshakeTimeoutMillis = 30_000, commandTimeoutMillis = commandTimeoutMillis)
             object : MachineSession by session {
                 override suspend fun awaitClosed() {
                     awaitEntered.incrementAndGet()
@@ -91,8 +99,14 @@ class ControllerConnectionSettingsTest {
 
     private fun ComposeUiTest.open(fixture: Fixture): ControllerConnectionSettings {
         setContent {
-            MaterialTheme {
-                AppShell(ShellState.startup(), { fixture.stack }) { ScreenStackHost(fixture.stack) }
+            MaterialTheme(colorScheme = darkColorScheme()) {
+                val state by fixture.owner.state.collectAsState()
+                val now = rememberCurrentTime()
+                val status = (if (state.closing) "Closing" else state.snapshot.connection.name) +
+                    (if (!state.closing && state.snapshot.connection == Connection.CONNECTED && state.reportIsStale(now)) " · stale" else "") +
+                    (state.snapshot.alarmCode?.let { " · ALARM:$it" } ?: state.snapshot.status?.executionState?.let { " · $it" }.orEmpty())
+                AppShell(ShellState("Connection settings", state.endpoint?.description() ?: "No controller endpoint selected", status),
+                    { fixture.stack }) { ScreenStackHost(fixture.stack) }
             }
         }
         runOnIdle { fixture.root.openConnection() }
@@ -110,20 +124,26 @@ class ControllerConnectionSettingsTest {
         return activated
     }
 
-    @Test fun `intentional disconnect is neutral while an unexpected connection loss stays visible`() = runComposeUiTest {
+    @Test fun `intentional disconnect is neutral while an unexpected connection loss stays visible`() = runAtScreenshotSizes { screenshot ->
         Fixture().use { fixture ->
             runBlocking { fixture.owner.connect(fixture.draft.endpoint()) }
             open(fixture)
+            onNodeWithText("Last machine state: Idle").assertExists()
+            screenshot("connection-active")
             fixture.releaseClose = CompletableDeferred()
             assertTrue(activate(fixture, BottomSoftKeySlot.F6))
+            onNodeWithText("Interrupt current connection?").assertExists()
+            screenshot("connection-interruption-confirmation")
             onNodeWithTag("softkey-F1").performClick()
             waitUntil(timeoutMillis = 5_000) { fixture.awaitEntered.get() == 1 }
             onNodeWithText("Disconnecting…").assertExists()
+            screenshot("connection-disconnecting")
             onNodeWithText("Last connection error:", substring = true).assertDoesNotExist()
             onNodeWithText("Machine state is stale or unavailable.", substring = true).assertDoesNotExist()
             fixture.releaseClose!!.complete(Unit)
             waitUntil(timeoutMillis = 5_000) { fixture.stack.softKeyDefinition(BottomSoftKeySlot.F6)!!.enabled() }
             onNodeWithText("Disconnected. Machine state is not being updated.").assertExists()
+            screenshot("connection-disconnected-observation")
             onNodeWithText("Last connection error:", substring = true).assertDoesNotExist()
             onNodeWithText("Last machine state: Idle").assertExists()
             assertTrue(activate(fixture, BottomSoftKeySlot.F6))
@@ -132,10 +152,11 @@ class ControllerConnectionSettingsTest {
             waitUntil(timeoutMillis = 5_000) { fixture.owner.state.value.snapshot.connection == Connection.FAILED }
             onNodeWithText("Last connection error:", substring = true).assertExists()
             onNodeWithText("Machine state is stale or unavailable.", substring = true).assertExists()
+            screenshot("connection-failed")
         }
     }
 
-    @Test fun `Disconnect confirms before cancelling an unfinished Connect and allows explicit reconnect`() = runComposeUiTest {
+    @Test fun `Disconnect confirms before cancelling an unfinished Connect and allows explicit reconnect`() = runAtScreenshotSizes { screenshot ->
         Fixture().use { fixture ->
             fixture.autoStatus = false
             open(fixture)
@@ -147,6 +168,8 @@ class ControllerConnectionSettingsTest {
             waitUntil(timeoutMillis = 5_000) { fixture.owner.state.value.snapshot.connection == Connection.CONNECTING }
             onNodeWithText("Interrupt current connection?").assertExists()
             onNodeWithTag("softkey-F8").performClick()
+            onNodeWithText("Waiting for controller status…").assertExists()
+            screenshot("connection-connecting")
             runOnIdle {
                 assertEquals(Connection.CONNECTING, fixture.owner.state.value.snapshot.connection)
                 assertFalse(fixture.transports.single().closed)
@@ -163,7 +186,7 @@ class ControllerConnectionSettingsTest {
         }
     }
 
-    @Test fun `Disconnect is disabled during Save and cannot cancel it through repeated callbacks`() = runComposeUiTest {
+    @Test fun `Disconnect is disabled during Save and cannot cancel it through repeated callbacks`() = runAtScreenshotSizes { screenshot ->
         Fixture().use { fixture ->
             runBlocking { fixture.owner.connect(fixture.draft.endpoint()) }
             open(fixture)
@@ -172,6 +195,7 @@ class ControllerConnectionSettingsTest {
             waitUntil(timeoutMillis = 5_000) { fixture.preferences.flushEntered.count == 0L }
             assertFalse(activate(fixture, BottomSoftKeySlot.F6))
             onNodeWithTag("softkey-F6").assertIsNotEnabled()
+            screenshot("connection-saving")
             runOnIdle {
                 repeat(3) { fixture.stack.softKeyDefinition(BottomSoftKeySlot.F6)!!.action!!.invoke() }
                 assertFalse(fixture.transports.single().closed)
@@ -180,7 +204,8 @@ class ControllerConnectionSettingsTest {
             onNodeWithText("Interrupt current connection?").assertDoesNotExist()
             fixture.preferences.releaseFlush.countDown()
             waitUntil(timeoutMillis = 5_000) { fixture.stack.softKeyDefinition(BottomSoftKeySlot.F7)!!.enabled() }
-            onNodeWithText("Settings saved. The current connection is unchanged.").assertExists()
+            onNodeWithText("Settings saved. The current connection is unchanged.").performScrollTo().assertIsDisplayed()
+            screenshot("connection-saved")
             runOnIdle {
                 assertEquals(1, fixture.preferences.flushes.get())
                 assertEquals(Connection.CONNECTED, fixture.owner.state.value.snapshot.connection)
@@ -290,13 +315,32 @@ class ControllerConnectionSettingsTest {
         }
     }
 
-    @Test fun restoreSavedAndDefaultDraft() = runComposeUiTest {
+    @Test fun restoreSavedAndDefaultDraft() = runAtScreenshotSizes { screenshot ->
         Fixture().use { fixture ->
             val screen = open(fixture)
+            screenshot("connection-tcp-draft")
             // With no saved record, F8 restores blank endpoints and normal defaults.
             onNodeWithTag("softkey-F8").performClick()
+            onNodeWithText("Restore saved settings?").assertExists()
+            screenshot("connection-restore-confirmation")
             onNodeWithTag("softkey-F1").performClick()
             runOnIdle { assertEquals(ControllerEndpointDraft(), screen.draft) }
+            screenshot("connection-serial-defaults")
+            onNodeWithText("Device path / port name").performScrollTo().performClick()
+            onNode(hasSetTextAction()).performTextReplacement("/dev/ttyACM0")
+            screenshot("connection-device-input")
+            onNodeWithTag("softkey-F8").performClick()
+            onNodeWithTag("softkey-F3").performClick()
+            onNodeWithText("5️⃣  115200").assertExists()
+            screenshot("connection-baud-page-one")
+            onNodeWithTag("softkey-F7").performClick()
+            onNodeWithText("1️⃣  460800").assertExists()
+            screenshot("connection-baud-page-two")
+            onNodeWithTag("softkey-F8").performClick()
+            onNodeWithText("Baud rate (custom entry)").performScrollTo().performClick()
+            onNode(hasSetTextAction()).performTextReplacement("250000")
+            screenshot("connection-custom-baud-input")
+            onNodeWithTag("softkey-F8").performClick()
             val saved = fixture.draft.copy(serialPort = "COM42", baudRate = "230400", dtr = false)
             runBlocking { fixture.settings.save(saved) }
             runOnIdle { screen.draft = saved.copy(host = "edited", serialPort = "other") }
@@ -311,19 +355,91 @@ class ControllerConnectionSettingsTest {
         }
     }
 
-    @Test fun tcpFocusAndKeyboardApplyUseFieldOwner() = runComposeUiTest {
+    @Test fun tcpFocusAndKeyboardApplyUseFieldOwner() = runAtScreenshotSizes { screenshot ->
         Fixture().use { fixture ->
             val screen = open(fixture)
             onNodeWithTag("softkey-F2").performClick()
             onNodeWithTag("softkey-R7").assertIsNotEnabled()
+            screenshot("connection-host-input")
+            onNodeWithTag("keypad-Address-next").performClick()
+            onNodeWithTag("keypad-Address-0").assertTextEquals("A")
+            screenshot("connection-host-input-uppercase")
+            onNodeWithTag("keypad-Address-next").performClick()
+            screenshot("connection-host-input-symbols")
             onNode(hasSetTextAction()).performTextReplacement("controller.local")
             onNodeWithTag("softkey-F7").performClick()
             runOnIdle { assertEquals("controller.local", screen.draft.host) }
             onNodeWithTag("softkey-F3").performClick()
             onNodeWithTag("keypad-Numbers-8").performClick()
             onNodeWithTag("keypad-Numbers-9").performClick()
+            screenshot("connection-port-input")
             onNodeWithTag("softkey-F7").performClick()
             runOnIdle { assertEquals("12", screen.draft.tcpPort); assertTrue(fixture.transports.isEmpty()) }
+        }
+    }
+
+    @Test fun validationAndResetConfirmationCaptures() = runAtScreenshotSizes { screenshot ->
+        Fixture().use { fixture ->
+            val screen = open(fixture)
+            runOnIdle { screen.draft = fixture.draft.copy(tcpPort = "0") }
+            onNodeWithTag("softkey-F6").performClick()
+            onNodeWithText("TCP port must be a number between 1 and 65535").performScrollTo().assertIsDisplayed()
+            screenshot("connection-tcp-validation")
+            runOnIdle { screen.draft = ControllerEndpointDraft(serialPort = "COM3", baudRate = "0") }
+            onNodeWithTag("softkey-F6").performClick()
+            onNodeWithText("Baud rate must be a number", substring = true).performScrollTo().assertIsDisplayed()
+            screenshot("connection-serial-validation")
+            runOnIdle { screen.draft = fixture.draft.copy(postConnect = PostConnectActions(resetController = true)) }
+            onNodeWithTag("softkey-F6").performClick()
+            onNodeWithText("Reset controller after connecting?").assertExists()
+            screenshot("connection-reset-confirmation")
+            onNodeWithTag("softkey-F8").performClick()
+            runOnIdle { assertTrue(fixture.transports.isEmpty()); assertSame(screen, fixture.stack.top) }
+        }
+    }
+
+    @Test fun staleConnectedStateCapture() = runAtScreenshotSizes { screenshot ->
+        Fixture().use { fixture ->
+            runBlocking { fixture.owner.connect(fixture.draft.endpoint()) }
+            fixture.transports.single().autoStatus = false
+            open(fixture)
+            waitUntil(timeoutMillis = 6_000) {
+                runCatching { onNodeWithText("Machine state is stale or unavailable.", substring = true).assertExists() }.isSuccess
+            }
+            runOnIdle { assertEquals(Connection.CONNECTED, fixture.owner.state.value.snapshot.connection) }
+            screenshot("connection-stale")
+        }
+    }
+
+    @Test fun postConnectProgressAndOutcomeCaptures() = runAtScreenshotSizes { screenshot ->
+        Fixture().use { fixture ->
+            fixture.commandTimeoutMillis = 30_000
+            val screen = open(fixture)
+            runOnIdle { screen.draft = fixture.draft.copy(postConnect = PostConnectActions()) }
+            onNodeWithTag("softkey-F6").performClick()
+            waitUntil(timeoutMillis = 5_000) { fixture.owner.state.value.postConnectPending && fixture.stack.softKeyDefinition(BottomSoftKeySlot.F7)!!.enabled() }
+            val transport = fixture.transports.single()
+            runBlocking { assertEquals("\$I\n", transport.nextNonStatusWrite()) }
+            onNodeWithText("Running post-connect actions…").performScrollTo().assertIsDisplayed()
+            screenshot("connection-post-connect-progress")
+            transport.onWrite = { if (it.endsWith('\n')) transport.emit("ok\r\n") }
+            runBlocking { transport.emit("error:3\r\n") }
+            waitUntil(timeoutMillis = 5_000) { !fixture.owner.state.value.postConnectPending }
+            onNodeWithText("\$I rejected: error:3.").performScrollTo().assertIsDisplayed()
+            screenshot("connection-post-connect-results")
+            onNodeWithTag("softkey-F6").performClick()
+            onNodeWithTag("softkey-F1").performClick()
+            waitUntil(timeoutMillis = 5_000) { fixture.owner.state.value.snapshot.connection == Connection.DISCONNECTED && fixture.stack.softKeyDefinition(BottomSoftKeySlot.F7)!!.enabled() }
+            onNodeWithTag("softkey-F6").performClick()
+            waitUntil(timeoutMillis = 5_000) { fixture.transports.size == 2 && fixture.owner.state.value.postConnectPending && fixture.stack.softKeyDefinition(BottomSoftKeySlot.F7)!!.enabled() }
+            runBlocking {
+                assertEquals("\$I\n", fixture.transports.last().nextNonStatusWrite())
+                fixture.transports.last().emit("ALARM:1\r\n")
+            }
+            waitUntil(timeoutMillis = 5_000) { !fixture.owner.state.value.postConnectPending }
+            onNodeWithText("and remaining queries skipped:", substring = true).performScrollTo().assertIsDisplayed()
+            screenshot("connection-post-connect-unsynchronized")
+            runOnIdle { assertEquals(Connection.CONNECTED, fixture.owner.state.value.snapshot.connection); assertTrue(fixture.owner.state.value.snapshot.resetRequired) }
         }
     }
 }

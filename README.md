@@ -227,15 +227,18 @@ Physical-machine integration tests are not included.
 
 ### Compose UI screenshots
 
-Capture the Terminal and MDI integration tests locally on JDK 21:
+Capture Terminal, MDI and connection-settings integration tests locally on JDK 21:
 
 ```bash
-gradle :app-desktop:test -PuiScreenshots --tests '*TerminalTest'
+gradle :app-desktop:test -PuiScreenshots \
+  --tests '*TerminalTest' \
+  --tests '*ConnectionEditorsTest' \
+  --tests '*ControllerConnectionSettingsTest'
 ```
 
 The opt-in test run writes PNGs to `app-desktop/build/ui-screenshots/<scenario>/<width>x<height>.png`.
-It uses the production Compose shell, its Terminal and MDI screens, and the
-in-memory controller fixture. The headless Skiko test surface uses software
+It uses the production Compose shell, Terminal/MDI screens, connection forms and
+editors, and deterministic in-memory controller/discovery fixtures. The headless Skiko test surface uses software
 rendering at 1× density. It captures the application client area, so native
 window decorations, platform font rendering and scaled displays can differ.
 The tests check keyboard paging, command submission and input focus separately
@@ -261,6 +264,19 @@ it does not imply coverage of all application screens.
 | `terminal-idle-first-letter` | Idle following Run and the first post-command keypress |
 | `mdi` | Local MDI buffer with the first pages |
 | `mdi-page-2` | Local MDI buffer with the second pages |
+| `connection-serial-defaults`, `connection-tcp-draft` | Serial defaults and retained TCP form |
+| `connection-port-discovery-*` | Loading, empty and failed serial discovery |
+| `connection-port-page-*`, `connection-port-single-page` | Six numbered device rows, paging/wrap and a partial final page; single-page bank |
+| `connection-baud-page-*` | Both pages of the production common-baud selector |
+| `connection-device-input`, `connection-host-input*` | Manual device entry and all three address keyboard pages |
+| `connection-port-input`, `connection-custom-baud-input` | Field-owned numeric entry for TCP port and custom baud |
+| `connection-advanced-*` | Four grouped combinations cover every data-bit/parity/stop/flow value and both control-line levels, plus discard confirmation |
+| `connection-post-connect-all-*`, `connection-post-connect-extended` | Grouped all-off/all-on choices and extended firmware query |
+| `connection-*-validation`, `connection-restore-confirmation`, `connection-reset-confirmation` | Serial/TCP validation, draft restoration and explicit reset consent |
+| `connection-active`, `connection-connecting`, `connection-disconnecting`, `connection-interruption-confirmation` | Live/pending lifecycle and interruption confirmation |
+| `connection-disconnected-observation`, `connection-failed`, `connection-stale` | Neutral retained observations, unexpected failure and live-but-stale warning |
+| `connection-saving`, `connection-saved` | Save admission/progress and successful persistence feedback |
+| `connection-post-connect-progress`, `connection-post-connect-results`, `connection-post-connect-unsynchronized` | Session-owned query progress, correlated rejection/results and unsafe-correlation skip diagnostics |
 
 The Linux PR and main-push jobs capture each scenario at 1024×720, 1024×768, 1280×720,
 1680×1050, 1920×1080 and 2560×1440. **1024×720 is the minimum supported
