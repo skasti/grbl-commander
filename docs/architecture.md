@@ -1336,6 +1336,15 @@ legacy record compatibility, shared configuration state and simulated restarts.
 Core and desktop tests share one simulated transport through Gradle test fixtures.
 Desktop tests retain navigation, confirmation and concurrent-form coverage.
 Linux/Windows CI runs `:infrastructure:build :core:build :app-desktop:build`.
+Linux uses the shared opt-in Compose capture helper at fixed resolutions on PRs
+and main pushes. Capture checkpoints retain functional assertions and record
+producing test sources. CI publishes complete captures through one retrying Git
+publisher to `pr-assets/<PR>/` or `pr-assets/main/`. A separate publication job
+owns write permissions, selects decoded pixel/dimension differences and captures
+from modified tests, and maintains one informational PR comment. Per-target
+serialization and run/attempt ordering cover both assets and comments; fork PRs
+retain read-only artifacts. This review aid does not approve visual changes or
+alter machine/session behavior. See [screenshot verification and limitations](../README.md#compose-ui-screenshots).
 
 The implemented `:infrastructure:test` suite covers GRBL framing/parsing,
 TCP loopback lifecycle, serial lifecycle via an injected native adapter, native

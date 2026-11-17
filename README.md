@@ -239,7 +239,19 @@ in-memory controller fixture. The headless Skiko test surface uses software
 rendering at 1× density. It captures the application client area, so native
 window decorations, platform font rendering and scaled displays can differ.
 The tests check keyboard paging, command submission and input focus separately
-from capture. PNGs are for visual inspection.
+from capture. PNGs are for visual inspection. Capture ownership is recorded alongside
+the images so PR review selection can include modified capture tests without
+hardcoding scenarios in CI.
+
+UI changes require saved capture checkpoints for each affected screen,
+modal/dialog and relevant visible state; see the
+[agent coverage requirements](AGENTS.md#screenshot-coverage-for-ui-changes).
+Use the fewest scenarios that cover those states: independent toggles can share
+an all-off capture and an all-on capture, with additional valid combinations only
+for remaining control values or distinct visual interactions. Functional tests
+still assert individual controls and interactions. Each checkpoint retains all
+six capture resolutions. The following table lists the implemented capture set;
+it does not imply coverage of all application screens.
 
 | Directory | Captured state |
 | --- | --- |
@@ -250,7 +262,7 @@ from capture. PNGs are for visual inspection.
 | `mdi` | Local MDI buffer with the first pages |
 | `mdi-page-2` | Local MDI buffer with the second pages |
 
-The Linux PR job captures each scenario at 1024×720, 1024×768, 1280×720,
+The Linux PR and main-push jobs capture each scenario at 1024×720, 1024×768, 1280×720,
 1680×1050, 1920×1080 and 2560×1440. **1024×720 is the minimum supported
 resolution** at 1× scale. Windows runs the functional tests; CI capture and
 publishing run on Linux.
@@ -260,23 +272,77 @@ Open the workflow run's **Artifacts** section for
 some PNGs, `compose-ui-screenshots-partial-<attempt>`. Artifacts are kept
 for 14 days. Rerun all jobs to retry capture and publication together.
 
-For a PR whose head and base are in the same repository, CI publishes a
-complete Linux capture set to that repository's `pr-assets` branch under
-the PR number. This includes PRs opened within a contributor's fork with
-Actions enabled and permission to write the branch. For a fork PR opened
-against upstream, use the read-only run's artifact. In a public repository,
-embed a published image using the workflow repository and actual PR number:
+Successful pushes to `main` publish a complete capture set to `pr-assets/main/`
+after the Linux/Windows builds, simulator integration and screenshot-tool tests
+pass. Same-repository PRs publish complete Linux captures to `pr-assets/<PR number>/`
+and maintain one marked review comment. A partial/failed Linux capture stays an
+artifact and cannot replace published images or comments. A push to `pr-assets`
+does not trigger CI, so baseline publication cannot create a workflow loop.
+Fork PRs against upstream have read-only capture jobs and artifacts only; the
+write-enabled publication/comment job is skipped. No upstream write token is
+passed to fork code. These rules also apply within a contributor's own fork.
 
-```markdown
-![Terminal at 1024×720](https://raw.githubusercontent.com/OWNER/REPOSITORY/pr-assets/PR_NUMBER/terminal/1024x720.png)
+Review selection compares decoded RGBA pixels and dimensions against the main
+baseline in the published asset snapshot; PNG metadata/compression do not count.
+A scenario is included if any size is **new** or **changed**, or if its recorded
+capture-test source is new/modified in the PR diff (**test-modified**), even with
+identical pixels. `runAtScreenshotSizes` resolves the calling Kotlin test source
+before starting the Compose runner and writes `<scenario>/capture-source.txt`.
+Scenario names use lowercase letters/digits separated by hyphens and belong to
+one test source. Adding a scenario requires only a test checkpoint, with no CI
+scenario list. Screenshots from older captures without ownership metadata still
+participate in pixel comparison. Removed paths are listed without embedding a
+missing image. Differences are informational and never fail the build.
+
+Each selected scenario embeds exactly one expanded image, preferring 1024×720
+(or the first available size), with all other sizes under **Other resolutions**
+in a collapsed details section. Identical captures are omitted unless their test
+source changed. A clean comparison produces a short no-differences comment. If
+`main/` is unavailable, captures are explicitly labelled new. All six PNGs remain
+in artifacts and on `pr-assets`, independently of comment selection. Comment
+image URLs use the asset commit SHA to avoid stale GitHub image caches.
+
+Publication replaces only its target directory. Non-force Git pushes retry from
+the latest tip, preserving other directories. Per-target workflow run/attempt
+markers prevent older runs and reruns from replacing newer assets. One job-level
+concurrency group covers publication and comment updates for each PR (and a
+separate group for main); the comment also checks run/attempt ordering and that
+the PR is still open at the captured head. The stable bot-comment marker is
+`<!-- grbl-commander-ui-screenshots -->`. Repeated publication updates that comment
+rather than creating another. Rerun **all jobs** to retry capture/publication.
+
+For local selection/publisher regression tests (Python 3 and Pillow):
+
+```bash
+python -m pip install Pillow==12.0.0
+python -m unittest discover -s .github/scripts -p 'test_*screenshots.py'
 ```
 
-Each successful publication replaces only the corresponding PR directory.
-Concurrent pushes retry from the latest branch tip, and older workflow runs
-cannot replace a newer publication for the same PR. Published images are kept
-after closing the PR so existing links keep working. Maintainers can remove a
-closed PR's directory with a normal commit to `pr-assets` when its links are
-no longer needed.
+To preview a comment without a token, check out a `pr-assets` commit into an
+`assets` directory, and save a JSON array of modified test paths as `changed.json`:
+
+```bash
+GITHUB_REPOSITORY=OWNER/REPOSITORY GITHUB_RUN_NUMBER=RUN GITHUB_RUN_ATTEMPT=ATTEMPT \
+  python .github/scripts/review_ui_screenshots.py --assets assets \
+  --commit ASSET_COMMIT_SHA --pr PR_NUMBER --changed-paths changed.json > review.md
+```
+
+RUN/ATTEMPT must match the selected PR directory's `.workflow-run`. For ad-hoc
+links, use the immutable asset commit and actual PR number:
+
+```markdown
+![Terminal at 1024×720](https://raw.githubusercontent.com/OWNER/REPOSITORY/ASSET_COMMIT_SHA/PR_NUMBER/terminal/1024x720.png)
+```
+
+Published images persist after PR closure. Maintainers can remove a closed PR's
+directory with a normal commit when its links are no longer needed. GitHub's PR
+files API supplies ownership changes (at most 3,000 files); pixel selection still
+works independently for larger PRs. Very large comments link secondary resolutions
+instead of embedding them; if the expanded content itself exceeds GitHub's limit,
+the comment links the full capture set. Capture rendering can vary with platform
+and dependency versions. The first automatic baseline refresh can only be checked
+once this workflow reaches `main`; until then missing-baseline behavior applies.
+The fork fallback requires a live fork run to verify beyond workflow conditions.
 
 ### Machine communication and simulator tests
 
