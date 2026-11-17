@@ -35,7 +35,7 @@ class PostConnectActionsTest {
         val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope, commandTimeoutMillis = 60) })
         try {
             owner.connect(ControllerEndpoint.Tcp("localhost", 1234))
-            owner.state.first { !it.postConnectPending }
+            owner.state.first { !it.postConnectPending && !it.snapshot.normalCommandsSynchronized }
             assertEquals(listOf("\$I\n"), transport.drainWrites().filter { it.endsWith('\n') })
             assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
             assertFalse(owner.state.value.snapshot.normalCommandsSynchronized)
@@ -53,7 +53,8 @@ class PostConnectActionsTest {
             assertFailsWith<IllegalStateException> { owner.connect(endpoint) }
             assertEquals(0, transport.connectCount)
             owner.connect(endpoint, resetConfirmed = true)
-            owner.state.first { !it.postConnectPending }
+            // The session observer publishes independently of post-connect job completion.
+            owner.state.first { !it.postConnectPending && it.snapshot.normalCommandsSynchronized }
             val writes = transport.drainWrites()
             assertEquals(1, writes.count { it == "\u0018" })
             assertTrue(writes.indexOf("\u0018") < writes.indexOf("\$I\n"))
@@ -83,7 +84,7 @@ class PostConnectActionsTest {
         val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope) })
         try {
             owner.connect(ControllerEndpoint.Tcp("localhost", 1234))
-            owner.state.first { !it.postConnectPending }
+            owner.state.first { !it.postConnectPending && it.snapshot.resetRequired }
             assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
             assertTrue(owner.state.value.snapshot.resetRequired)
             assertEquals(listOf("\$I\n"), transport.drainWrites().filter { it.endsWith('\n') })
