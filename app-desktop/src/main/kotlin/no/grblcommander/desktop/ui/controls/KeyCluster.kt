@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -54,9 +55,18 @@ fun KeyCluster(
                             Spacer(Modifier.size(keySize))
                         } else {
                             val shape = RoundedCornerShape(6.dp)
+                            val background = when (definition.action) {
+                                KeypadAction.Backspace -> Color(0xFFB3261E)
+                                KeypadAction.Enter -> Color(0xFF1B5E20)
+                                is KeypadAction.Insert -> MaterialTheme.colorScheme.secondaryContainer
+                            }
+                            val foreground = when (definition.action) {
+                                is KeypadAction.Insert -> MaterialTheme.colorScheme.onSecondaryContainer
+                                else -> Color.White
+                            }
                             Box(
                                 Modifier.size(keySize).testTag("keypad-${layout.name}-$slot")
-                                    .clip(shape).background(MaterialTheme.colorScheme.secondaryContainer)
+                                    .clip(shape).background(background)
                                     .border(1.dp, MaterialTheme.colorScheme.outline, shape)
                                     .focusProperties { canFocus = false }
                                     // Keep a stable interaction source for the lifetime of this key/page.
@@ -67,7 +77,7 @@ fun KeyCluster(
                                     ) { onAction(definition.action) },
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Text(definition.label, color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                Text(definition.label, color = foreground,
                                     fontSize = (keySize.value * if (definition.label.length > 2) .23f else .38f).coerceIn(8f, 22f).sp,
                                     maxLines = 1)
                             }

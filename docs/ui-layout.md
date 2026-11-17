@@ -532,7 +532,10 @@ Default numeric/operator pages:
 | 4 | `− 0 . ↵` | `− Space : ↵` |
 
 Minus inserts ASCII `-`; Space inserts one space. Backspace and Enter stay at
-slots 3 and 15 on both numeric pages. `*` and `+` stay at slots 7 and 11.
+slots 3 and 15 on both numeric pages. Backspace has a red background and Enter
+has a green background, both with white symbols. Colors follow the typed action
+rather than the label or position, including custom keymaps. `*` and `+` stay at
+slots 7 and 11.
 
 Keys remain square with a clickable size of **44–72 dp**. The shared size is the
 largest whole-pixel value fitting both cluster widths and their combined grid
