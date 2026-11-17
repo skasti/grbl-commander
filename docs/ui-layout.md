@@ -90,9 +90,11 @@ that instance starts a fresh composition while its instance-owned state
 survives.
 
 Only the top screen of the active mode receives workspace pointer and keyboard
-input. Full-workspace pointer targets prevent clicks in overlay margins from
-reaching lower siblings; covered layers also consume pointer events before their
-children. Covered focus groups reject focus entry and key preview handlers block
+input. Full-workspace background pointer targets behind screen content prevent clicks
+in overlay margins from reaching lower siblings. The active screen's child
+gestures remain unconsumed by the host, including small pointer movements while
+a key is held; covered layers consume pointer events in the Initial pass before
+their children. Covered focus groups reject focus entry and key preview handlers block
 stale focused descendants. Covered content is removed from accessibility
 semantics. Focus returns to the active layer, not necessarily the previously
 focused editor field. The header and softkeys stay outside this input boundary.
@@ -585,8 +587,10 @@ settings and their persistence do not own keyboard preferences.
 The renderer reports `Insert`, `Backspace`, or `Enter` intentions through a required
 runtime callback. Every owner explicitly binds Enter to its input's semantics;
 there is no synthesized OS key event or global input dispatcher. Keys/page controls
-cannot acquire text-input focus. Their interaction sources are initialized when
-composed, so the first press works without a prior hover, including after command
+cannot acquire text-input focus. Each key/page retains its interaction source.
+A click remains valid when the pointer moves slightly inside the pressed key;
+leaving the key, cancelling the gesture or covering the screen cancels it.
+First input is supported without a prior hover, including after command
 acknowledgment or movement completion. `editWithKeypad` is an optional input-side helper
 for insertion/selection replacement and Backspace at the caret, including a
 supplementary Unicode code point; an explicit edit finalizes IME composition.

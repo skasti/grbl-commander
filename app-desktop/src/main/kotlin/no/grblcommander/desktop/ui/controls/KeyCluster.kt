@@ -59,8 +59,7 @@ fun KeyCluster(
                                     .clip(shape).background(MaterialTheme.colorScheme.secondaryContainer)
                                     .border(1.dp, MaterialTheme.colorScheme.outline, shape)
                                     .focusProperties { canFocus = false }
-                                    // Attach indication/interaction handling before the first pointer event.
-                                    // Lazy setup can lose a press that arrives without a prior hover.
+                                    // Keep a stable interaction source for the lifetime of this key/page.
                                     .clickable(
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = LocalIndication.current,

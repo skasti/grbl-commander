@@ -14,6 +14,24 @@ import kotlin.test.*
 
 @OptIn(ExperimentalTestApi::class)
 class GCodeKeyboardTest {
+    @Test fun `rapid pointer sequence emits each digit once without waiting between gestures`() = runComposeUiTest {
+        val emitted = mutableListOf<String>()
+        setContent { MaterialTheme { GCodeKeyboard({ if (it is KeypadAction.Insert) emitted += it.text }, Modifier.fillMaxSize()) } }
+        val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
+            onNodeWithTag("keypad-123-$it").fetchSemanticsNode().boundsInRoot.center
+        }
+        onRoot().performMouseInput {
+            moveTo(positions.first())
+            positions.forEach { position ->
+                animateMoveTo(position, durationMillis = 250)
+                press(); advanceEventTime(25)
+                moveTo(position + androidx.compose.ui.geometry.Offset(1f, 0f))
+                advanceEventTime(25); release()
+            }
+        }
+        runOnIdle { assertEquals((1..9).map(Int::toString), emitted) }
+    }
+
     @Test fun `keys and independent page controls preserve focus selection and geometry`() = runSkikoComposeUiTest(size = androidx.compose.ui.geometry.Size(1024f, 768f)) {
         var value by mutableStateOf(TextFieldValue("G0 X12", TextRange(6, 4)))
         var enterCount = 0
