@@ -17,10 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 /** Emits intentions without taking focus from an input. Empty positions retain their geometry. */
 @Composable
@@ -29,14 +32,20 @@ fun KeyCluster(
     keySize: Dp,
     onAction: (KeypadAction) -> Unit,
     modifier: Modifier = Modifier,
+    pageSpacing: Dp = 8.dp,
 ) {
     val layout = state.layout
-    Column(modifier.width(keySize * layout.widthInKeys), horizontalAlignment = Alignment.CenterHorizontally) {
+    val density = LocalDensity.current
+    val keyPixels = with(density) { keySize.roundToPx() }
+    val width = with(density) { layout.widthInPixels(keyPixels).toDp() }
+    val rowSpacing = with(density) { (keyPixels * layout.spacing).roundToInt().toDp() }
+    val pageHeight = with(density) { ceil(44.dp.toPx()).toInt().toDp() }
+    Column(modifier.width(width), horizontalAlignment = Alignment.CenterHorizontally) {
         repeat(layout.rows) { row ->
-            if (row > 0) Spacer(Modifier.height(keySize * layout.spacing))
+            if (row > 0) Spacer(Modifier.height(rowSpacing))
             Row {
                 repeat(layout.columns) { column ->
-                    if (column > 0) Spacer(Modifier.width(keySize * layout.gapBefore(column)))
+                    if (column > 0) Spacer(Modifier.width(with(density) { (keyPixels * layout.gapBefore(column)).roundToInt().toDp() }))
                     val slot = row * layout.columns + column
                     val definition = state.keys[slot]
                     // A page change cancels a pointer gesture started on the preceding page.
@@ -68,9 +77,9 @@ fun KeyCluster(
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(pageSpacing))
         Box(
-            Modifier.fillMaxWidth().height(44.dp).testTag("keypad-${layout.name}-next")
+            Modifier.fillMaxWidth().height(pageHeight).testTag("keypad-${layout.name}-next")
                 .focusProperties { canFocus = false }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

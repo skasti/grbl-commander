@@ -40,7 +40,7 @@ class GCodeKeyboardTest {
         val before = onNodeWithTag("keypad-ABC-0").fetchSemanticsNode().boundsInRoot
         val number = onNodeWithTag("keypad-123-0").fetchSemanticsNode().boundsInRoot
         assertEquals(before.width, before.height, .1f)
-        assertTrue(before.width in 44f..60.1f)
+        assertTrue(before.width in 44f..72.1f)
         val nextNumber = onNodeWithTag("keypad-123-1").fetchSemanticsNode().boundsInRoot
         val third = onNodeWithTag("keypad-123-2").fetchSemanticsNode().boundsInRoot
         val fourth = onNodeWithTag("keypad-123-3").fetchSemanticsNode().boundsInRoot
@@ -66,6 +66,26 @@ class GCodeKeyboardTest {
         onNodeWithText("123 2/2 ▸").assertExists()
         onNodeWithTag("keypad-123-next").performClick()
         onNodeWithText("123 1/2 ▸").assertExists()
+    }
+
+    @Test fun `undersized viewport scrolls instead of shrinking the keys`() = runComposeUiTest {
+        var enters = 0
+        setContent {
+            MaterialTheme {
+                GCodeKeyboard({ if (it == KeypadAction.Enter) enters++ }, Modifier.size(200.dp, 300.dp))
+            }
+        }
+        val first = onNodeWithTag("keypad-ABC-0").fetchSemanticsNode().boundsInRoot
+        assertEquals(44f, first.width, .1f)
+        assertEquals(44f, first.height, .1f)
+        onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(
+            androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange), useUnmergedTree = true)
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy) { it(0f, 1000f) }
+        onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(
+            androidx.compose.ui.semantics.SemanticsProperties.HorizontalScrollAxisRange), useUnmergedTree = true)
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy) { it(1000f, 0f) }
+        onNodeWithTag("keypad-123-15").assertIsDisplayed().performClick()
+        runOnIdle { assertEquals(1, enters) }
     }
 
     @Test fun `custom dimensions labels actions gaps and single page use the same renderer`() = runComposeUiTest {

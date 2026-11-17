@@ -1,5 +1,7 @@
 package no.grblcommander.desktop.ui.controls
 
+import kotlin.math.roundToInt
+
 /** Immutable configuration snapshot. Missing slots stay empty on every page. */
 class KeypadLayout(
     val name: String,
@@ -20,6 +22,12 @@ class KeypadLayout(
         require(this.gapsBeforeColumns.all { (column, gap) -> column in 1 until columns && gap.isFinite() && gap >= 0f })
         require(this.pages.all { page -> page.keys.all { it in 0 until rows * columns } })
     }
+
+    // Compose rounds every key and spacer separately during measurement.
+    internal fun widthInPixels(keyPixels: Int): Int = columns * keyPixels +
+        (1 until columns).sumOf { (keyPixels * gapBefore(it)).roundToInt() }
+    internal fun heightInPixels(keyPixels: Int): Int = rows * keyPixels +
+        (rows - 1) * (keyPixels * spacing).roundToInt()
 
     fun gapBefore(column: Int): Float = if (column == 0) 0f else gapsBeforeColumns[column] ?: spacing
     val widthInKeys: Float get() = columns + (1 until columns).sumOf { gapBefore(it).toDouble() }.toFloat()
