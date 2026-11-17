@@ -94,6 +94,9 @@ entry; cross-entry selection/export is not implemented.
 Terminal and MDI provide a touch CNC/G-code keyboard with two independently paged
 square key clusters stacked in a panel to the right of the console/editor,
 with letters above numbers. The terminal keeps its full-height log and prompt.
+Keys grow with available space from 44 to 72 dp and fit the supported minimum
+1024×720 content viewport. The two clusters stay together at the bottom of their
+panel; compact outer spacing preserves the configured gaps inside each grid.
 The default letter grid starts `O N G P`; the numeric grid
 keeps Backspace, `*`, `+` and Enter in its separated fourth column. Further pages
 provide the remaining letters and macro/editing symbols. Tapping inserts at the

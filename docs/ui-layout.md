@@ -532,15 +532,33 @@ Default numeric/operator pages:
 Minus inserts ASCII `-`; Space inserts one space. Backspace and Enter stay at
 slots 3 and 15 on both numeric pages. `*` and `+` stay at slots 7 and 11.
 
-Keys have ordinary gaps of 30% of their width, with a total 60% gap before numeric
-column four. The clusters have an 80%-key-width vertical separation. Keys fit
-available width
-and height up to 60 dp; they can shrink below 44 dp in constrained windows.
-Terminal and MDI allocate up to 40% of the workspace width (capped at 340 dp)
-to the keyboard panel, with a 16 dp gap from the console/editor. Both clusters
-share a key size fitted to the panel height and width. Header and softkeys remain
-outside these screen-local layouts. Very small windows cannot provide full-size
-touch targets.
+Keys remain square with a clickable size of **44–72 dp**. The shared size is the
+largest whole-pixel value fitting both cluster widths and their combined grid
+height plus two 44 dp page controls. Each key and spacer is measured with the
+same pixel rounding as Compose; the lower size bound rounds upward and the upper
+bound downward. Configured ordinary row/column gaps remain 30% of key size, with
+a total 60% gap before numeric column four. Changing pages does not change size.
+
+Only outer spacing adapts: the gap above each page control ranges from 0 to 8 dp,
+and the inter-cluster gap ranges from 0 to 16 dp. Compact spacing makes room for
+larger keys first. Spare height restores these gaps up to their caps; further
+height stays above the combined keyboard. `GCodeKeyboard` aligns that unit at the
+bottom of its panel. Terminal and MDI retain an 8 dp workspace margin below it;
+excess height is never distributed between the clusters.
+
+At the minimum supported **1024×720 viewport**, the 78 dp header, 94 dp bottom
+bank and 16 dp compact screen padding leave 532 dp for the keyboard. At density 1,
+two 45 dp grids use 444 pixels after spacer rounding and page controls use 88:
+532 in total, with no additional page/inter-cluster gaps. Both clusters fit without overlap
+or scrolling. Terminal and MDI allow up to 40% of workspace width, capped at
+400 dp, for the keyboard; its measured width follows the keys so the remaining
+space belongs to the console/editor. Larger viewports grow keys up to 72 dp.
+
+The viewport dimensions describe available Compose content at its logical dp
+size, excluding window decorations. Below the supported viewport, or with custom
+keymaps too large to fit at 44 dp, the keyboard panel scrolls vertically and/or
+horizontally instead of shrinking keys or overlapping the shell. Native display
+scaling can reduce the available logical viewport; it does not reduce key dp size.
 
 `KeypadLayout` is a copied configuration snapshot with rows/columns, a list of
 row-major slot maps, labels, typed actions, ordinary spacing and optional total

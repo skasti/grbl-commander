@@ -832,7 +832,11 @@ Reusable components include:
 
 The implemented touch keyboard lives in `ui.controls`. `GCodeKeyboard` composes
 independent `KeyCluster` grids stacked vertically in a right-hand workspace panel,
-leaving the console/editor its full height. It uses `KeypadLayout` snapshots and screen-local
+leaving the console/editor its full height. Keys are square, 44–72 dp, and the
+combined panel is bottom-aligned. Responsive outer spacing fits the default maps
+at the minimum 1024×720 content viewport while preserving configured grid gaps.
+Oversized custom maps or smaller viewports scroll instead of shrinking keys.
+It uses `KeypadLayout` snapshots and screen-local
 `KeyClusterState`. Terminal and MDI consume these generic controls and explicitly
 bind editing/Enter to their own inputs. Terminal reuses guarded manual submission;
 MDI inserts local newline/EOB without execution. Keymaps and spacing are data;
