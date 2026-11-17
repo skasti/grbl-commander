@@ -35,15 +35,15 @@ class UtilModeTest {
                 assertEquals("Filters", util.softKeyDefinition(BottomSoftKeySlot.F7)!!.label)
                 activateSoftKey({ util }, RightSoftKeySlot.R7)
                 assertIs<ControllerConnectionSettings>(util.top)
-                assertNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
-                assertNull(util.softKeyDefinition(BottomSoftKeySlot.F5))
-                assertNull(util.softKeyDefinition(BottomSoftKeySlot.F7))
+                assertNotNull(util.softKeyDefinition(BottomSoftKeySlot.F6))
+                assertEquals("Post-Connect Actions", util.softKeyDefinition(BottomSoftKeySlot.F5)!!.label)
+                assertEquals("Save", util.softKeyDefinition(BottomSoftKeySlot.F7)!!.label)
                 assertEquals(setOf(RightSoftKeySlot.R7), util.effectiveRightKeys.keys)
                 assertEquals("⌨\nTerminal", util.softKeyDefinition(RightSoftKeySlot.R7)!!.label)
                 assertEquals(2, util.size)
             }
             waitUntil(timeoutMillis = 5_000) {
-                runCatching { onNodeWithText("● Serial / USB").assertIsEnabled() }.isSuccess
+                runCatching { onNodeWithText("Serial / USB").assertExists() }.isSuccess
             }
             runOnIdle {
                 (util.top as ControllerConnectionSettings).draft =

@@ -6,15 +6,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -46,8 +45,6 @@ import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.desktop.ui.navigation.Screen
 import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
-import no.grblcommander.machine.transport.DiscoveredSerialPort
-import no.grblcommander.machine.transport.SerialConfiguration
 import no.grblcommander.machine.session.MachineSnapshot.Connection
 
 /** Form and screen-local confirmations; all lifecycle actions use the shared application owner. */
@@ -59,22 +56,61 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
     private var scope: CoroutineScope? = null
     private var message by mutableStateOf<String?>(null)
     private var error by mutableStateOf<String?>(null)
-    private var advanced by mutableStateOf(false)
-    private var ports by mutableStateOf<List<DiscoveredSerialPort>>(emptyList())
-    private var discoveryError by mutableStateOf<String?>(null)
-    private var refreshing by mutableStateOf(false)
     private var confirmation by mutableStateOf<Action?>(null)
-    private enum class Action { SAVE, CONNECT, DISCONNECT }
+    private enum class Action { SAVE, CONNECT, DISCONNECT, RESTORE }
     private data class Operation(val action: Action, val job: Job)
     private val busy get() = !loaded || operation != null
     private val canDisconnect get() = loaded && confirmation == null &&
         (operation == null || operation?.action == Action.CONNECT)
 
-    override val bottomKeys = mapOf(
-        BottomSoftKeySlot.F1 to SoftKeyDefinition("Save", action = ::save, enabled = { !busy && confirmation == null }),
-        BottomSoftKeySlot.F2 to SoftKeyDefinition("Connect", action = { request(Action.CONNECT) }, enabled = { !busy && confirmation == null }),
-        BottomSoftKeySlot.F3 to SoftKeyDefinition("Disconnect", action = { request(Action.DISCONNECT) }, enabled = { canDisconnect }),
-    )
+    private var connectionPresent by mutableStateOf(false)
+    override val bottomKeys get() = buildMap {
+        val serial = draft.transport == ControllerEndpointDraft.Transport.SERIAL
+        fun key(slot: BottomSoftKeySlot, label: String, action: () -> Unit) {
+            put(slot, SoftKeyDefinition(label, action = action, enabled = { !busy && confirmation == null }, repeatable = false))
+        }
+        key(BottomSoftKeySlot.F1, if (serial) "Serial / TCP" else "TCP / Serial") {
+            if (!busy) draft = draft.copy(transport = if (serial) ControllerEndpointDraft.Transport.TCP else ControllerEndpointDraft.Transport.SERIAL)
+        }
+        key(BottomSoftKeySlot.F2, if (serial) "Select Port 🔗" else "Hostname / IP") { if (serial) selectPort() else edit("Hostname / IP address", draft.host) { draft = draft.copy(host = it) } }
+        key(BottomSoftKeySlot.F3, if (serial) "Select Baud 📈" else "Port") { if (serial) selectBaud() else edit("TCP port (1–65535)", draft.tcpPort, true) { draft = draft.copy(tcpPort = it) } }
+        if (serial) key(BottomSoftKeySlot.F4, "Advanced 🎛️") {
+            AdvancedSerialSettings(draft).open(this@ControllerConnectionSettings) { it?.let { changed -> draft = changed } }
+        }
+        key(BottomSoftKeySlot.F5, "Post-Connect Actions") {
+            PostConnectSettings(draft.postConnect).open(this@ControllerConnectionSettings) { it?.let { actions -> draft = draft.copy(postConnect = actions) } }
+        }
+        put(BottomSoftKeySlot.F6, SoftKeyDefinition(if (connectionPresent || operation?.action == Action.CONNECT) "Disconnect" else "Connect",
+            action = { request(if (connectionPresent || operation?.action == Action.CONNECT) Action.DISCONNECT else Action.CONNECT) },
+            enabled = { if (connectionPresent || operation?.action == Action.CONNECT) canDisconnect else !busy && confirmation == null }, repeatable = false))
+        key(BottomSoftKeySlot.F7, "Save", ::save)
+        key(BottomSoftKeySlot.F8, "Reset", ::restore)
+    }
+    private fun edit(title: String, value: String, numeric: Boolean = false, apply: (String) -> Unit) {
+        if (!busy && confirmation == null) ConnectionTextInput(title, value, numeric).open(this) { it?.let(apply) }
+    }
+    private fun selectPort() {
+        if (busy) return
+        ConnectionChoice("Select serial port") {
+            settings.discoverSerialPorts().getOrThrow().map { it.device to it.label }
+        }.open(this) { it?.let { port -> draft = draft.copy(serialPort = port) } }
+    }
+    private fun selectBaud() {
+        if (busy) return
+        ConnectionChoice("Select baud rate") {
+            listOf(9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600).map { it.toString() to it.toString() }
+        }.open(this) { it?.let { baud -> draft = draft.copy(baudRate = baud) } }
+    }
+    private fun restore() {
+        if (busy || confirmation != null) return
+        val saved = settings.savedDraft.value
+        if (draft == saved) return
+        confirmation = Action.RESTORE
+        ModalDialog("Restore saved settings?", "Unsaved connection edits will be discarded. This does not reset the controller.", false, mapOf(
+            BottomSoftKeySlot.F1 to ModalDialog.Choice("Restore", true),
+            BottomSoftKeySlot.F8 to ModalDialog.Choice("Keep editing", false),
+        )).open(this) { confirmed -> confirmation = null; if (confirmed) draft = saved }
+    }
     override val rightKeys = mapOf(
         RightSoftKeySlot.R7 to SoftKeyDefinition(
             "⌨\nTerminal", action = ::close, enabled = { confirmation == null }, repeatable = false,
@@ -135,12 +171,21 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
                 ),
             ).open(this) { confirmed ->
                 confirmation = null
-                if (confirmed) execute(action, entered, true)
+                if (confirmed) confirmReset(action, entered, true)
             }
-        } else execute(action, draft, false)
+        } else confirmReset(action, draft, false)
     }
 
-    private fun execute(action: Action, entered: ControllerEndpointDraft, confirmed: Boolean) {
+    private fun confirmReset(action: Action, entered: ControllerEndpointDraft, interrupted: Boolean) {
+        if (action != Action.CONNECT || !entered.postConnect.resetController) { execute(action, entered, interrupted); return }
+        confirmation = Action.CONNECT
+        ModalDialog("Reset controller after connecting?", "Ctrl+X interrupts controller work and invalidates pending commands. Reset does not unlock, home or resume the machine. Confirm this reset for this connection only.", false, mapOf(
+            BottomSoftKeySlot.F1 to ModalDialog.Choice("Connect and reset", true),
+            BottomSoftKeySlot.F8 to ModalDialog.Choice("Cancel", false),
+        )).open(this) { consent -> confirmation = null; if (consent) execute(action, entered, interrupted, true) }
+    }
+
+    private fun execute(action: Action, entered: ControllerEndpointDraft, confirmed: Boolean, resetConfirmed: Boolean = false) {
         if (action == Action.DISCONNECT) {
             if (!canDisconnect) return
             // Disconnect must be able to interrupt a pending connect/handshake rather than queue behind it.
@@ -154,21 +199,8 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
                 message = "Disconnected."
             }
         } else perform(Action.CONNECT) {
-            settings.connect(entered, confirmed, onHandshakeComplete = { handshakeComplete = true })
+            settings.connect(entered, confirmed, resetConfirmed, onHandshakeComplete = { handshakeComplete = true })
             message = "Controller connected and settings saved."
-        }
-    }
-
-    private fun refresh() {
-        if (refreshing) return
-        refreshing = true
-        scope?.launch {
-            try {
-                settings.discoverSerialPorts().fold(
-                    onSuccess = { ports = it; discoveryError = null },
-                    onFailure = { ports = emptyList(); discoveryError = "Port discovery unavailable: ${it.message}. Enter the device manually." },
-                )
-            } finally { refreshing = false }
         }
     }
 
@@ -183,15 +215,15 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
             catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) { error = "Could not load settings: ${failure.message}" }
             finally { loaded = true }
-            refresh()
         }
         val state by settings.connection.state.collectAsState()
+        connectionPresent = state.closing || state.snapshot.connection in setOf(Connection.CONNECTED, Connection.CONNECTING)
         val now = rememberCurrentTime()
         val editable = !busy && confirmation == null
         val disconnecting = state.closing || operation?.action == Action.DISCONNECT
         Surface(Modifier.fillMaxSize()) {
             Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text("Controller connection", style = MaterialTheme.typography.headlineSmall)
@@ -210,62 +242,29 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
                     )
                 }
                 if (busy) CircularProgressIndicator()
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ControllerEndpointDraft.Transport.entries.forEach { transport ->
-                        TextButton(onClick = { draft = draft.copy(transport = transport) }, enabled = editable) {
-                            Text((if (draft.transport == transport) "● " else "") + if (transport == ControllerEndpointDraft.Transport.TCP) "TCP / network" else "Serial / USB")
-                        }
-                    }
-                }
+                Text(if (draft.transport == ControllerEndpointDraft.Transport.SERIAL) "Serial / USB" else "TCP / network", style = MaterialTheme.typography.titleMedium)
                 if (draft.transport == ControllerEndpointDraft.Transport.TCP) {
-                    Field("Hostname / IP address", draft.host, editable) { draft = draft.copy(host = it) }
-                    Field("TCP port (1–65535)", draft.tcpPort, editable) { draft = draft.copy(tcpPort = it) }
+                    Entry("Hostname / IP address", draft.host, editable) { edit("Hostname / IP address", draft.host) { draft = draft.copy(host = it) } }
+                    Entry("TCP port (1–65535)", draft.tcpPort, editable) { edit("TCP port (1–65535)", draft.tcpPort, true) { draft = draft.copy(tcpPort = it) } }
                 } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = ::refresh, enabled = !refreshing && editable) { Text(if (refreshing) "Refreshing…" else "Refresh serial ports") }
-                        Text("Discovery is optional; manual entry always works.")
-                    }
-                    discoveryError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                    if (!refreshing && ports.isEmpty() && discoveryError == null) Text("No serial ports found. Enter a port or device path below.")
-                    ports.forEach { port ->
-                        TextButton(onClick = { draft = draft.copy(serialPort = port.device) }, enabled = editable) { Text(port.label) }
-                    }
-                    Field("Device path / port name (COM3, /dev/ttyACM0…)", draft.serialPort, editable) { draft = draft.copy(serialPort = it) }
-                    Field("Baud rate", draft.baudRate, editable) { draft = draft.copy(baudRate = it) }
-                    TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Hide advanced serial options" else "Advanced serial options") }
-                    if (advanced) {
-                        Field("Data bits (5–8)", draft.dataBits, editable) { draft = draft.copy(dataBits = it) }
-                        Choices("Stop bits", SerialConfiguration.StopBits.entries, draft.stopBits, editable) { draft = draft.copy(stopBits = it) }
-                        Choices("Parity", SerialConfiguration.Parity.entries, draft.parity, editable) { draft = draft.copy(parity = it) }
-                        Choices("Flow control", SerialConfiguration.FlowControl.entries, draft.flowControl, editable) { draft = draft.copy(flowControl = it) }
-                        Row {
-                            Checkbox(draft.dtr, onCheckedChange = { draft = draft.copy(dtr = it) }, enabled = editable); Text("DTR")
-                            Checkbox(draft.rts, onCheckedChange = { draft = draft.copy(rts = it) }, enabled = editable); Text("RTS")
-                        }
-                        Text("Control lines use only these explicit values when connecting. Some USB/serial hardware may reset on opening; verify its behavior.")
-                    }
-                    Text("If connection fails, check that the device exists, is not in use and your account has serial-port permission.")
+                    Entry("Device path / port name", draft.serialPort, editable) { edit("Device path / port name", draft.serialPort) { draft = draft.copy(serialPort = it) } }
+                    Entry("Baud rate (custom entry)", draft.baudRate, editable) { edit("Baud rate", draft.baudRate, true) { draft = draft.copy(baudRate = it) } }
+                    Text("${draft.dataBits} data bits • ${draft.stopBits} stop bits • ${draft.parity} • ${draft.flowControl} • DTR ${draft.dtr} / RTS ${draft.rts}")
+                    Text("F2 refreshes discovery. Manual entry works for undiscovered devices.")
+                    Text("If connection fails, check device permissions and whether another program is using the port.")
                 }
+                if (state.postConnectPending) Text("Running post-connect actions…")
+                state.postConnectResults.forEach { Text(it) }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 message?.let { Text(it) }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = ::save, enabled = editable) { Text("Save") }
-                    Button(onClick = { request(Action.CONNECT) }, enabled = editable) { Text("Connect") }
-                    Button(onClick = { request(Action.DISCONNECT) }, enabled = canDisconnect) { Text("Disconnect") }
-                    TextButton(onClick = ::close, enabled = confirmation == null) { Text("Close") }
-                }
+
             }
         }
     }
 }
 
-@Composable private fun Field(label: String, value: String, enabled: Boolean, change: (String) -> Unit) {
-    OutlinedTextField(value, change, label = { Text(label) }, enabled = enabled, singleLine = true, modifier = Modifier.fillMaxWidth())
-}
-
-@Composable private fun <T> Choices(label: String, values: List<T>, selected: T, enabled: Boolean, change: (T) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label)
-        values.forEach { value -> TextButton(onClick = { change(value) }, enabled = enabled) { Text("${if (selected == value) "● " else ""}$value") } }
+@Composable private fun Entry(label: String, value: String, enabled: Boolean, edit: () -> Unit) {
+    OutlinedButton(onClick = edit, enabled = enabled, modifier = Modifier.widthIn(max = 440.dp).fillMaxWidth().heightIn(min = 56.dp)) {
+        Column(Modifier.fillMaxWidth()) { Text(label, style = MaterialTheme.typography.labelMedium); Text(value.ifEmpty { "Tap to enter" }) }
     }
 }

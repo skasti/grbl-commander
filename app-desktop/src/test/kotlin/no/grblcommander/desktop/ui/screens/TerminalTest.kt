@@ -36,7 +36,7 @@ class TerminalTest {
         val util = ScreenStack(terminal)
         val other = ScreenStack(MdiMode())
         var active by mutableStateOf(util)
-        fun connect() = runBlocking { owner.connect(ControllerEndpoint.Tcp("localhost", 4321)) }
+        fun connect() = runBlocking { owner.connect(ControllerEndpoint.Tcp("localhost", 4321, no.grblcommander.core.connection.noPostConnectActions())) }
         override fun close() {
             owner.close(); runBlocking { owner.awaitClosed() }; scope.cancel()
             node.removeNode(); Preferences.userRoot().flush()
@@ -370,8 +370,8 @@ class TerminalTest {
                 assertIs<ControllerConnectionSettings>(f.util.top)
                 assertEquals(setOf(RightSoftKeySlot.R7), f.util.effectiveRightKeys.keys)
                 assertEquals("⌨\nTerminal", f.util.softKeyDefinition(RightSoftKeySlot.R7)!!.label)
-                assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F6))
-                assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F7))
+                assertNotNull(f.util.softKeyDefinition(BottomSoftKeySlot.F6))
+                assertEquals("Save", f.util.softKeyDefinition(BottomSoftKeySlot.F7)!!.label)
             }
             runBlocking { f.transport.emit("[COVERED:settings]\n") }
             waitUntil(timeoutMillis = 5_000) { f.terminal.history.any { it.event.text == "[COVERED:settings]" } }

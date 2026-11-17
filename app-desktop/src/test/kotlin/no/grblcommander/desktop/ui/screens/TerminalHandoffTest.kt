@@ -17,7 +17,7 @@ class TerminalHandoffTest {
                 val terminal = Terminal(ControllerSettings(owner))
                 val observer = launch(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) { terminal.observeTraffic() }
                 try {
-                    owner.connect(ControllerEndpoint.Tcp("localhost", 1234))
+                    owner.connect(ControllerEndpoint.Tcp("localhost", 1234, no.grblcommander.core.connection.noPostConnectActions()))
                     val command = async { runCatching { owner.executeLine("G4 P1") } }
                     assertEquals("G4 P1\n", transport.nextNonStatusWrite())
                     while (terminal.commandHistory.isEmpty()) yield()
@@ -42,7 +42,7 @@ class TerminalHandoffTest {
             val terminal = Terminal(ControllerSettings(owner))
             val observer = launch(Dispatchers.Unconfined, start = CoroutineStart.UNDISPATCHED) { terminal.observeTraffic() }
             try {
-                owner.connect(ControllerEndpoint.Tcp("localhost", 1234))
+                owner.connect(ControllerEndpoint.Tcp("localhost", 1234, no.grblcommander.core.connection.noPostConnectActions()))
                 assertFailsWith<IllegalArgumentException> { owner.executeLine("G0 X1\nG0 X2") }
                 assertTrue(terminal.commandHistory.isEmpty())
                 transport.localWriteFailure = IllegalArgumentException("local admission rejected")

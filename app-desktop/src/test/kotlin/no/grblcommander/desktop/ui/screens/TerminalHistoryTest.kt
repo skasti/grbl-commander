@@ -7,7 +7,7 @@ import no.grblcommander.machine.session.CommunicationEvent
 import kotlin.test.*
 
 class TerminalHistoryTest {
-    private val endpoint = ControllerEndpoint.Tcp("localhost", 1234)
+    private val endpoint = ControllerEndpoint.Tcp("localhost", 1234, no.grblcommander.core.connection.noPostConnectActions())
     private fun event(cursor: Long, category: CommunicationEvent.Category = CommunicationEvent.Category.INFORMATION,
         session: Long = 1, sequence: Long = cursor) = ControllerTraffic(session, endpoint,
         CommunicationEvent(sequence, Instant.EPOCH, CommunicationEvent.Direction.RX, category, "line $cursor", CommunicationEvent.Outcome.RECEIVED), cursor)
