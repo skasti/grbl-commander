@@ -103,6 +103,101 @@ class TerminalTest {
         }
     }
 
+    @Test fun `acknowledgment during the first letter gesture does not cancel insertion`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            onNodeWithTag("terminal-prompt").performClick().performTextInput("G1X100F500")
+            enter()
+            assertEquals("G1X100F500\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            onNodeWithTag("keypad-ABC-2").performTouchInput { down(center) }
+            runBlocking { f.transport.emit("ok\n") }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.prompt.text.isEmpty() }
+            onNodeWithTag("keypad-ABC-2").performTouchInput { up() }
+            onNodeWithTag("terminal-prompt").assertPromptText("G")
+        }
+    }
+
+    @Test fun `new keypad and keyboard edits survive asynchronous acknowledgment`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            onNodeWithTag("terminal-prompt").performClick().performTextInput("G1X100F500")
+            enter()
+            assertEquals("G1X100F500\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            onNodeWithTag("terminal-prompt").performTextClearance()
+            onNodeWithTag("keypad-ABC-2").performTouchInput { click() }
+            onNodeWithTag("terminal-prompt").performTextInput("X")
+            runBlocking { f.transport.emit("ok\n") }
+            waitUntil(timeoutMillis = 5_000) { !f.owner.state.value.manualCommandPending }
+            onNodeWithTag("terminal-prompt").assertPromptText("GX")
+        }
+    }
+
+    @Test fun `keypad-only mouse input works without first focusing the prompt`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            // G1X100F500, entirely through the mouse-operated keypad, with no input focus request.
+            listOf("ABC-2", "123-8", "ABC-4", "123-8", "123-13", "123-13", "ABC-12", "123-5", "123-13", "123-13").forEach {
+                onNodeWithTag("keypad-$it").performMouseInput { click() }
+            }
+            onNodeWithTag("terminal-prompt").assertPromptText("G1X100F500")
+            onNodeWithTag("keypad-123-15").performMouseInput { click() }
+            assertEquals("G1X100F500\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            f.transport.statusReport = "<Run|MPos:1,0,0>"
+            runBlocking { f.transport.emit("ok\n" + f.transport.statusReport + "\n") }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.prompt.text.isEmpty() }
+            f.transport.statusReport = "<Idle|MPos:100,0,0>"
+            runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
+            waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Idle" }
+            onNodeWithTag("keypad-ABC-2").performMouseInput { click() }
+            onNodeWithTag("terminal-prompt").assertPromptText("G")
+        }
+    }
+
+    @Test fun `MDI accepts its first mouse letter without a prior hover or input focus`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.active = f.other
+            host(f)
+            onNodeWithTag("keypad-ABC-2").performMouseInput { click() }
+            onNode(hasSetTextAction()).assertPromptText("G")
+        }
+    }
+
+    @Test fun `first mouse letter after acknowledgment is inserted without hover`() = firstInputAfterCommand(motion = false, touch = false, mouse = true)
+    @Test fun `first mouse letter after motion reaches Idle is inserted without hover`() = firstInputAfterCommand(motion = true, touch = false, mouse = true)
+
+    @Test fun `first touch letter after acknowledgment is inserted once`() = firstInputAfterCommand(motion = false, touch = true)
+    @Test fun `first touch letter after motion reaches Idle is inserted once`() = firstInputAfterCommand(motion = true, touch = true)
+    @Test fun `first platform text input after acknowledgment is inserted once`() = firstInputAfterCommand(motion = false, touch = false)
+    @Test fun `first platform text input after motion reaches Idle is inserted once`() = firstInputAfterCommand(motion = true, touch = false)
+
+    private fun firstInputAfterCommand(motion: Boolean, touch: Boolean, mouse: Boolean = false) = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            onNodeWithTag("terminal-prompt").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            onNodeWithTag("terminal-prompt").performTextInput("G1X100F500")
+            enter()
+            assertEquals("G1X100F500\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            if (motion) {
+                f.transport.statusReport = "<Run|MPos:1,0,0>"
+                runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
+                waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Run" }
+            }
+            runBlocking { f.transport.emit("ok\n") }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.prompt.text.isEmpty() }
+            if (motion) {
+                f.transport.statusReport = "<Idle|MPos:100,0,0>"
+                runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
+                waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Idle" }
+            }
+            if (mouse) onNodeWithTag("keypad-ABC-2").performMouseInput { click() }
+            else if (touch) onNodeWithTag("keypad-ABC-2").performTouchInput { click() }
+            else onNodeWithTag("terminal-prompt").performTextInput("G")
+            val expected = "G"
+            onNodeWithTag("terminal-prompt").assertPromptText(expected).assertIsFocused()
+            runOnIdle { assertEquals(TextFieldValue(expected, TextRange(1)), f.terminal.prompt) }
+        }
+    }
+
     @Test fun `disconnected multiline and unsynchronized admission preserve input without TX`() = runComposeUiTest {
         Fixture().use { f ->
             host(f)

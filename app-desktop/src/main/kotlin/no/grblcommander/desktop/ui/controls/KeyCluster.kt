@@ -1,5 +1,7 @@
 package no.grblcommander.desktop.ui.controls
 
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,7 +50,13 @@ fun KeyCluster(
                                     .clip(shape).background(MaterialTheme.colorScheme.secondaryContainer)
                                     .border(1.dp, MaterialTheme.colorScheme.outline, shape)
                                     .focusProperties { canFocus = false }
-                                    .clickable(role = Role.Button) { onAction(definition.action) },
+                                    // Attach indication/interaction handling before the first pointer event.
+                                    // Lazy setup can lose a press that arrives without a prior hover.
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = LocalIndication.current,
+                                        role = Role.Button,
+                                    ) { onAction(definition.action) },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(definition.label, color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -63,7 +72,12 @@ fun KeyCluster(
         Box(
             Modifier.fillMaxWidth().height(44.dp).testTag("keypad-${layout.name}-next")
                 .focusProperties { canFocus = false }
-                .clickable(enabled = layout.pages.size > 1, role = Role.Button) { state.next() },
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = LocalIndication.current,
+                    enabled = layout.pages.size > 1,
+                    role = Role.Button,
+                ) { state.next() },
             contentAlignment = Alignment.Center,
         ) {
             Text("${layout.name} ${state.pageIndex + 1}/${layout.pages.size}" + if (layout.pages.size > 1) " ▸" else "",

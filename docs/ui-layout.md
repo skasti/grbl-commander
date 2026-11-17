@@ -567,7 +567,9 @@ settings and their persistence do not own keyboard preferences.
 The renderer reports `Insert`, `Backspace`, or `Enter` intentions through a required
 runtime callback. Every owner explicitly binds Enter to its input's semantics;
 there is no synthesized OS key event or global input dispatcher. Keys/page controls
-cannot acquire text-input focus. `editWithKeypad` is an optional input-side helper
+cannot acquire text-input focus. Their interaction sources are initialized when
+composed, so the first press works without a prior hover, including after command
+acknowledgment or movement completion. `editWithKeypad` is an optional input-side helper
 for insertion/selection replacement and Backspace at the caret, including a
 supplementary Unicode code point; an explicit edit finalizes IME composition.
 Enter always invokes the supplied binding rather than inserting text implicitly.
