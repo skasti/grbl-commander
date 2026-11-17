@@ -19,7 +19,9 @@ The header spans the entire screen width. The right-side softkeys span the
 workspace and bottom-softkey row. The main workspace and bottom keys share the
 remaining width. The initial default sizes are 78 dp for the header, 94 dp for
 the bottom keys and 142 dp for the right column; they may be adjusted for screen
-sizes and touch targets.
+sizes and touch targets. The supported layout starts at 1024 × 720 pixels
+at 1× density. See the [Compose UI screenshots](../README.md#compose-ui-screenshots)
+for the fixed CI capture resolutions and the published views.
 
 `AppShell` owns the persistent regions, accepts a Compose content slot for the
 workspace, and exposes an optional header-controls slot for UI-mode selection.

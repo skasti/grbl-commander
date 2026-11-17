@@ -5,6 +5,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   desktop-build:
     name: Build and test (${{ matrix.os }})
@@ -24,7 +27,55 @@ jobs:
         with:
           gradle-version: "9.8.2"
       - name: Build and test infrastructure, core and desktop application
-        run: gradle :infrastructure:build :core:build :app-desktop:build --no-daemon --stacktrace
+        id: build
+        run: >-
+          gradle :infrastructure:build :core:build :app-desktop:build
+          --no-daemon --stacktrace
+          ${{ github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && '-PuiScreenshots' || '' }}
+      - name: Upload Compose UI screenshots
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ steps.build.outcome == 'success' && 'compose-ui-screenshots' || 'compose-ui-screenshots-partial' }}-${{ github.run_attempt }}
+          path: app-desktop/build/ui-screenshots/
+          if-no-files-found: ${{ steps.build.outcome == 'success' && 'error' || 'ignore' }}
+          retention-days: 14
+
+  publish-ui-screenshots:
+    name: Publish Compose UI screenshots (Linux)
+    needs: desktop-build
+    if: >-
+      ${{ !cancelled() && github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download complete screenshot artifact
+        id: screenshots
+        uses: actions/download-artifact@v7
+        continue-on-error: ${{ needs.desktop-build.result != 'success' }}
+        with:
+          name: compose-ui-screenshots-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/compose-ui-screenshots
+      - uses: actions/checkout@v7
+        if: steps.screenshots.outcome == 'success'
+        with:
+          persist-credentials: false
+      - name: Publish this pull request's screenshots
+        if: steps.screenshots.outcome == 'success'
+        env:
+          SCREENSHOT_DIRECTORY: ${{ runner.temp }}/compose-ui-screenshots
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w 0)
+          echo "::add-mask::$auth"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.${GITHUB_SERVER_URL}/.extraheader"
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
+          bash .github/scripts/publish-ui-screenshots.sh \
+            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$PR_NUMBER" "$SCREENSHOT_DIRECTORY"
 
   simulator-test:
     name: grblHAL Simulator integration (Linux)

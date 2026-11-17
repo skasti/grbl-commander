@@ -15,6 +15,8 @@ import java.util.prefs.Preferences
 import kotlinx.coroutines.*
 import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.core.connection.*
+import no.grblcommander.desktop.ui.CommanderApp
+import no.grblcommander.desktop.ui.runAtScreenshotSizes
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.navigation.*
@@ -29,7 +31,8 @@ class TerminalTest {
         val transport = ConnectionTestTransport()
         val owner = ControllerConnection(scope, { _, child -> GrblMachineSession(transport, child) })
         val node = Preferences.userRoot().node("no/grblcommander/tests/${UUID.randomUUID()}")
-        val terminal = Terminal(ControllerSettings(owner, ControllerEndpointPreferences(node)))
+        val settings = ControllerSettings(owner, ControllerEndpointPreferences(node))
+        val terminal = Terminal(settings)
         val util = ScreenStack(terminal)
         val other = ScreenStack(MdiMode())
         var active by mutableStateOf(util)
@@ -44,6 +47,15 @@ class TerminalTest {
             MaterialTheme { AppShell(ShellState.startup(), { f.active }) { ScreenStackHost(listOf(f.util, f.other), f.active) } }
         }
     }
+    private fun ComposeUiTest.hostApplication(f: Fixture) {
+        setContent { CommanderApp(f.owner, f.settings) }
+        onNodeWithContentDescription("Util").performClick().assertIsSelected()
+        // Leave wall-clock timestamps out of the captured traffic rows.
+        onNodeWithTag("softkey-F7").performClick()
+        onNodeWithTag("softkey-F6").performClick()
+        onNodeWithTag("softkey-F7").performClick()
+    }
+
     private fun SemanticsNodeInteraction.assertPromptText(text: String) =
         assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(text)))
 
@@ -148,13 +160,19 @@ class TerminalTest {
         }
     }
 
-    @Test fun `touch Enter shares physical and IME admission and pages survive navigation`() = runSkikoComposeUiTest(size = androidx.compose.ui.geometry.Size(1024f, 768f)) {
+    @Test fun `touch Enter shares physical and IME admission and pages survive navigation`() = runAtScreenshotSizes { screenshot ->
         Fixture().use { f ->
-            f.connect(); host(f)
+            f.connect(); hostApplication(f)
+            onNodeWithText("ABC 1/2 ▸").assertExists()
+            onNodeWithText("123 1/2 ▸").assertExists()
+            screenshot("terminal")
             onNodeWithTag("terminal-prompt").performClick().performTextInput("\$I")
             onNodeWithTag("keypad-ABC-next").performClick()
             onNodeWithTag("keypad-123-next").performClick()
             onNodeWithTag("terminal-prompt").assertIsFocused()
+            onNodeWithText("ABC 2/2 ▸").assertExists()
+            onNodeWithText("123 2/2 ▸").assertExists()
+            screenshot("terminal-page-2")
             onNodeWithTag("keypad-123-15").performClick()
             assertEquals("\$I\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
             enter()
@@ -165,12 +183,19 @@ class TerminalTest {
             onNodeWithTag("softkey-R7").performClick()
             onNodeWithText("ABC 2/2 ▸").assertExists()
             onNodeWithText("123 2/2 ▸").assertExists()
-            runOnIdle { f.active = f.other }
+            onNode(hasText("MDI") and hasClickAction()).performClick()
+            onNodeWithText("• MDI").assertIsSelected()
             onNodeWithText("Unsent text").performClick().performTextInput("G0 X1")
             onNodeWithTag("keypad-123-15").performClick()
             onNodeWithText("Unsent text").performTextInput("M2")
             onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G0 X1\nM2")))
-            runOnIdle { f.active = f.util }
+            screenshot("mdi")
+            onNodeWithTag("keypad-ABC-next").performClick()
+            onNodeWithTag("keypad-123-next").performClick()
+            onNodeWithText("ABC 2/2 ▸").assertExists()
+            onNodeWithText("123 2/2 ▸").assertExists()
+            screenshot("mdi-page-2")
+            onNodeWithContentDescription("Util").performClick().assertIsSelected()
             onNodeWithText("ABC 2/2 ▸").assertExists()
             onNodeWithText("123 2/2 ▸").assertExists()
             runOnIdle { assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND }) }
@@ -244,9 +269,9 @@ class TerminalTest {
     @Test fun `first platform text input after acknowledgment is inserted once`() = firstInputAfterCommand(motion = false, touch = false)
     @Test fun `first platform text input after motion reaches Idle is inserted once`() = firstInputAfterCommand(motion = true, touch = false)
 
-    private fun firstInputAfterCommand(motion: Boolean, touch: Boolean, mouse: Boolean = false) = runComposeUiTest {
+    private fun firstInputAfterCommand(motion: Boolean, touch: Boolean, mouse: Boolean = false) = runAtScreenshotSizes(capture = motion && mouse) { screenshot ->
         Fixture().use { f ->
-            f.connect(); host(f)
+            f.connect(); hostApplication(f)
             onNodeWithTag("terminal-prompt").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             onNodeWithTag("terminal-prompt").performTextInput("G1X100F500")
             enter()
@@ -257,7 +282,16 @@ class TerminalTest {
                 waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Run" }
             }
             runBlocking { f.transport.emit("ok\n") }
-            waitUntil(timeoutMillis = 5_000) { f.terminal.prompt.text.isEmpty() }
+            waitUntilExactlyOneExists(
+                hasTestTag("terminal-prompt") and
+                    SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")),
+                timeoutMillis = 5_000,
+            )
+            if (motion && mouse) {
+                waitUntilExactlyOneExists(hasText("RX ACKNOWLEDGMENT  ok"), timeoutMillis = 5_000)
+                waitUntilExactlyOneExists(hasText("CONNECTED · TCP localhost:4321 · Run"), timeoutMillis = 5_000)
+                screenshot("terminal-acknowledged")
+            }
             if (motion) {
                 f.transport.statusReport = "<Idle|MPos:100,0,0>"
                 runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
@@ -268,7 +302,13 @@ class TerminalTest {
             else onNodeWithTag("terminal-prompt").performTextInput("G")
             val expected = "G"
             onNodeWithTag("terminal-prompt").assertPromptText(expected).assertIsFocused()
-            runOnIdle { assertEquals(TextFieldValue(expected, TextRange(1)), f.terminal.prompt) }
+            onNodeWithTag("terminal-prompt").assert(
+                SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(1)),
+            )
+            if (motion && mouse) {
+                waitUntilExactlyOneExists(hasText("CONNECTED · TCP localhost:4321 · Idle"), timeoutMillis = 5_000)
+                screenshot("terminal-idle-first-letter")
+            }
         }
     }
 
