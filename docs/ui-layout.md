@@ -21,7 +21,11 @@ remaining width. The initial default sizes are 78 dp for the header, 94 dp for
 the bottom keys and 142 dp for the right column; they may be adjusted for screen
 sizes and touch targets. The supported layout starts at 1024 × 720 pixels
 at 1× density. See the [Compose UI screenshots](../README.md#compose-ui-screenshots)
-for the fixed CI capture resolutions and the published views.
+for fixed CI capture resolutions, local verification and published views.
+PR review comments compare captures with the main baseline and also include
+captures from modified tests. Each scenario shows one expanded resolution;
+additional sizes are collapsed. Capture checkpoints remain in tests, without a
+per-screen workflow list or generated documentation gallery.
 
 `AppShell` owns the persistent regions, accepts a Compose content slot for the
 workspace, and exposes an optional header-controls slot for UI-mode selection.

@@ -4,8 +4,13 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from PIL import Image, PngImagePlugin
-from review_ui_screenshots import MARKER, render, select, upsert
+# Generic release-test discovery has no image dependency. The dedicated screenshot
+# CI job installs Pillow and always runs this complete module.
+try:
+    from PIL import Image, PngImagePlugin
+except ImportError as error:
+    raise unittest.SkipTest("Pillow is installed by the dedicated screenshot-tool CI job") from error
+from review_ui_screenshots import GitHub, MARKER, render, select, upsert
 
 
 class SelectionTests(unittest.TestCase):
@@ -87,7 +92,8 @@ class SelectionTests(unittest.TestCase):
 
 
 class FakeAPI:
-    def __init__(self, comments=(), heads=('head', 'head')):
+    def __init__(self, comments=(), heads=('head', 'head'), state='open'):
+        self.state = state
         self.comments = copy.deepcopy(list(comments))
         self.heads = iter(heads)
         self.writes = []
@@ -97,7 +103,7 @@ class FakeAPI:
 
     def request(self, path, method='GET', data=None):
         if method == 'GET':
-            return {'state': 'open', 'head': {'sha': next(self.heads)}}
+            return {'state': self.state, 'head': {'sha': next(self.heads)}}
         self.writes.append((path, method, data))
         if method == 'POST':
             self.comments.append({'id': 5, 'user': {'type': 'Bot'}, **data})
@@ -129,6 +135,24 @@ class CommentTests(unittest.TestCase):
             api = FakeAPI(heads=heads)
             self.assertEqual(upsert(api, 36, self.body((1, 1)), (1, 1), 'head'), 'obsolete-head')
             self.assertFalse(api.writes)
+
+    def test_closed_pr_is_not_updated(self):
+        api = FakeAPI(state='closed')
+        self.assertEqual(upsert(api, 36, self.body((1, 1)), (1, 1), 'head'), 'obsolete-head')
+        self.assertFalse(api.writes)
+
+    def test_changed_paths_and_comments_are_paginated(self):
+        class PaginatedAPI(GitHub):
+            def __init__(self):
+                self.paths = []
+
+            def request(self, path):
+                self.paths.append(path)
+                return [{'id': i} for i in range(100)] if path.endswith('&page=1') else [{'id': 100}]
+        for path in ['/pulls/36/files', '/issues/36/comments']:
+            api = PaginatedAPI()
+            self.assertEqual(len(api.pages(path)), 101)
+            self.assertEqual(api.paths[-1], path + '?per_page=100&page=2')
 
     def test_human_comment_with_marker_is_not_overwritten(self):
         api = FakeAPI([{'id': 1, 'user': {'type': 'User'}, 'body': self.body((100, 1))}])
