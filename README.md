@@ -142,27 +142,41 @@ replace covered terminal actions. Connection health and machine/alarm observatio
 remain in the shared header. Switching modes retains an open form and never
 disconnects the shared session.
 
-Enter a TCP host/IP and its configured port (no fixed port is assumed), or refresh
-the optional serial-port list and/or enter a device manually. Serial defaults are
-115200 baud, 8N1, no flow control and DTR/RTS false; Advanced exposes all options.
-Discovery does not open ports or change control lines. Empty discovery or native/
-permission failures do not prevent manual entry.
+Connection settings use the bottom softkeys: F1 toggles Serial/TCP; F2/F3
+select serial ports/baud or edit TCP host/port; F4 opens advanced serial settings;
+F5 opens shared Post-Connect Actions; F6 connects or disconnects; F7 saves;
+F8 restores the last saved form, with confirmation before discarding edits.
+R7 returns to Terminal. Serial selectors show six numbered touch rows per page;
+F1–F6 select, F7 pages and F8 cancels. Manual device and custom baud entry remain
+available through field-owned touch keyboards. Advanced F1–F6 cycle settings;
+F7 applies to the parent draft and F8 confirms discarding changed values.
 
-**Save** asks core to store the selected transport/settings without
-changing the active connection. **Connect** validates, connects through the shared
-owner, waits for a controller status handshake and then saves. **Disconnect** can
-cancel a pending handshake, but is disabled during Save or an ongoing Disconnect.
-After a successful handshake it waits for Connect's settings save before disconnecting.
-Replacing/disconnecting an active or connecting session
-requires confirmation through a modal screen on the Util stack: **F1 confirms**
-and **F8 cancels** using the bottom softkeys. The modal has no action buttons in
-its workspace and hides the covered screen's actions until it closes. Reusable
-`ModalDialog<R>` supports other messages/typed choices through the same stack.
-Confirmation does not stop physical motion or replay commands.
-Close cancels an unfinished form action; it does not disconnect a completed session.
-Storage errors are displayed separately from actual connection health. Settings
-load when opening the form; missing/corrupt/incomplete records use blank endpoint
-fields and normal serial defaults. Startup attempts a valid saved endpoint once, after UI readiness; it never retries.
+Serial defaults are 115200 baud, 8N1, no flow control, DTR on and RTS off.
+Explicit saved DTR/RTS values are retained. Requested control-line levels are
+seeded before opening and applied to the open handle, without a reset pulse.
+Discovery never opens ports; failure or an empty result permits manual entry.
+
+Save validates and stores the complete draft without changing the active session.
+Connect uses the shared status handshake before saving. Disconnect can cancel a
+pending connection and requires interruption confirmation. Settings, selectors
+and confirmations mask covered terminal actions. Mode changes retain the form;
+returning to Terminal cancels unfinished form work and keeps completed connections.
+
+Post-connect choices are shared by Serial and TCP: optional controller reset
+(default Off), firmware info Off/$I/$I+ (default $I), parameters $#
+(default On), parser state $G (default On). Queries run in that order after the
+handshake and any selected reset. Each manual connection with reset enabled
+requires explicit confirmation; startup always skips reset. Reset sends Ctrl+X
+once and uses the existing banner/status synchronization. Queries and responses
+use the session's existing queue, correlation and terminal traffic. Unsupported
+commands and timeouts remain visible in connection diagnostics. Unsafe normal
+correlation skips remaining queries without replay; realtime status remains
+available on a live transport. Acknowledgment is not motion completion.
+
+Startup attempts a valid saved endpoint once after UI readiness, without retry.
+Missing, corrupt or unsupported records use blank endpoints and normal defaults.
+Both transport drafts and post-connect choices persist in the existing record.
+Storage errors remain separate from actual connection health.
 
 The screen shows the actual endpoint and lifecycle state. Deliberate Disconnect
 clears the displayed connection error and shows a neutral note that machine state
@@ -199,7 +213,8 @@ gradle :core:build --configure-on-demand
 ```
 
 JVM Preferences keeps the `no/grblcommander/controller` node, `endpoint` key and
-v1 Properties record. Existing TCP and advanced serial settings remain readable.
+v2 Properties record. Existing v1 TCP and advanced serial settings remain readable;
+explicit legacy DTR/RTS values are preserved.
 Core interprets/validates this record; infrastructure only reads/writes its text.
 
 GitHub Actions builds and tests all three modules on Linux and Windows, the officially supported
@@ -269,7 +284,7 @@ no longer needed.
 `SerialTransport` (jSerialComm), GRBL parsing, and `GrblMachineSession`.
 Application services own the session and supply a parent coroutine scope;
 UI screens must not instantiate transports. Serial settings are explicit through
-`SerialConfiguration` (115200 baud, 8N1, no flow control, DTR/RTS low by default).
+`SerialConfiguration` (115200 baud, 8N1, no flow control, DTR on / RTS off by default).
 Linux serial access requires appropriate device permissions; Windows uses port
 names such as `COM3`. USB/serial drivers and line-control behavior still require
 verification on the target hardware.

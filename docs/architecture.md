@@ -315,8 +315,8 @@ the header. Screens never construct sessions or transports.
 
 `ControllerEndpoint.Tcp(host, port)` and `ControllerEndpoint.Serial(configuration)`
 select `TcpTransport` and `SerialTransport` through a small factory. Serial uses
-`SerialConfiguration` unchanged, including its 115200/8N1/no-flow-control/DTR/RTS
-low defaults. Native serial-port lookup occurs at connect rather than endpoint
+`SerialConfiguration` unchanged, including its 115200/8N1/no-flow-control
+defaults (DTR on, RTS off). Native serial-port lookup occurs at connect rather than endpoint
 selection. `ControllerEndpointDraft` validates editable fields without DNS lookup
 or I/O. TCP uses an explicitly entered port (1–65535); serial retains the existing
 defaults and permits manual Windows port names and Linux device paths, including
@@ -340,7 +340,8 @@ Core initialization loads configuration and asynchronously attempts a valid save
 endpoint at most once. Missing/invalid data skips connection. Manual actions cancel
 pending initialization; direct connection lifecycle intentions also prevent delayed
 automatic replacement. Automatic/manual attempts share the connection lifecycle lock.
-There is no retry, reset, unlock or automatic navigation. Startup failure updates
+There is no retry, unlock or automatic navigation. Startup always suppresses a saved
+post-connect reset preference; passive queries may run after handshake. Startup failure updates
 core connection state and the header only; settings can inspect its details.
 Connect validates and awaits handshake before persisting its endpoint inside
 core; presentation invokes user intentions and never performs this internal save.
@@ -350,7 +351,10 @@ Properties text. Missing, incomplete, invalid or unsupported records leave the
 endpoint unselected and retain normal serial defaults. Infrastructure's
 `configuration.ControllerEndpointPreferences` reads/writes that opaque text using
 JVM per-user preferences, at node `no/grblcommander/controller`, key `endpoint`.
-The v1 field names and representation are stable; storage does not interpret or
+The v2 record retains v1 endpoint fields and adds post-connect choices and the complete
+saved form, including unselected transport fields. Valid v1 records remain readable
+with explicit DTR/RTS preserved. Missing post-connect fields use normal defaults
+only for v1; incomplete/invalid v2 records restore defaults. The endpoint field names and representation are stable; storage does not interpret or
 validate endpoint models. This small string boundary keeps infrastructure
 independent of core without duplicating models or introducing a repository
 framework. Storage/flush failures propagate through core; core dispatches storage
@@ -379,7 +383,8 @@ running Disconnect cannot be cancelled by another Disconnect action. Workspace
 buttons and softkeys share the same enabled predicate, and callbacks also guard
 against repeated activation. Interruption still requires explicit confirmation.
 Connection attempts and machine commands are not automatically retried; no
-reset, machine command replay or auto-connect is implicit.
+machine command replay or auto-connect is implicit. A configured post-connect reset
+requires explicit per-attempt consent for manual connection.
 
 The Util mode owns one persistent stack rooted at `Terminal : Screen<Unit>`.
 `ControllerConnectionSettings` opens above it with the explicit parent contract.
@@ -462,6 +467,41 @@ do not publish session-close diagnostics while the application owner is closing.
 Unexpected failures remain visible until an explicit lifecycle action acknowledges
 them; navigation alone never clears errors. The owner
 and session are explicitly disposable; `awaitClosed()` joins owned work.
+
+### Post-connect policy and connection drafts
+
+PostConnectActions belongs to core and is shared by serial/TCP endpoints and
+ControllerEndpointDraft. Reset defaults Off, firmware info defaults $I, and $#
+parameters/$G parser state default On. The shared ControllerConnection runs them
+after its existing transport/status handshake. A manual reset preference requires
+per-attempt confirmation at both settings and connection boundaries; startup
+always suppresses reset. Confirmed reset calls the existing session reset once,
+then awaits its banner/status synchronization before queries.
+
+Normal queries use the session's serialized executeLine path and existing response
+collection. They are not subject to the terminal's motion-state admission policy:
+the controller may reject them in its actual state. Post-connect work reserves
+normal manual admission and Cycle Start while realtime status remains independent.
+Unsupported commands retain correlated errors and permit later queries when safe.
+Timeout, alarm or reset failure remains diagnostic; unsafe normal correlation
+skips remaining queries. No uncertain command is retried, and a live connection
+is not marked disconnected merely because a query fails. Core exposes bounded
+per-attempt result messages; ordinary responses are retained in existing terminal
+traffic. No competing metadata/capabilities cache is introduced.
+
+ControllerSettings exposes the complete savedDraft alongside its configured
+endpoint. Save and successful Connect persist it through the same versioned record
+and configuration lock. The form's F8 restore uses this saved form or normal
+defaults, without controller I/O. Child editors, advanced serial options and
+post-connect screens return typed draft results on the existing Util stack.
+Ports/baud use six numbered selections per page; input screens reuse KeyCluster
+and editWithKeypad with an explicit field owner.
+
+Serial native open seeds requested DTR/RTS levels before opening and checks both
+levels after opening. This never alternates levels to generate a reset pulse.
+Fake-native policy tests cover ordering and failure; physical USB line behavior
+remains unverified. Native adapter semantics follow the
+[jSerialComm control-line API](https://fazecast.github.io/jSerialComm/javadoc/com/fazecast/jSerialComm/SerialPort.html).
 
 ### 3.7 Passive communication diagnostics
 

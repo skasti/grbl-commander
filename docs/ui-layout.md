@@ -448,60 +448,71 @@ alignment inside the field decoration; the entire 48 dp prompt is a focus target
 
 ### Connection form
 
-Settings is a scrolling touch-friendly form with Serial/USB and TCP/network
-selection. TCP requires host/IP and port 1–65535; serial supports optional refresh,
-descriptive port buttons and manual device entry. Baud is always visible, while
-Advanced exposes bits, parity, stop bits, flow control and DTR/RTS. Manual entry
-remains enabled when discovery is empty or fails. Defaults are 115200, 8N1, no
-flow control, DTR/RTS false. Edits never change the current endpoint/session.
+Connection settings retain a complete serial/TCP draft separate from the active
+endpoint. Narrow 56 dp field targets open an input screen with native text
+editing, selection, paste and a field-owned shared KeyCluster keyboard. Numeric
+fields use a digit map; hostname/device fields include letters, digits and path/IP
+punctuation. F7 applies the field and F8 cancels. Keyboard actions edit the caret
+and selection directly; they never synthesize OS keys or send machine commands.
+The form scrolls on small viewports, including 800×600; Terminal/MDI retain their
+documented 1024×720 supported keyboard viewport.
 
-F1 **Save**, F2 **Connect**, F3 **Disconnect** and R7 **Terminal**
-use the existing guarded softkey activation. Close remains a workspace button;
-there is no separate Close softkey. Matching workspace actions
-use the same screen callbacks. Invalid values show validation errors before any
-transport is created. Save persists without connecting; Connect awaits the status
-handshake before saving and reporting success. Progress/errors, current endpoint,
-last connection failure and stale/unknown report warning reflect shared owner
-state. Staleness expires after three seconds without reports and is also reflected
-in the header. Core owns background status polling every 500 ms after handshake,
-independently of the active screen/mode; UI does not start additional pollers.
-Polling stops on connection disposal/failure and pauses during reset handshake.
-Missing replies still become stale; sending a poll is not a confirmed report.
-Deliberate Disconnect displays neutral progress/status, with no technical
-"Session closed" error or stale-state warning. Disconnected values remain labelled
-as last observations, and a neutral note explains that they are not being updated.
-Connecting displays a waiting note; actual failure and stale reports while
-connected retain warning/error styling. The header adds a stale qualifier only
-while connected, not during expected disconnect/shutdown.
+| Slot | Serial | TCP |
+| --- | --- | --- |
+| F1 | Toggle to TCP | Toggle to Serial |
+| F2 | Select Port 🔗 | Edit Hostname/IP |
+| F3 | Select Baud 📈 | Edit Port |
+| F4 | Advanced 🎛️ | Unassigned |
+| F5 | Post-Connect Actions | Post-Connect Actions |
+| F6 | Connect / Disconnect | Connect / Disconnect |
+| F7 | Save | Save |
+| F8 | Restore saved/default form | Restore saved/default form |
 
-Replacing/disconnecting an active or connecting session requires a screen-local
-`ModalDialog<Boolean>` describing interruption and uncertain pending command
-outcomes. F1 confirms and F8 cancels through the bottom bank; there are no
-workspace confirmation buttons. The modal opens above the form on the same
-Util stack. It
-never resets/stops/replays machine work implicitly. Disconnect can interrupt a
-handshake. Disconnect is disabled during Save and a running Disconnect; repeated
-callbacks cannot start competing operations. A confirmed Disconnect reserves the
-single operation slot before awaiting Connect cancellation and cleanup. If the
-handshake has completed, it waits for Connect's persistence instead of cancelling
-that save. Workspace buttons and softkeys use the same enabled condition.
-Close cancels unfinished form work but keeps a completed connection.
-Switching modes retains the form, its current operation and scroll state. Saving
-and discovery failures remain visible without claiming false connection health.
+Switching transport keeps unsaved field values. F6 reflects actual lifecycle,
+permits cancellation of a pending handshake, and requires interruption confirmation
+before disconnecting active/pending sessions. Repeated activations cannot start
+competing operations. Disconnect waits for Connect persistence once that phase
+has begun; Save and running Disconnect cannot be cancelled by another Disconnect.
+Save persists without changing the session; Connect persists after successful
+connection. Progress, actual endpoint, failures and stale/unavailable observations
+come from the shared owner. Deliberate disconnect is neutral. Core's existing
+500 ms polling remains independent of the screen.
 
-Presentation depends on `:core`. `ControllerSettings` owns the saved configuration
-and load/validation/save/connect workflows; the screen owns only its editable
-draft, progress, confirmations and navigation. It requests Save or Connect, and
-core performs any persistence internal to those operations. Neither Compose nor
-screens instantiate or refer to the JVM Preferences adapter. Serial discovery is
-requested through core and executed by infrastructure. `Main` supplies the shared
-core services to `CommanderApp`; changing mode never recreates them. Closing the
-application window exits Compose and runs application-owned cleanup before normal
-process completion: startup/polling are cancelled, the TCP/serial connection is
-closed, and owned work is awaited. Exit sends no automatic machine-control command.
+F8 confirms replacing dirty edits with the latest saved complete form, including
+the selected transport, both transport fields and post-connect choices. Without
+a valid saved record it restores blank endpoint fields and normal defaults.
+It never sends a controller reset. R7 Terminal returns to the retained console.
 
-See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the
-repository [AGENTS.md](../AGENTS.md).
+Port selection refreshes discovery each time it opens. Six numbered touch rows
+map to F1–F6. More than six choices enable F7 Next page with wrap; F8 cancels
+without changing the parent draft. Empty or failed discovery explains manual
+entry. Devices are advisory and may disappear before connection. Baud uses the
+same numbered selector with common rates including 115200; its main field also
+permits custom entry. Both banks are replaced while any selector/editor is open.
+
+Advanced serial settings own a separate draft. F1 cycles data bits 5–8, F2 stop
+bits, F3 parity, F4 flow control, F5 DTR and F6 RTS. F7 Save applies to the parent
+draft with green positive emphasis; it does not persist. F8 cancels unchanged
+values immediately or asks before discarding changed values. Normal defaults
+are 115200, 8N1, no flow control, DTR on and RTS off.
+
+The shared Post-Connect Actions screen uses F1 reset Off/On, F2 firmware info
+Off → $I → $I+ → Off, F3 parameters $#, F4 parser state $G, F7 Save & return
+and F8 Cancel. Defaults are reset Off, firmware $I, parameters/parser On.
+Saving returns choices to the parent draft; cancellation discards local edits.
+Reset consequences are visible and every manual connection with reset selected
+requires a separate Ctrl+X confirmation. Startup cannot supply that consent and
+always skips reset. Passive queries run after handshake/reset through the shared
+session. Connection diagnostics retain their outcomes; responses remain in Terminal.
+Query timeout does not imply disconnected health; uncertain correlation skips
+remaining queries. There is no automatic replay.
+
+ControllerSettings owns loading, validation, savedDraft and persistence. The UI
+does not instantiate Preferences, sessions or transports. v1 records retain
+explicit DTR/RTS; v2 adds post-connect preferences and complete saved form fields.
+ScreenStack and ModalDialog provide typed results and covered-screen isolation.
+Application shutdown closes and awaits the shared connection without sending
+automatic machine-control commands.
 
 
 ### CNC/G-code touch keyboard
