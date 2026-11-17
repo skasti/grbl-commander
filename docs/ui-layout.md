@@ -90,9 +90,11 @@ that instance starts a fresh composition while its instance-owned state
 survives.
 
 Only the top screen of the active mode receives workspace pointer and keyboard
-input. Full-workspace pointer targets prevent clicks in overlay margins from
-reaching lower siblings; covered layers also consume pointer events before their
-children. Covered focus groups reject focus entry and key preview handlers block
+input. Full-workspace background pointer targets behind screen content prevent clicks
+in overlay margins from reaching lower siblings. The active screen's child
+gestures remain unconsumed by the host, including small pointer movements while
+a key is held; covered layers consume pointer events in the Initial pass before
+their children. Covered focus groups reject focus entry and key preview handlers block
 stale focused descendants. Covered content is removed from accessibility
 semantics. Focus returns to the active layer, not necessarily the previously
 focused editor field. The header and softkeys stay outside this input boundary.
@@ -499,3 +501,105 @@ closed, and owned work is awaited. Exit sends no automatic machine-control comma
 See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the
 repository [AGENTS.md](../AGENTS.md).
 
+
+### CNC/G-code touch keyboard
+
+`ui.controls.GCodeKeyboard` stacks the letter `KeyCluster` above the numeric
+cluster in a right-hand workspace panel beside the Util Terminal console and
+the local MDI buffer. The console/input occupies the full available height.
+Each cluster has independent retained
+`KeyClusterState`, a square grid and one page-count/Next control below it, wrapping
+to the first page. A single-page map disables cycling. Paging preserves focus,
+caret, selection and the other cluster's page. Empty positions retain their space.
+The control does not use F8/R7 or the screen-navigation mechanism.
+
+Default letter pages (each cell lists columns 1–4):
+
+| Row | Page 1 | Page 2 |
+| --- | --- | --- |
+| 1 | `O N G P` | `B C D E` |
+| 2 | `X Y Z A` | `H L Q U` |
+| 3 | `I J K R` | `V W` then two empty slots |
+| 4 | `F S T M` | Four empty slots |
+
+Default numeric/operator pages:
+
+| Row | Page 1 | Page 2 |
+| --- | --- | --- |
+| 1 | `7 8 9 ⌫` | `# / = ⌫` |
+| 2 | `4 5 6 *` | `( ) $ *` |
+| 3 | `1 2 3 +` | `[ ] % +` |
+| 4 | `− 0 . ↵` | `− Space : ↵` |
+
+Minus inserts ASCII `-`; Space inserts one space. Backspace and Enter stay at
+slots 3 and 15 on both numeric pages. Backspace has a red background and Enter
+has a green background, both with white symbols. Colors follow the typed action
+rather than the label or position, including custom keymaps. `*` and `+` stay at
+slots 7 and 11.
+
+Keys remain square with a clickable size of **44–72 dp**. The shared size is the
+largest whole-pixel value fitting both cluster widths and their combined grid
+height plus two 44 dp page controls. Each key and spacer is measured with the
+same pixel rounding as Compose; the lower size bound rounds upward and the upper
+bound downward. Configured ordinary row/column gaps remain 30% of key size, with
+a total 60% gap before numeric column four. Changing pages does not change size.
+
+Only outer spacing adapts: the gap above each page control ranges from 0 to 8 dp,
+and the inter-cluster gap ranges from 0 to 16 dp. Compact spacing makes room for
+larger keys first. Spare height restores these gaps up to their caps; further
+height stays above the combined keyboard. `GCodeKeyboard` aligns that unit at the
+bottom of its panel. Terminal and MDI retain an 8 dp workspace margin below it;
+excess height is never distributed between the clusters.
+
+At the minimum supported **1024×720 viewport**, the 78 dp header, 94 dp bottom
+bank and 16 dp compact screen padding leave 532 dp for the keyboard. At density 1,
+two 45 dp grids use 444 pixels after spacer rounding and page controls use 88:
+532 in total, with no additional page/inter-cluster gaps. Both clusters fit without overlap
+or scrolling. Terminal and MDI allow up to 40% of workspace width, capped at
+400 dp, for the keyboard; its measured width follows the keys so the remaining
+space belongs to the console/editor. Larger viewports grow keys up to 72 dp.
+
+The viewport dimensions describe available Compose content at its logical dp
+size, excluding window decorations. Below the supported viewport, or with custom
+keymaps too large to fit at 44 dp, the keyboard panel scrolls vertically and/or
+horizontally instead of shrinking keys or overlapping the shell. Native display
+scaling can reduce the available logical viewport; it does not reduce key dp size.
+
+`KeypadLayout` is a copied configuration snapshot with rows/columns, a list of
+row-major slot maps, labels, typed actions, ordinary spacing and optional total
+gaps before columns. `GCodeKeymaps` supplies defaults. For customization, construct
+screen-owned states and pass them to the same renderer; no renderer changes are
+needed. For example:
+
+```kotlin
+val customLetters = KeyClusterState(KeypadLayout(
+    name = "Macros", rows = 2, columns = 3,
+    pages = listOf(mapOf(0 to KeypadKey("G65", KeypadAction.Insert("G65 ")))),
+    spacing = .30f, gapsBeforeColumns = mapOf(2 to .60f),
+))
+// From a retained screen composition:
+GCodeKeyboard(onAction = ::handleInput, letters = customLetters)
+```
+
+`KeyClusterState` belongs to one cluster/owner. Keep supplied instances stable;
+construct a replacement to install another layout. Default states are remembered
+inside the retained composition. Maps and page choices are in memory only; there
+is no visual keymap editor or persistent UI-preferences schema. Controller endpoint
+settings and their persistence do not own keyboard preferences.
+
+The renderer reports `Insert`, `Backspace`, or `Enter` intentions through a required
+runtime callback. Every owner explicitly binds Enter to its input's semantics;
+there is no synthesized OS key event or global input dispatcher. Keys/page controls
+cannot acquire text-input focus. Each key/page retains its interaction source.
+A click remains valid when the pointer moves slightly inside the pressed key;
+leaving the key, cancelling the gesture or covering the screen cancels it.
+First input is supported without a prior hover, including after command
+acknowledgment or movement completion. `editWithKeypad` is an optional input-side helper
+for insertion/selection replacement and Backspace at the caret, including a
+supplementary Unicode code point; an explicit edit finalizes IME composition.
+Enter always invokes the supplied binding rather than inserting text implicitly.
+Physical keyboard, mouse selection, paste and touch remain Compose input behavior.
+Terminal binds Enter to the same guarded `submit()` as physical/IME Enter and
+keeps all validation and shared core admission. MDI binds Enter to local newline
+insertion; it cannot execute the buffer. No keyboard control communicates with a
+session/transport or triggers realtime/motion controls.

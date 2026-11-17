@@ -126,20 +126,20 @@ fun ScreenStackHost(stack: ScreenStack, modifier: Modifier = Modifier, isActive:
                     if (index > 0) {
                         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)))
                     }
-                    // This full-workspace pointer target also catches input outside a
-                    // small overlay's content, preventing fall-through to lower siblings.
+                    // Catch blank-area input behind the content, never as an ancestor of
+                    // child gestures. Consuming child moves in Final cancels valid clicks.
+                    Box(Modifier.matchParentSize().pointerInput(entry) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    })
                     Box(
                         Modifier.fillMaxSize()
                             .then(if (active) Modifier.focusRequester(activeFocus) else Modifier)
-                            .focusable(enabled = active)
-                            .pointerInput(entry) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent(PointerEventPass.Final)
-                                        event.changes.forEach { it.consume() }
-                                    }
-                                }
-                            },
+                            .focusable(enabled = active),
                     ) {
                         entry.screen.Content()
                     }

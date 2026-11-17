@@ -30,6 +30,35 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class ScreenStackHostTest {
+    @Test fun smallPointerMovementPreservesClicksWhileDragsAndCoveredGesturesRemainCancelled() = runComposeUiTest {
+        var clicks = 0
+        val root = object : Screen<Unit>(Unit) {
+            @Composable override fun Content() {
+                Box(Modifier.size(100.dp).testTag("target").clickable { clicks++ })
+            }
+        }
+        val overlay = object : Screen<Unit>(Unit) {
+            @Composable override fun Content() { Text("Overlay") }
+        }
+        val stack = ScreenStack(root)
+        setContent { ScreenStackHost(stack) }
+        onNodeWithTag("target").performMouseInput {
+            moveTo(center); press(); advanceEventTime(25)
+            moveTo(center + androidx.compose.ui.geometry.Offset(1f, 0f))
+            advanceEventTime(25); release()
+        }
+        runOnIdle { assertEquals(1, clicks) }
+        onNodeWithTag("target").performMouseInput {
+            moveTo(center); press()
+            moveTo(androidx.compose.ui.geometry.Offset(width + 20f, center.y)); release()
+        }
+        runOnIdle { assertEquals(1, clicks) }
+        onNodeWithTag("target").performMouseInput { moveTo(center); press() }
+        runOnIdle { stack.push(overlay) }
+        onRoot().performMouseInput { release() }
+        runOnIdle { assertEquals(1, clicks) }
+    }
+
     @Test fun retainsCompositionAndBlocksCoveredPointerAndKeyboardInput() = runComposeUiTest {
         var disposed = 0
         var clicks = 0

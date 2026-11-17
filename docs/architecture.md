@@ -830,6 +830,20 @@ Reusable components include:
 - Confirmation and operator-intervention dialogs.
 - Communication terminal.
 
+The implemented touch keyboard lives in `ui.controls`. `GCodeKeyboard` composes
+independent `KeyCluster` grids stacked vertically in a right-hand workspace panel,
+leaving the console/editor its full height. Keys are square, 44–72 dp, and the
+combined panel is bottom-aligned. Responsive outer spacing fits the default maps
+at the minimum 1024×720 content viewport while preserving configured grid gaps.
+Oversized custom maps or smaller viewports scroll instead of shrinking keys.
+It uses `KeypadLayout` snapshots and screen-local
+`KeyClusterState`. Terminal and MDI consume these generic controls and explicitly
+bind editing/Enter to their own inputs. Terminal reuses guarded manual submission;
+MDI inserts local newline/EOB without execution. Keymaps and spacing are data;
+persistence and a visual keymap editor are not implemented. This presentation
+configuration is separate from core-owned controller endpoint settings. Other
+listed components remain architectural targets where not described as implemented.
+
 Views consume application state and dispatch typed operations. They do not own
 machine communication.
 
@@ -1205,6 +1219,10 @@ screen implementations:
   activation path. These APIs do not depend on concrete application screens.
 - `ui.layout` contains the persistent shell, header, softkey banks, and shared
   softkey tile presentation.
+- `ui.controls` contains reusable data-configured CNC/G-code keyboard controls,
+  independently retained cluster paging and optional caret/selection editing helpers.
+  Controls emit editing intentions; concrete inputs explicitly bind Enter at runtime.
+  They have no screen, navigation, softkey or machine dependencies.
 - `ui.dialogs` contains reusable typed modal message/choice screens. It uses
   navigation contracts without depending on concrete feature screens or core.
 - `ui.screens` contains concrete screen implementations such as `Welcome`,

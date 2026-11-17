@@ -48,6 +48,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.ControllerTraffic
 import no.grblcommander.core.connection.description
+import no.grblcommander.desktop.ui.controls.*
 import no.grblcommander.desktop.ui.dialogs.ModalDialog
 import no.grblcommander.desktop.ui.navigation.*
 import no.grblcommander.desktop.ui.rememberCurrentTime
@@ -249,62 +250,76 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
             onDispose { copySelection = null }
         }
         Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${state.snapshot.connection} · ${state.endpoint?.description() ?: "No endpoint"} · ${state.snapshot.status?.executionState ?: "Unknown"}")
-                if (state.reportIsStale(clock)) Text("Machine state is stale or unavailable.", color = MaterialTheme.colorScheme.tertiary)
-                state.snapshot.alarmCode?.let { Text("Controller alarm: $it", color = MaterialTheme.colorScheme.error) }
-                if (history.missed > 0) Text("${history.missed} traffic events missed")
-                Column(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF101419)).padding(8.dp)) {
-                    LazyColumn(state = list, modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollObserver).testTag("terminal-log")) {
-                        items(lines, key = { "${it.sessionId}:${it.event.sequence}" }) { traffic ->
-                            val event = traffic.event
-                            val text = render(event, filters.time)
-                            var value by remember(text) { mutableStateOf(TextFieldValue(text)) }
-                            val color = when {
-                                event.category in setOf(CommunicationEvent.Category.ALARM, CommunicationEvent.Category.ERROR) ||
-                                    event.outcome in setOf(CommunicationEvent.Outcome.UNCERTAIN, CommunicationEvent.Outcome.LOCAL_REJECTION) -> Color(0xFFFF8F8F)
-                                event.direction == CommunicationEvent.Direction.TX -> Color(0xFF8BCBFF)
-                                event.category == CommunicationEvent.Category.ACKNOWLEDGMENT -> Color(0xFF93D6A3)
-                                else -> Color(0xFFD7DEE7)
-                            }
-                            BasicTextField(value, onValueChange = {
-                                value = it
-                                if (!it.selection.collapsed) selectedText = text.substring(it.selection.min, it.selection.max)
-                            }, readOnly = true, textStyle = consoleStyle.copy(color = color), modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp))
-                        }
-                    }
-                    BasicTextField(
-                        value = prompt,
-                        onValueChange = { prompt = it; historyIndex = commands.size },
-                        singleLine = true,
-                        textStyle = consoleStyle.copy(color = Color.White),
-                        cursorBrush = SolidColor(Color.White),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { submit() }),
-                        modifier = Modifier.fillMaxWidth().testTag("terminal-prompt")
-                            .onFocusChanged { if (!it.isFocused) enterHeld = false }
-                            .onPreviewKeyEvent { event ->
-                                when (event.key) {
-                                    Key.Enter, Key.NumPadEnter -> { if (event.type == KeyEventType.KeyDown) { if (!enterHeld) { enterHeld = true; submit() } } else enterHeld = false; true }
-                                    Key.DirectionUp -> { if (event.type == KeyEventType.KeyDown) browseHistory(-1); true }
-                                    Key.DirectionDown -> { if (event.type == KeyEventType.KeyDown) browseHistory(1); true }
-                                    else -> false
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val keyboardWidth = minOf(400.dp, maxWidth * .40f)
+                Row(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("${state.snapshot.connection} · ${state.endpoint?.description() ?: "No endpoint"} · ${state.snapshot.status?.executionState ?: "Unknown"}")
+                        if (state.reportIsStale(clock)) Text("Machine state is stale or unavailable.", color = MaterialTheme.colorScheme.tertiary)
+                        state.snapshot.alarmCode?.let { Text("Controller alarm: $it", color = MaterialTheme.colorScheme.error) }
+                        if (history.missed > 0) Text("${history.missed} traffic events missed")
+                        Column(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF101419)).padding(8.dp)) {
+                            LazyColumn(state = list, modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(scrollObserver).testTag("terminal-log")) {
+                                items(lines, key = { "${it.sessionId}:${it.event.sequence}" }) { traffic ->
+                                    val event = traffic.event
+                                    val text = render(event, filters.time)
+                                    var value by remember(text) { mutableStateOf(TextFieldValue(text)) }
+                                    val color = when {
+                                        event.category in setOf(CommunicationEvent.Category.ALARM, CommunicationEvent.Category.ERROR) ||
+                                            event.outcome in setOf(CommunicationEvent.Outcome.UNCERTAIN, CommunicationEvent.Outcome.LOCAL_REJECTION) -> Color(0xFFFF8F8F)
+                                        event.direction == CommunicationEvent.Direction.TX -> Color(0xFF8BCBFF)
+                                        event.category == CommunicationEvent.Category.ACKNOWLEDGMENT -> Color(0xFF93D6A3)
+                                        else -> Color(0xFFD7DEE7)
+                                    }
+                                    BasicTextField(value, onValueChange = {
+                                        value = it
+                                        if (!it.selection.collapsed) selectedText = text.substring(it.selection.min, it.selection.max)
+                                    }, readOnly = true, textStyle = consoleStyle.copy(color = color), modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp))
                                 }
-                            },
-                        decorationBox = { input ->
-                            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("> ", style = consoleStyle.copy(color = Color(0xFF93D6A3)), modifier = Modifier.testTag("terminal-prompt-marker"))
-                                Box(Modifier.weight(1f).testTag("terminal-input-line")) { input() }
                             }
-                        },
+                            BasicTextField(
+                                value = prompt,
+                                onValueChange = ::updatePrompt,
+                                singleLine = true,
+                                textStyle = consoleStyle.copy(color = Color.White),
+                                cursorBrush = SolidColor(Color.White),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = { submit() }),
+                                modifier = Modifier.fillMaxWidth().testTag("terminal-prompt")
+                                    .onFocusChanged { if (!it.isFocused) enterHeld = false }
+                                    .onPreviewKeyEvent { event ->
+                                        when (event.key) {
+                                            Key.Enter, Key.NumPadEnter -> { if (event.type == KeyEventType.KeyDown) { if (!enterHeld) { enterHeld = true; submit() } } else enterHeld = false; true }
+                                            Key.DirectionUp -> { if (event.type == KeyEventType.KeyDown) browseHistory(-1); true }
+                                            Key.DirectionDown -> { if (event.type == KeyEventType.KeyDown) browseHistory(1); true }
+                                            else -> false
+                                        }
+                                    },
+                                decorationBox = { input ->
+                                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Text("> ", style = consoleStyle.copy(color = Color(0xFF93D6A3)), modifier = Modifier.testTag("terminal-prompt-marker"))
+                                        Box(Modifier.weight(1f).testTag("terminal-input-line")) { input() }
+                                    }
+                                },
+                            )
+                        }
+                        Text("Commands can move the machine. Enter submits one line; ok acknowledges reception, not completed motion.", style = MaterialTheme.typography.bodySmall)
+                        if (submitting) Text("Awaiting command acknowledgment…")
+                        if (!state.canExecuteLine(clock)) Text("Manual commands unavailable while disconnected, busy, stale or unsynchronized.", style = MaterialTheme.typography.bodySmall)
+                        localError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    }
+                    GCodeKeyboard(
+                        onAction = { action -> editWithKeypad(prompt, action, ::updatePrompt, ::submit) },
+                        modifier = Modifier.widthIn(max = keyboardWidth).fillMaxHeight(),
                     )
                 }
-                Text("Commands can move the machine. Enter submits one line; ok acknowledges reception, not completed motion.", style = MaterialTheme.typography.bodySmall)
-                if (submitting) Text("Awaiting command acknowledgment…")
-                if (!state.canExecuteLine(clock)) Text("Manual commands unavailable while disconnected, busy, stale or unsynchronized.", style = MaterialTheme.typography.bodySmall)
-                localError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         }
+    }
+
+    private fun updatePrompt(value: TextFieldValue) {
+        prompt = value
+        historyIndex = commands.size
     }
 
     private var enterHeld = false

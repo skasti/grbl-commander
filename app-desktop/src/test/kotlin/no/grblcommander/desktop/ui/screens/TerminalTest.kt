@@ -49,6 +49,80 @@ class TerminalTest {
 
     private fun ComposeUiTest.enter() = onNodeWithTag("terminal-prompt").performKeyInput { pressKey(Key.Enter) }
 
+    @Test fun `rapid keypad sequence survives rendering between pointer down and up`() = runComposeUiTest {
+        Fixture().use { f ->
+            host(f)
+            val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
+                onNodeWithTag("keypad-123-$it").fetchSemanticsNode().boundsInRoot.center
+            }
+            positions.forEach { position ->
+                onRoot().performMouseInput { animateMoveTo(position, durationMillis = 250) }
+                mainClock.advanceTimeBy(250)
+                onRoot().performMouseInput { press() }
+                mainClock.advanceTimeBy(50)
+                waitForIdle()
+                onRoot().performMouseInput { advanceEventTime(50); release() }
+            }
+            onNodeWithTag("terminal-prompt").assertPromptText("123456789")
+        }
+    }
+
+    @Test fun `rapid keypad clicks keep digits when the mouse drifts one pixel while held`() = runComposeUiTest {
+        Fixture().use { f ->
+            host(f)
+            val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
+                onNodeWithTag("keypad-123-$it").fetchSemanticsNode().boundsInRoot.center
+            }
+            onRoot().performMouseInput {
+                moveTo(positions.first())
+                positions.forEachIndexed { index, position ->
+                    animateMoveTo(position, durationMillis = 250)
+                    press(); advanceEventTime(25)
+                    // Tiny motion inside the same key is a click, not a drag or cancellation.
+                    if (index !in listOf(0, 2, 5)) moveTo(position + androidx.compose.ui.geometry.Offset(1f, 0f))
+                    advanceEventTime(25); release()
+                }
+            }
+            onNodeWithTag("terminal-prompt").assertPromptText("123456789")
+        }
+    }
+
+    @Test fun `rapid touch keypad sequence tolerates small movement within each key`() = runComposeUiTest {
+        Fixture().use { f ->
+            host(f)
+            val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
+                onNodeWithTag("keypad-123-$it").fetchSemanticsNode().boundsInRoot.center
+            }
+            onRoot().performTouchInput {
+                positions.forEach { position ->
+                    advanceEventTime(250); down(position); advanceEventTime(25)
+                    moveTo(position + androidx.compose.ui.geometry.Offset(1f, 0f))
+                    advanceEventTime(25); up()
+                }
+            }
+            onNodeWithTag("terminal-prompt").assertPromptText("123456789")
+        }
+    }
+
+    @Test fun `rapid 50ms keypad presses with 250ms mouse travel preserve every digit`() = runComposeUiTest {
+        Fixture().use { f ->
+            host(f)
+            val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
+                onNodeWithTag("keypad-123-$it").fetchSemanticsNode().boundsInRoot.center
+            }
+            onRoot().performMouseInput {
+                moveTo(positions.first())
+                positions.forEach { position ->
+                    animateMoveTo(position, durationMillis = 250)
+                    press()
+                    advanceEventTime(50)
+                    release()
+                }
+            }
+            onNodeWithTag("terminal-prompt").assertPromptText("123456789")
+        }
+    }
+
     @Test fun `Enter submits once without echo duplication and incoming output preserves draft caret`() = runComposeUiTest {
         Fixture().use { f ->
             f.connect(); host(f)
@@ -71,6 +145,130 @@ class TerminalTest {
             onNodeWithText("⬇️\nNext Cmd").assertExists()
             onNodeWithText("⏸️\nFeed Hold (!)").assertExists()
             onNodeWithText("Send").assertDoesNotExist()
+        }
+    }
+
+    @Test fun `touch Enter shares physical and IME admission and pages survive navigation`() = runSkikoComposeUiTest(size = androidx.compose.ui.geometry.Size(1024f, 768f)) {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            onNodeWithTag("terminal-prompt").performClick().performTextInput("\$I")
+            onNodeWithTag("keypad-ABC-next").performClick()
+            onNodeWithTag("keypad-123-next").performClick()
+            onNodeWithTag("terminal-prompt").assertIsFocused()
+            onNodeWithTag("keypad-123-15").performClick()
+            assertEquals("\$I\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            enter()
+            onNodeWithTag("terminal-prompt").performImeAction()
+            onNodeWithTag("keypad-123-15").performClick()
+            runOnIdle { assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND }) }
+            onNodeWithTag("softkey-R7").performClick()
+            onNodeWithTag("softkey-R7").performClick()
+            onNodeWithText("ABC 2/2 ▸").assertExists()
+            onNodeWithText("123 2/2 ▸").assertExists()
+            runOnIdle { f.active = f.other }
+            onNodeWithText("Unsent text").performClick().performTextInput("G0 X1")
+            onNodeWithTag("keypad-123-15").performClick()
+            onNodeWithText("Unsent text").performTextInput("M2")
+            onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G0 X1\nM2")))
+            runOnIdle { f.active = f.util }
+            onNodeWithText("ABC 2/2 ▸").assertExists()
+            onNodeWithText("123 2/2 ▸").assertExists()
+            runOnIdle { assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND }) }
+        }
+    }
+
+    @Test fun `acknowledgment during the first letter gesture does not cancel insertion`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            onNodeWithTag("terminal-prompt").performClick().performTextInput("G1X100F500")
+            enter()
+            assertEquals("G1X100F500\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            onNodeWithTag("keypad-ABC-2").performTouchInput { down(center) }
+            runBlocking { f.transport.emit("ok\n") }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.prompt.text.isEmpty() }
+            onNodeWithTag("keypad-ABC-2").performTouchInput { up() }
+            onNodeWithTag("terminal-prompt").assertPromptText("G")
+        }
+    }
+
+    @Test fun `new keypad and keyboard edits survive asynchronous acknowledgment`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            onNodeWithTag("terminal-prompt").performClick().performTextInput("G1X100F500")
+            enter()
+            assertEquals("G1X100F500\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            onNodeWithTag("terminal-prompt").performTextClearance()
+            onNodeWithTag("keypad-ABC-2").performTouchInput { click() }
+            onNodeWithTag("terminal-prompt").performTextInput("X")
+            runBlocking { f.transport.emit("ok\n") }
+            waitUntil(timeoutMillis = 5_000) { !f.owner.state.value.manualCommandPending }
+            onNodeWithTag("terminal-prompt").assertPromptText("GX")
+        }
+    }
+
+    @Test fun `keypad-only mouse input works without first focusing the prompt`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            // G1X100F500, entirely through the mouse-operated keypad, with no input focus request.
+            listOf("ABC-2", "123-8", "ABC-4", "123-8", "123-13", "123-13", "ABC-12", "123-5", "123-13", "123-13").forEach {
+                onNodeWithTag("keypad-$it").performMouseInput { click() }
+            }
+            onNodeWithTag("terminal-prompt").assertPromptText("G1X100F500")
+            onNodeWithTag("keypad-123-15").performMouseInput { click() }
+            assertEquals("G1X100F500\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            f.transport.statusReport = "<Run|MPos:1,0,0>"
+            runBlocking { f.transport.emit("ok\n" + f.transport.statusReport + "\n") }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.prompt.text.isEmpty() }
+            f.transport.statusReport = "<Idle|MPos:100,0,0>"
+            runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
+            waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Idle" }
+            onNodeWithTag("keypad-ABC-2").performMouseInput { click() }
+            onNodeWithTag("terminal-prompt").assertPromptText("G")
+        }
+    }
+
+    @Test fun `MDI accepts its first mouse letter without a prior hover or input focus`() = runComposeUiTest {
+        Fixture().use { f ->
+            f.active = f.other
+            host(f)
+            onNodeWithTag("keypad-ABC-2").performMouseInput { click() }
+            onNode(hasSetTextAction()).assertPromptText("G")
+        }
+    }
+
+    @Test fun `first mouse letter after acknowledgment is inserted without hover`() = firstInputAfterCommand(motion = false, touch = false, mouse = true)
+    @Test fun `first mouse letter after motion reaches Idle is inserted without hover`() = firstInputAfterCommand(motion = true, touch = false, mouse = true)
+
+    @Test fun `first touch letter after acknowledgment is inserted once`() = firstInputAfterCommand(motion = false, touch = true)
+    @Test fun `first touch letter after motion reaches Idle is inserted once`() = firstInputAfterCommand(motion = true, touch = true)
+    @Test fun `first platform text input after acknowledgment is inserted once`() = firstInputAfterCommand(motion = false, touch = false)
+    @Test fun `first platform text input after motion reaches Idle is inserted once`() = firstInputAfterCommand(motion = true, touch = false)
+
+    private fun firstInputAfterCommand(motion: Boolean, touch: Boolean, mouse: Boolean = false) = runComposeUiTest {
+        Fixture().use { f ->
+            f.connect(); host(f)
+            onNodeWithTag("terminal-prompt").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            onNodeWithTag("terminal-prompt").performTextInput("G1X100F500")
+            enter()
+            assertEquals("G1X100F500\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
+            if (motion) {
+                f.transport.statusReport = "<Run|MPos:1,0,0>"
+                runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
+                waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Run" }
+            }
+            runBlocking { f.transport.emit("ok\n") }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.prompt.text.isEmpty() }
+            if (motion) {
+                f.transport.statusReport = "<Idle|MPos:100,0,0>"
+                runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
+                waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Idle" }
+            }
+            if (mouse) onNodeWithTag("keypad-ABC-2").performMouseInput { click() }
+            else if (touch) onNodeWithTag("keypad-ABC-2").performTouchInput { click() }
+            else onNodeWithTag("terminal-prompt").performTextInput("G")
+            val expected = "G"
+            onNodeWithTag("terminal-prompt").assertPromptText(expected).assertIsFocused()
+            runOnIdle { assertEquals(TextFieldValue(expected, TextRange(1)), f.terminal.prompt) }
         }
     }
 
@@ -223,9 +421,11 @@ class TerminalTest {
         Fixture().use { f ->
             f.connect(); host(f)
             runBlocking { repeat(100) { f.transport.emit("[LINE:$it]\n") } }
-            waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[LINE:99]" } }
+            waitUntil(timeoutMillis = 5_000) { f.terminal.history.any { it.event.text == "[LINE:99]" } }
+            onNodeWithText("[LINE:99]", substring = true).assertExists()
             onNodeWithTag("terminal-log").performTouchInput { swipeDown() }
             onNodeWithTag("softkey-R6").assertIsNotSelected()
+            runOnIdle { assertEquals("", f.terminal.prompt.text) } // Scrolling must not edit the prompt.
             runBlocking { f.transport.emit("[LINE:latest]\n") }
             waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[LINE:latest]" } }
             onNodeWithTag("softkey-R6").assertIsNotSelected().performClick()
