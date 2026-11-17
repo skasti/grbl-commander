@@ -473,7 +473,10 @@ and session are explicitly disposable; `awaitClosed()` joins owned work.
 PostConnectActions belongs to core and is shared by serial/TCP endpoints and
 ControllerEndpointDraft. Reset defaults Off, firmware info defaults $I, and $#
 parameters/$G parser state default On. The shared ControllerConnection runs them
-after its existing transport/status handshake. A manual reset preference requires
+after its existing transport/status handshake. This work belongs to the active session;
+Connect returns after handshake and starts persistence independently of query completion.
+Returning to Terminal keeps that established session and its post-connect work alive.
+A manual reset preference requires
 per-attempt confirmation at both settings and connection boundaries; startup
 always suppresses reset. Confirmed reset calls the existing session reset once,
 then awaits its banner/status synchronization before queries.

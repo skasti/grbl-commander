@@ -1,6 +1,7 @@
 package no.grblcommander.core.connection
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.MachineSnapshot.Connection
@@ -20,6 +21,7 @@ class PostConnectActionsTest {
         val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope, commandTimeoutMillis = 500) })
         try {
             owner.connect(ControllerEndpoint.Tcp("localhost", 1234, PostConnectActions(firmwareInfo = PostConnectActions.FirmwareInfo.EXTENDED)))
+            owner.state.first { !it.postConnectPending }
             assertEquals(listOf("\$I+\n", "$#\n", "\$G\n"), transport.drainWrites().filter { it.endsWith('\n') })
             assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
             assertTrue(owner.state.value.postConnectResults.first().contains("error:3"))
@@ -33,6 +35,7 @@ class PostConnectActionsTest {
         val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope, commandTimeoutMillis = 60) })
         try {
             owner.connect(ControllerEndpoint.Tcp("localhost", 1234))
+            owner.state.first { !it.postConnectPending }
             assertEquals(listOf("\$I\n"), transport.drainWrites().filter { it.endsWith('\n') })
             assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
             assertFalse(owner.state.value.snapshot.normalCommandsSynchronized)
@@ -50,6 +53,7 @@ class PostConnectActionsTest {
             assertFailsWith<IllegalStateException> { owner.connect(endpoint) }
             assertEquals(0, transport.connectCount)
             owner.connect(endpoint, resetConfirmed = true)
+            owner.state.first { !it.postConnectPending }
             val writes = transport.drainWrites()
             assertEquals(1, writes.count { it == "\u0018" })
             assertTrue(writes.indexOf("\u0018") < writes.indexOf("\$I\n"))
@@ -65,6 +69,7 @@ class PostConnectActionsTest {
             val settings = ControllerSettings(owner, ControllerEndpointPreferences(node))
             settings.onUiReady()
             settings.initialize()
+            owner.state.first { !it.postConnectPending }
             val writes = transport.drainWrites()
             assertFalse(writes.contains("\u0018"))
             assertEquals(listOf("\$I\n", "$#\n", "\$G\n"), writes.filter { it.endsWith('\n') })
@@ -78,6 +83,7 @@ class PostConnectActionsTest {
         val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope) })
         try {
             owner.connect(ControllerEndpoint.Tcp("localhost", 1234))
+            owner.state.first { !it.postConnectPending }
             assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
             assertTrue(owner.state.value.snapshot.resetRequired)
             assertEquals(listOf("\$I\n"), transport.drainWrites().filter { it.endsWith('\n') })
@@ -92,6 +98,7 @@ class PostConnectActionsTest {
         val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope, handshakeTimeoutMillis = 500) })
         try {
             owner.connect(ControllerEndpoint.Tcp("localhost", 1234, PostConnectActions(resetController = true)), resetConfirmed = true)
+            owner.state.first { !it.postConnectPending }
             val writes = transport.drainWrites()
             assertEquals(1, writes.count { it == "\u0018" })
             assertTrue(writes.none { it.endsWith('\n') })
@@ -99,6 +106,25 @@ class PostConnectActionsTest {
             assertTrue(owner.state.value.postConnectResults.single().contains("reset failed"))
             owner.sendRealtime(RealtimeCommand.STATUS_QUERY)
             assertEquals("?", transport.writes.receive())
+        } finally { owner.close(); owner.awaitClosed() }
+    }
+    @Test fun successfulHandshakeReturnsWhileSessionOwnsPendingQueries() = scenario {
+        val transport = ConnectionTestTransport()
+        val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope) })
+        try {
+            val caller = launch { owner.connect(ControllerEndpoint.Tcp("localhost", 1234)) }
+            caller.join()
+            assertTrue(caller.isCompleted)
+            assertTrue(owner.state.value.postConnectPending)
+            assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
+            assertFalse(transport.closed)
+            assertEquals("\$I\n", transport.nextNonStatusWrite())
+            assertFailsWith<java.io.IOException> { owner.executeLine("G0 X1") }
+            transport.onWrite = { if (it.endsWith('\n')) transport.emit("ok\r\n") }
+            transport.emit("ok\r\n")
+            owner.state.first { !it.postConnectPending }
+            assertEquals(listOf("$#\n", "\$G\n"), transport.drainWrites().filter { it.endsWith('\n') })
+            assertFalse(transport.closed)
         } finally { owner.close(); owner.awaitClosed() }
     }
 }

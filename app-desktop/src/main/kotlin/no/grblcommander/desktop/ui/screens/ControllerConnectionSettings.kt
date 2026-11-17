@@ -253,7 +253,7 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
                     Text("F2 refreshes discovery. Manual entry works for undiscovered devices.")
                     Text("If connection fails, check device permissions and whether another program is using the port.")
                 }
-                if (state.postConnectPending) Text("Running post-connect actions…")
+                if (state.postConnectPending && state.snapshot.connection == Connection.CONNECTED) Text("Running post-connect actions…")
                 state.postConnectResults.forEach { Text(it) }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 message?.let { Text(it) }

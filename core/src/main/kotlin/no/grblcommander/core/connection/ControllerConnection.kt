@@ -122,7 +122,7 @@ class ControllerConnection(
                 val id = ++nextSessionId
                 val entry = Active(session, id, endpoint)
                 active = entry
-                mutableState.value = ControllerConnectionState(endpoint, session.state.value)
+                mutableState.value = ControllerConnectionState(endpoint, session.state.value, postConnectPending = true)
                 // Subscribe before connect, including the first status query/banner in history.
                 entry.observers += scope.launch(start = CoroutineStart.UNDISPATCHED) {
                     session.communication.collect { event -> synchronized(gate) {
@@ -163,15 +163,19 @@ class ControllerConnection(
                 entry.connecting = scope.async(start = CoroutineStart.LAZY) {
                     try {
                         session.connect()
-                        runPostConnect(entry, automatic)
                         synchronized(gate) {
                             if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
+                        }
+                        // Queries/reset belong to this session, not the form's Connect/persistence job.
+                        // UNDISPATCHED reserves normal admission before handshake completion is returned.
+                        entry.observers += scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                            runPostConnect(entry, automatic)
                         }
                     }
                     catch (error: Throwable) {
                         withContext(NonCancellable) { entry.close(); session.awaitClosed() }
                         synchronized(gate) {
-                            if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
+                            if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value, postConnectPending = false)
                         }
                         throw error
                     }
@@ -280,7 +284,7 @@ class ControllerConnection(
                     // Retain the last observation, but not the session's technical close reason.
                     snapshot = old.session.state.value.copy(connection = if (closed) MachineSnapshot.Connection.CLOSED
                         else MachineSnapshot.Connection.DISCONNECTED, failure = null),
-                    closing = false, manualCommandPending = false,
+                    closing = false, manualCommandPending = false, postConnectPending = false,
                 )
             }
         }
