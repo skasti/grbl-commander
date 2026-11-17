@@ -239,7 +239,9 @@ in-memory controller fixture. The headless Skiko test surface uses software
 rendering at 1× density. It captures the application client area, so native
 window decorations, platform font rendering and scaled displays can differ.
 The tests check keyboard paging, command submission and input focus separately
-from capture. PNGs are for visual inspection.
+from capture. PNGs are for visual inspection. Capture ownership is recorded alongside
+the images so PR review selection can include modified capture tests without
+hardcoding scenarios in CI.
 
 | Directory | Captured state |
 | --- | --- |
