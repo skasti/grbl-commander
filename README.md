@@ -210,6 +210,59 @@ Compose codebase may still run there without a compatibility guarantee. Headless
 Compose component tests cover navigation and overlay input isolation.
 Physical-machine integration tests are not included.
 
+### Compose UI screenshots
+
+Capture the Terminal and MDI integration tests locally on JDK 21:
+
+```bash
+gradle :app-desktop:test -PuiScreenshots --tests '*TerminalTest'
+```
+
+The opt-in test run writes PNGs to `app-desktop/build/ui-screenshots/<scenario>/<width>x<height>.png`.
+It uses the production Compose shell, its Terminal and MDI screens, and the
+in-memory controller fixture. The headless Skiko test surface uses software
+rendering at 1× density. It captures the application client area, so native
+window decorations, platform font rendering and scaled displays can differ.
+The tests check keyboard paging, command submission and input focus separately
+from capture. PNGs are for visual inspection.
+
+| Directory | Captured state |
+| --- | --- |
+| `terminal` | Util Terminal with the first letter and number pages |
+| `terminal-page-2` | Both second pages with a focused command draft |
+| `terminal-acknowledged` | Command acknowledged while simulated execution is Run |
+| `terminal-idle-first-letter` | Idle following Run and the first post-command keypress |
+| `mdi` | Local MDI buffer with the first pages |
+| `mdi-page-2` | Local MDI buffer with the second pages |
+
+The Linux PR job captures each scenario at 1024×720, 1024×768, 1280×720,
+1680×1050, 1920×1080 and 2560×1440. **1024×720 is the minimum supported
+resolution** at 1× scale. Windows runs the functional tests; CI capture and
+publishing run on Linux.
+
+Open the workflow run's **Artifacts** section for
+`compose-ui-screenshots-<attempt>` or, if Linux tests failed after saving
+some PNGs, `compose-ui-screenshots-partial-<attempt>`. Artifacts are kept
+for 14 days. Rerun all jobs to retry capture and publication together.
+
+For a PR whose head and base are in the same repository, CI publishes a
+complete Linux capture set to that repository's `pr-assets` branch under
+the PR number. This includes PRs opened within a contributor's fork with
+Actions enabled and permission to write the branch. For a fork PR opened
+against upstream, use the read-only run's artifact. In a public repository,
+embed a published image using the workflow repository and actual PR number:
+
+```markdown
+![Terminal at 1024×720](https://raw.githubusercontent.com/OWNER/REPOSITORY/pr-assets/PR_NUMBER/terminal/1024x720.png)
+```
+
+Each successful publication replaces only the corresponding PR directory.
+Concurrent pushes retry from the latest branch tip, and older workflow runs
+cannot replace a newer publication for the same PR. Published images are kept
+after closing the PR so existing links keep working. Maintainers can remove a
+closed PR's directory with a normal commit to `pr-assets` when its links are
+no longer needed.
+
 ### Machine communication and simulator tests
 
 `:infrastructure` contains `MachineTransport`, `TcpTransport` and
