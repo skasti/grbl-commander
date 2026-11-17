@@ -243,6 +243,16 @@ from capture. PNGs are for visual inspection. Capture ownership is recorded alon
 the images so PR review selection can include modified capture tests without
 hardcoding scenarios in CI.
 
+UI changes require saved capture checkpoints for each affected screen,
+modal/dialog and relevant visible state; see the
+[agent coverage requirements](AGENTS.md#screenshot-coverage-for-ui-changes).
+Use the fewest scenarios that cover those states: independent toggles can share
+an all-off capture and an all-on capture, with additional valid combinations only
+for remaining control values or distinct visual interactions. Functional tests
+still assert individual controls and interactions. Each checkpoint retains all
+six capture resolutions. The following table lists the implemented capture set;
+it does not imply coverage of all application screens.
+
 | Directory | Captured state |
 | --- | --- |
 | `terminal` | Util Terminal with the first letter and number pages |
