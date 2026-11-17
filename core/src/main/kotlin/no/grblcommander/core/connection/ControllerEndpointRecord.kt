@@ -73,7 +73,7 @@ internal object ControllerEndpointRecord {
         return try {
             val values = Properties().apply { load(StringReader(record!!)) }
             val base = ControllerEndpointDraft.from(endpoint)
-            if (values.getProperty("draft.host") == null) return base
+            if (values.stringPropertyNames().none { it.startsWith("draft.") }) return base
             fun field(name: String) = requireNotNull(values.getProperty("draft." + name))
             val draft = base.copy(
                 host = field("host"), tcpPort = field("tcpPort"), serialPort = field("serialPort"),

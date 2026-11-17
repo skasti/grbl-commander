@@ -71,4 +71,34 @@ class PostConnectActionsTest {
             assertTrue(owner.state.value.postConnectResults.first().contains("skipped"))
         } finally { owner.close(); owner.awaitClosed(); node.removeNode() }
     }
+    @Test fun criticalAlarmSkipsQueriesAndRetainsRealtimeControl() = scenario {
+        val transport = ConnectionTestTransport().apply {
+            onWrite = { if (it == "\$I\n") emit("ALARM:1\r\n") }
+        }
+        val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope) })
+        try {
+            owner.connect(ControllerEndpoint.Tcp("localhost", 1234))
+            assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
+            assertTrue(owner.state.value.snapshot.resetRequired)
+            assertEquals(listOf("\$I\n"), transport.drainWrites().filter { it.endsWith('\n') })
+            assertTrue(owner.state.value.postConnectResults.any { it.contains("skipped") })
+            owner.sendRealtime(RealtimeCommand.STATUS_QUERY)
+            assertEquals("?", transport.writes.receive())
+        } finally { owner.close(); owner.awaitClosed() }
+    }
+
+    @Test fun failedResetIsVisibleAndNeverRetriesOrRunsQueries() = scenario {
+        val transport = ConnectionTestTransport().apply { autoReset = false }
+        val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope, handshakeTimeoutMillis = 500) })
+        try {
+            owner.connect(ControllerEndpoint.Tcp("localhost", 1234, PostConnectActions(resetController = true)), resetConfirmed = true)
+            val writes = transport.drainWrites()
+            assertEquals(1, writes.count { it == "\u0018" })
+            assertTrue(writes.none { it.endsWith('\n') })
+            assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
+            assertTrue(owner.state.value.postConnectResults.single().contains("reset failed"))
+            owner.sendRealtime(RealtimeCommand.STATUS_QUERY)
+            assertEquals("?", transport.writes.receive())
+        } finally { owner.close(); owner.awaitClosed() }
+    }
 }

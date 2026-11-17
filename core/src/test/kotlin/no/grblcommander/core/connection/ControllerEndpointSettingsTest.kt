@@ -95,6 +95,7 @@ class ControllerEndpointSettingsTest {
         val record = ControllerEndpointRecord.encode(draft.endpoint(), draft)
         assertEquals(draft, ControllerEndpointRecord.decodeDraft(record))
         assertNull(ControllerEndpointRecord.decodeDraft(record.replace("draft.dtr=false", "draft.dtr=invalid")))
+        assertNull(ControllerEndpointRecord.decodeDraft(record.lineSequence().filterNot { it.startsWith("draft.host=") }.joinToString("\n")))
         assertNull(ControllerEndpointRecord.decode("version=2\ntransport=TCP\nhost=localhost\nport=1234"))
     }
 
