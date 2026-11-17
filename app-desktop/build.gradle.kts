@@ -35,7 +35,7 @@ compose.resources {
     packageOfResClass = "no.grblcommander.desktop.generated.resources"
 }
 
-val uiScreenshots = providers.gradleProperty("uiScreenshots").map { it.toBoolean() }.orElse(false)
+val uiScreenshots = providers.gradleProperty("uiScreenshots").map { it.isEmpty() || it.toBoolean() }.orElse(false)
 val uiScreenshotDirectory = layout.buildDirectory.dir("ui-screenshots")
 
 tasks.test {
