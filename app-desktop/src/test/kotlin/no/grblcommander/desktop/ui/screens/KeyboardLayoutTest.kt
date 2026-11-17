@@ -5,8 +5,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.toPixelMap
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.*
 import kotlinx.coroutines.*
 import no.grblcommander.configuration.ControllerEndpointPreferences
@@ -88,15 +86,6 @@ class KeyboardLayoutTest {
                     }
                 }
             }
-            fun preview(name: String) {
-                val image = captureToImage()
-                val pixels = image.toPixelMap()
-                val out = java.awt.image.BufferedImage(image.width, image.height, java.awt.image.BufferedImage.TYPE_INT_ARGB)
-                for (y in 0 until image.height) for (x in 0 until image.width) out.setRGB(x, y, pixels[x, y].toArgb())
-                val file = java.io.File("build/keypad-previews/$name-${width.toInt()}.png")
-                file.parentFile.mkdirs()
-                javax.imageio.ImageIO.write(out, "png", file)
-            }
             val prompt = onNodeWithTag("terminal-prompt")
             check(prompt)
             val letterBounds = onNodeWithTag("keypad-ABC-0").bounds()
@@ -117,10 +106,8 @@ class KeyboardLayoutTest {
             onNodeWithTag("keypad-ABC-next").performClick()
             onNodeWithTag("keypad-123-next").performClick()
             check(prompt)
-            preview("terminal")
             runOnIdle { active = mdi }
             check(onNodeWithText("Unsent text"))
-            preview("mdi")
         } finally {
             owner.close(); runBlocking { owner.awaitClosed() }; scope.cancel()
             node.removeNode(); Preferences.userRoot().flush()

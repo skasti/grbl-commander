@@ -35,10 +35,20 @@ compose.resources {
     packageOfResClass = "no.grblcommander.desktop.generated.resources"
 }
 
+val uiScreenshots = providers.gradleProperty("uiScreenshots").map { it.toBoolean() }.orElse(false)
+val uiScreenshotDirectory = layout.buildDirectory.dir("ui-screenshots")
+
 tasks.test {
     useJUnitPlatform()
     systemProperty("java.awt.headless", "true")
     systemProperty("skiko.renderApi", "SOFTWARE")
+    inputs.property("uiScreenshots", uiScreenshots)
+    if (uiScreenshots.get()) {
+        val screenshots = uiScreenshotDirectory.get().asFile
+        systemProperty("grblcommander.uiScreenshotDirectory", screenshots.absolutePath)
+        outputs.dir(screenshots)
+        doFirst { screenshots.deleteRecursively() }
+    }
 }
 
 val releaseVersion = providers.environmentVariable("RELEASE_VERSION")
