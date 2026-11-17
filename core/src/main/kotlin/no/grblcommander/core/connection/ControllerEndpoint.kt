@@ -4,7 +4,8 @@ import java.net.URI
 import no.grblcommander.machine.transport.SerialConfiguration
 
 sealed interface ControllerEndpoint {
-    data class Tcp(val host: String, val port: Int) : ControllerEndpoint {
+    val postConnect: PostConnectActions
+    data class Tcp(val host: String, val port: Int, override val postConnect: PostConnectActions = PostConnectActions()) : ControllerEndpoint {
         init {
             require(host.isNotBlank() && host.none { it.isWhitespace() || it.isISOControl() } &&
                 host.none { it in "/\\?#@" }) { "Enter a hostname or IP address without a URL scheme or path" }
@@ -14,5 +15,5 @@ sealed interface ControllerEndpoint {
             }.getOrDefault(false)) { "Enter a valid hostname or IP address" }
         }
     }
-    data class Serial(val configuration: SerialConfiguration) : ControllerEndpoint
+    data class Serial(val configuration: SerialConfiguration, override val postConnect: PostConnectActions = PostConnectActions()) : ControllerEndpoint
 }

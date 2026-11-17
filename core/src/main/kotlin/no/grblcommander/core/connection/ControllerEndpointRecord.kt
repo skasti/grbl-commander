@@ -12,16 +12,24 @@ internal object ControllerEndpointRecord {
         return try {
             val values = Properties().apply { load(StringReader(record)) }
             fun field(name: String) = requireNotNull(values.getProperty(name))
-            require(field("version") == "1")
+            require(field("version") in setOf("1", "2"))
+            fun optionalBoolean(name: String, fallback: Boolean) = values.getProperty(name)?.toBooleanStrict() ?: fallback
+            val actions = PostConnectActions(
+                resetController = optionalBoolean("post.reset", false),
+                firmwareInfo = values.getProperty("post.firmware")?.let(PostConnectActions.FirmwareInfo::valueOf)
+                    ?: PostConnectActions.FirmwareInfo.BASIC,
+                parameters = optionalBoolean("post.parameters", true),
+                parserState = optionalBoolean("post.parser", true),
+            )
             when (field("transport")) {
-                "TCP" -> ControllerEndpoint.Tcp(field("host"), field("port").toInt())
+                "TCP" -> ControllerEndpoint.Tcp(field("host"), field("port").toInt(), actions)
                 "SERIAL" -> ControllerEndpoint.Serial(SerialConfiguration(
                     port = field("device"), baudRate = field("baud").toInt(), dataBits = field("bits").toInt(),
                     stopBits = SerialConfiguration.StopBits.valueOf(field("stop")),
                     parity = SerialConfiguration.Parity.valueOf(field("parity")),
                     flowControl = SerialConfiguration.FlowControl.valueOf(field("flow")),
                     dtr = field("dtr").toBooleanStrict(), rts = field("rts").toBooleanStrict(),
-                ))
+                ), actions)
                 else -> null
             }
         } catch (_: IllegalArgumentException) { null }
@@ -29,7 +37,13 @@ internal object ControllerEndpointRecord {
 
     fun encode(endpoint: ControllerEndpoint): String {
         val values = Properties().apply {
-            setProperty("version", "1")
+            setProperty("version", "2")
+            with(endpoint.postConnect) {
+                setProperty("post.reset", resetController.toString())
+                setProperty("post.firmware", firmwareInfo.name)
+                setProperty("post.parameters", parameters.toString())
+                setProperty("post.parser", parserState.toString())
+            }
             when (endpoint) {
                 is ControllerEndpoint.Tcp -> {
                     setProperty("transport", "TCP")
