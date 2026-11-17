@@ -33,7 +33,7 @@ class ControllerSettingsTest {
                 .also { transports += it }.let { GrblMachineSession(it, child, handshakeTimeoutMillis = 250) }
         })
         val settings = ControllerSettings(connection, preferences)
-        val draft = ControllerEndpointDraft(ControllerEndpointDraft.Transport.TCP, "localhost", "4321")
+        val draft = ControllerEndpointDraft(ControllerEndpointDraft.Transport.TCP, "localhost", "4321", postConnect = no.grblcommander.core.connection.noPostConnectActions())
     }
 
     private fun fixture(test: suspend Fixture.() -> Unit) = runBlocking<Unit> {

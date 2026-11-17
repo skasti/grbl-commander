@@ -86,7 +86,7 @@ class ControllerConnection(
     private var manualLifecycleIntent = 0L
 
     /** Startup shares the ordinary lifecycle lock and never replaces a manual operation. */
-    internal suspend fun connectAtStartup(endpoint: ControllerEndpoint) = connect(endpoint, automatic = true)
+    internal suspend fun connectAtStartup(endpoint: ControllerEndpoint) = establish(endpoint, automatic = true)
 
     internal fun startupFailed(error: Throwable) = synchronized(gate) {
         if (!closed && manualLifecycleIntent == 0L) mutableState.value = state.value.copy(
@@ -96,9 +96,12 @@ class ControllerConnection(
     }
 
     /** Explicit connect/switch; the old one-shot session is fully disposed before creating another. */
-    suspend fun connect(endpoint: ControllerEndpoint) = connect(endpoint, automatic = false)
+    suspend fun connect(endpoint: ControllerEndpoint, resetConfirmed: Boolean = false) {
+        check(!endpoint.postConnect.resetController || resetConfirmed) { "Confirm controller reset for this connection first" }
+        establish(endpoint, automatic = false)
+    }
 
-    private suspend fun connect(endpoint: ControllerEndpoint, automatic: Boolean) {
+    private suspend fun establish(endpoint: ControllerEndpoint, automatic: Boolean) {
         if (!automatic) synchronized(gate) { manualLifecycleIntent++ }
         val entry = lifecycle.withLock {
             if (automatic && synchronized(gate) { manualLifecycleIntent != 0L || active != null }) return
@@ -160,6 +163,7 @@ class ControllerConnection(
                 entry.connecting = scope.async(start = CoroutineStart.LAZY) {
                     try {
                         session.connect()
+                        runPostConnect(entry, automatic)
                         synchronized(gate) {
                             if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
                         }
@@ -185,6 +189,51 @@ class ControllerConnection(
                 entry.session.awaitClosed()
             }
             throw error
+        }
+    }
+
+    /** One session owns all normal responses; failures never replay a query or imply transport loss. */
+    private suspend fun runPostConnect(entry: Active, automatic: Boolean) {
+        val session = entry.session
+        val actions = entry.endpoint.postConnect
+        fun result(text: String) = synchronized(gate) {
+            if (active === entry) mutableState.value = state.value.copy(
+                postConnectResults = state.value.postConnectResults + text,
+            )
+        }
+        synchronized(gate) {
+            if (active === entry) mutableState.value = state.value.copy(postConnectPending = true)
+        }
+        try {
+            if (actions.resetController && automatic) result("Controller reset skipped: startup has no operator consent.")
+            if (actions.resetController && !automatic) {
+                try { session.reset(); result("Controller reset synchronized.") }
+                catch (error: Exception) {
+                    currentCoroutineContext().ensureActive()
+                    result("Controller reset failed: ${error.message}. Queries skipped.")
+                    return
+                }
+            }
+            for (query in actions.queries()) {
+                val snapshot = session.state.value
+                if (snapshot.connection != MachineSnapshot.Connection.CONNECTED || !snapshot.normalCommandsSynchronized ||
+                    snapshot.resetRequired || snapshot.resetInProgress) {
+                    result("$query and remaining queries skipped: normal command correlation unavailable.")
+                    break
+                }
+                try {
+                    val acknowledgment = session.executeLine(query)
+                    result(if (acknowledgment.accepted) "$query acknowledged." else "$query rejected: error:${acknowledgment.errorCode}.")
+                } catch (error: Exception) {
+                    // A request timeout is a CancellationException but need not cancel this job.
+                    currentCoroutineContext().ensureActive()
+                    result("$query failed: ${error.message}")
+                }
+            }
+        } finally {
+            synchronized(gate) {
+                if (active === entry) mutableState.value = state.value.copy(postConnectPending = false)
+            }
         }
     }
 

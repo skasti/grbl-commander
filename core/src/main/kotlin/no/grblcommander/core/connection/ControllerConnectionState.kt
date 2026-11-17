@@ -10,14 +10,17 @@ data class ControllerConnectionState(
     val closing: Boolean = false,
     /** Owns the manual line slot until acknowledgment; not proof of motion. */
     val manualCommandPending: Boolean = false,
+    val postConnectPending: Boolean = false,
+    /** Results are diagnostics; successful acknowledgment does not imply motion completion. */
+    val postConnectResults: List<String> = emptyList(),
 ) {
-    fun canExecuteLine(now: Instant = Instant.now()): Boolean = !closing && !manualCommandPending &&
+    fun canExecuteLine(now: Instant = Instant.now()): Boolean = !closing && !manualCommandPending && !postConnectPending &&
         !reportIsStale(now) && snapshot.normalCommandsSynchronized &&
         !snapshot.resetInProgress && !snapshot.resetRequired &&
         snapshot.status?.executionState?.substringBefore(':') in setOf("Idle", "Alarm", "Check")
 
     /** Explicit start/resume follows controller state, independently of command acknowledgment. */
-    fun canCycleStart(now: Instant = Instant.now()): Boolean = !closing &&
+    fun canCycleStart(now: Instant = Instant.now()): Boolean = !closing && !postConnectPending &&
         !reportIsStale(now) && snapshot.status?.executionState in setOf("Idle", "Hold:0") &&
         snapshot.alarmCode == null && !snapshot.resetInProgress && !snapshot.resetRequired &&
         snapshot.normalCommandsSynchronized

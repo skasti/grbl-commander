@@ -12,11 +12,12 @@ internal object ControllerEndpointRecord {
         return try {
             val values = Properties().apply { load(StringReader(record)) }
             fun field(name: String) = requireNotNull(values.getProperty(name))
-            require(field("version") in setOf("1", "2"))
-            fun optionalBoolean(name: String, fallback: Boolean) = values.getProperty(name)?.toBooleanStrict() ?: fallback
+            val version = field("version")
+            require(version in setOf("1", "2"))
+            fun optionalBoolean(name: String, fallback: Boolean) = if (version == "2") field(name).toBooleanStrict() else values.getProperty(name)?.toBooleanStrict() ?: fallback
             val actions = PostConnectActions(
                 resetController = optionalBoolean("post.reset", false),
-                firmwareInfo = values.getProperty("post.firmware")?.let(PostConnectActions.FirmwareInfo::valueOf)
+                firmwareInfo = (if (version == "2") field("post.firmware") else values.getProperty("post.firmware"))?.let(PostConnectActions.FirmwareInfo::valueOf)
                     ?: PostConnectActions.FirmwareInfo.BASIC,
                 parameters = optionalBoolean("post.parameters", true),
                 parserState = optionalBoolean("post.parser", true),
@@ -35,7 +36,7 @@ internal object ControllerEndpointRecord {
         } catch (_: IllegalArgumentException) { null }
     }
 
-    fun encode(endpoint: ControllerEndpoint): String {
+    fun encode(endpoint: ControllerEndpoint, draft: ControllerEndpointDraft? = null): String {
         val values = Properties().apply {
             setProperty("version", "2")
             with(endpoint.postConnect) {
@@ -63,6 +64,40 @@ internal object ControllerEndpointRecord {
                 }
             }
         }
+        draft?.let { setDraft(values, it) }
         return StringWriter().also { values.store(it, null) }.toString()
+    }
+    /** Restore the complete saved form, including unselected transport fields. */
+    fun decodeDraft(record: String?): ControllerEndpointDraft? {
+        val endpoint = decode(record) ?: return null
+        return try {
+            val values = Properties().apply { load(StringReader(record!!)) }
+            val base = ControllerEndpointDraft.from(endpoint)
+            if (values.getProperty("draft.host") == null) return base
+            fun field(name: String) = requireNotNull(values.getProperty("draft." + name))
+            val draft = base.copy(
+                host = field("host"), tcpPort = field("tcpPort"), serialPort = field("serialPort"),
+                baudRate = field("baudRate"), dataBits = field("dataBits"),
+                stopBits = SerialConfiguration.StopBits.valueOf(field("stopBits")),
+                parity = SerialConfiguration.Parity.valueOf(field("parity")),
+                flowControl = SerialConfiguration.FlowControl.valueOf(field("flowControl")),
+                dtr = field("dtr").toBooleanStrict(), rts = field("rts").toBooleanStrict(),
+            )
+            require(draft.endpoint() == endpoint)
+            draft
+        } catch (_: IllegalArgumentException) { null }
+    }
+
+    private fun setDraft(values: Properties, draft: ControllerEndpointDraft) = with(draft) {
+        values.setProperty("draft.host", host)
+        values.setProperty("draft.tcpPort", tcpPort)
+        values.setProperty("draft.serialPort", serialPort)
+        values.setProperty("draft.baudRate", baudRate)
+        values.setProperty("draft.dataBits", dataBits)
+        values.setProperty("draft.stopBits", stopBits.name)
+        values.setProperty("draft.parity", parity.name)
+        values.setProperty("draft.flowControl", flowControl.name)
+        values.setProperty("draft.dtr", dtr.toString())
+        values.setProperty("draft.rts", rts.toString())
     }
 }

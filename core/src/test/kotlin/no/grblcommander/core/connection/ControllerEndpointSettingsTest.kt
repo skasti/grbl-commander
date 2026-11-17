@@ -86,6 +86,18 @@ class ControllerEndpointSettingsTest {
         assertNull(ControllerEndpointRecord.decode(legacy + "\npost.firmware=UNKNOWN"))
     }
 
+    @Test fun `complete saved draft retains both transports and invalid v2 falls back`() {
+        val draft = ControllerEndpointDraft(
+            transport = ControllerEndpointDraft.Transport.TCP, host = "localhost", tcpPort = "1234",
+            serialPort = "COM42", baudRate = "230400", dtr = false,
+            postConnect = PostConnectActions(parameters = false),
+        )
+        val record = ControllerEndpointRecord.encode(draft.endpoint(), draft)
+        assertEquals(draft, ControllerEndpointRecord.decodeDraft(record))
+        assertNull(ControllerEndpointRecord.decodeDraft(record.replace("draft.dtr=false", "draft.dtr=invalid")))
+        assertNull(ControllerEndpointRecord.decode("version=2\ntransport=TCP\nhost=localhost\nport=1234"))
+    }
+
     @Test fun `draft validates only selected transport and accepts manual Windows and Linux devices`() {
         for (device in listOf("COM3", "/dev/ttyACM0", "/dev/ttyUSB0", "/dev/serial/by-id/usb-test")) {
             val endpoint = ControllerEndpointDraft(serialPort = device).endpoint()

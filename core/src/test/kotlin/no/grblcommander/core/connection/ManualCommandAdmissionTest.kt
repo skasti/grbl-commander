@@ -16,7 +16,7 @@ class ManualCommandAdmissionTest {
             val transport = ConnectionTestTransport()
             val owner = ControllerConnection(this, { _, child -> GrblMachineSession(transport, child) })
             try {
-                owner.connect(ControllerEndpoint.Tcp("localhost", 1234))
+                owner.connect(ControllerEndpoint.Tcp("localhost", 1234, no.grblcommander.core.connection.noPostConnectActions()))
                 val command = async { owner.executeLine("G1 X100 F100") }
                 assertEquals("G1 X100 F100\n", transport.nextNonStatusWrite())
                 transport.emit("ok\n")
@@ -75,7 +75,7 @@ class ManualCommandAdmissionTest {
             val transport = ConnectionTestTransport()
             val owner = ControllerConnection(this, { _, child -> GrblMachineSession(transport, child) })
             try {
-                owner.connect(ControllerEndpoint.Tcp("localhost", 1234))
+                owner.connect(ControllerEndpoint.Tcp("localhost", 1234, no.grblcommander.core.connection.noPostConnectActions()))
                 owner.sendRealtime(RealtimeCommand.CYCLE_START)
                 assertEquals("~", transport.nextNonStatusWrite())
                 assertFailsWith<IllegalArgumentException> { owner.executeLine("G0 X1\nG0 X2") }

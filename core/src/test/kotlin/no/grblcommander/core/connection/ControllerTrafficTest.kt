@@ -30,7 +30,7 @@ class ControllerTrafficTest {
         override fun close() { state.value = state.value.copy(connection = MachineSnapshot.Connection.CLOSED) }
         override suspend fun awaitClosed() = Unit
     }
-    private val endpoint = ControllerEndpoint.Tcp("localhost", 1234)
+    private val endpoint = ControllerEndpoint.Tcp("localhost", 1234, no.grblcommander.core.connection.noPostConnectActions())
 
     @Test fun `slow subscriber never blocks publication diagnostics retain 5000 and cursor exposes dropped events`() = runBlocking<Unit> {
         withTimeout(10_000) {

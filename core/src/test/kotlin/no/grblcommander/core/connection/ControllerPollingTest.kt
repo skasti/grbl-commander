@@ -12,7 +12,7 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ControllerPollingTest {
-    private val endpoint = ControllerEndpoint.Tcp("localhost", 4321)
+    private val endpoint = ControllerEndpoint.Tcp("localhost", 4321, no.grblcommander.core.connection.noPostConnectActions())
 
     private class Session : MachineSession {
         override val state = MutableStateFlow(MachineSnapshot())
