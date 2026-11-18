@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import no.grblcommander.desktop.ui.controls.KeypadPanel
+import no.grblcommander.desktop.ui.controls.keypadPanelMargin
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -282,7 +283,7 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
         val disconnecting = state.closing || operation?.action == Action.DISCONNECT
         Surface(Modifier.fillMaxSize()) {
             BoxWithConstraints(Modifier.fillMaxSize().padding(12.dp)) {
-                val keypadWidth = minOf(maxWidth * .58f, 740.dp)
+                val keypadWidth = minOf(maxWidth * .58f, 740.dp) + keypadPanelMargin * 2f
                 Row(Modifier.fillMaxSize().focusRequester(formFocus).focusable(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.Top) {

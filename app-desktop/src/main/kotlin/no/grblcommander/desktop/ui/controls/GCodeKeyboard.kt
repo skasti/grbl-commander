@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.ceil
 import kotlin.math.floor
 
+internal val keypadPanelMargin = 30.dp
+
 /** Two independent clusters. Owners explicitly bind all actions, including context-dependent Enter. */
 @Composable
 fun GCodeKeyboard(
@@ -31,7 +33,11 @@ internal fun KeypadPanel(
     onAction: (KeypadAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(modifier.clipToBounds(), contentAlignment = Alignment.BottomCenter) {
+    BoxWithConstraints(
+        // Reserve the margin outside the clipped, scrollable viewport for the whole group.
+        modifier.padding(keypadPanelMargin).clipToBounds(),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
         val density = LocalDensity.current
         val minimum = with(density) { ceil(44.dp.toPx()).toInt() }
         val maximum = with(density) { floor(72.dp.toPx()).toInt() }

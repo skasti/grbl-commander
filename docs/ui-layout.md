@@ -563,25 +563,23 @@ same pixel rounding as Compose; the lower size bound rounds upward and the upper
 bound downward. Configured ordinary row/column gaps remain 30% of key size, with
 a total 60% gap before numeric column four. Changing pages does not change size.
 
-Only outer spacing adapts: the gap above each page control ranges from 0 to 8 dp,
-and the inter-cluster gap ranges from 0 to 16 dp. Compact spacing makes room for
-larger keys first. Spare height restores these gaps up to their caps; further
-height stays above the combined keyboard. `GCodeKeyboard` aligns that unit at the
-bottom of its panel. Terminal and MDI retain an 8 dp workspace margin below it;
-excess height is never distributed between the clusters.
+The keypad container reserves **30 dp** on all four sides of the group, outside
+its scrollable viewport. The gap above each page control ranges from 0 to 8 dp
+and the gap between clusters ranges from 0 to 16 dp. Compact spacing makes room
+for larger keys first. Spare height restores these gaps up to their caps.
+The group aligns to the bottom of the viewport when it fits.
 
-At the minimum supported **1024×720 viewport**, the 78 dp header, 94 dp bottom
-bank and 16 dp compact screen padding leave 532 dp for the keyboard. At density 1,
-two 45 dp grids use 444 pixels after spacer rounding and page controls use 88:
-532 in total, with no additional page/inter-cluster gaps. Both clusters fit without overlap
-or scrolling. Terminal and MDI allow up to 40% of workspace width, capped at
-400 dp, for the keyboard; its measured width follows the keys so the remaining
-space belongs to the console/editor. Larger viewports grow keys up to 72 dp.
+At the minimum supported **1024×720 viewport**, the header, bottom bank, screen
+padding and keypad margin leave 472 dp of height inside the Terminal and MDI
+keypad viewport. At 1× scale the two minimum-size clusters and their page
+controls need 518 dp. The panel scrolls to give access to the bottom controls.
+Terminal and MDI allow up to 40% of workspace width, capped at 400 dp, for the
+panel including its margin. Larger viewports grow keys up to 72 dp.
 
 The viewport dimensions describe available Compose content at its logical dp
-size, excluding window decorations. Below the supported viewport, or with custom
-keymaps too large to fit at 44 dp, the keyboard panel scrolls vertically and/or
-horizontally instead of shrinking keys or overlapping the shell. Native display
+size, excluding window decorations. When the keypad group cannot fit at 44 dp,
+the viewport scrolls vertically or horizontally while retaining the 30 dp margin.
+Native display
 scaling can reduce the available logical viewport; it does not reduce key dp size.
 
 `KeypadLayout` is a copied configuration snapshot with rows/columns, a list of

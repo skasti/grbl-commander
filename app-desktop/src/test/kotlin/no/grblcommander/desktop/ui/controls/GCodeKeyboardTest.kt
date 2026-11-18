@@ -90,19 +90,27 @@ class GCodeKeyboardTest {
         var enters = 0
         setContent {
             MaterialTheme {
-                GCodeKeyboard({ if (it == KeypadAction.Enter) enters++ }, Modifier.size(200.dp, 300.dp))
+                GCodeKeyboard({ if (it == KeypadAction.Enter) enters++ }, Modifier.size(200.dp, 300.dp).testTag("keypad-panel"))
             }
         }
         val first = onNodeWithTag("keypad-ABC-0").fetchSemanticsNode().boundsInRoot
         assertEquals(44f, first.width, .1f)
         assertEquals(44f, first.height, .1f)
+        val panel = onNodeWithTag("keypad-panel").fetchSemanticsNode().boundsInRoot
+        assertEquals(30f, first.top - panel.top, .1f)
+        assertTrue(first.left - panel.left >= 30f)
         onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(
             androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange), useUnmergedTree = true)
             .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy) { it(0f, 1000f) }
         onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(
             androidx.compose.ui.semantics.SemanticsProperties.HorizontalScrollAxisRange), useUnmergedTree = true)
             .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy) { it(1000f, 0f) }
-        onNodeWithTag("keypad-123-15").assertIsDisplayed().performClick()
+        val enter = onNodeWithTag("keypad-123-15").assertIsDisplayed()
+        val bounds = enter.fetchSemanticsNode().boundsInRoot
+        assertEquals(30f, panel.right - bounds.right, .1f)
+        val page = onNodeWithTag("keypad-123-next").fetchSemanticsNode().boundsInRoot
+        assertEquals(30f, panel.bottom - page.bottom, .1f)
+        enter.performClick()
         runOnIdle { assertEquals(1, enters) }
     }
 
