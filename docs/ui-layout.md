@@ -563,22 +563,21 @@ same pixel rounding as Compose; the lower size bound rounds upward and the upper
 bound downward. Configured ordinary row/column gaps remain 30% of key size, with
 a total 60% gap before numeric column four. Changing pages does not change size.
 
-The keypad container reserves **30 dp** on all four sides of the group, outside
-its scrollable viewport. The gap above each page control ranges from 0 to 8 dp
-and the gap between clusters ranges from 0 to 16 dp. Compact spacing makes room
-for larger keys first. Spare height restores these gaps up to their caps.
-The group aligns to the bottom of the viewport when it fits.
+The shared keypad container aims for **30 dp** around the whole group. Each axis
+reduces its margin symmetrically only as far as needed to fit the minimum-size
+keys and page controls. The gap above each page control ranges from 0 to 8 dp
+and the gap between clusters ranges from 0 to 16 dp. Spare height restores these
+gaps up to their caps. The group aligns to the bottom of the viewport when it fits.
 
-At the minimum supported **1024×720 viewport**, the header, bottom bank, screen
-padding and keypad margin leave 472 dp of height inside the Terminal and MDI
-keypad viewport. At 1× scale the two minimum-size clusters and their page
-controls need 518 dp. The panel scrolls to give access to the bottom controls.
-Terminal and MDI allow up to 40% of workspace width, capped at 400 dp, for the
-panel including its margin. Larger viewports grow keys up to 72 dp.
+At the minimum supported **1024×720 viewport**, Terminal and MDI have 532 dp of
+height for the panel. At 1× scale, the two 44 dp clusters and their page controls
+need 518 dp, leaving a 7 dp vertical panel margin on each side. The full group
+remains visible. Terminal and MDI allow up to 40% of workspace width, capped at
+400 dp, for the panel including its margin. Larger viewports grow keys up to 72 dp.
 
 The viewport dimensions describe available Compose content at its logical dp
-size, excluding window decorations. When the keypad group cannot fit at 44 dp,
-the viewport scrolls vertically or horizontally while retaining the 30 dp margin.
+size, excluding window decorations. When the group cannot fit at 44 dp even
+after reducing the margin, the panel scrolls on the constrained axis.
 Native display
 scaling can reduce the available logical viewport; it does not reduce key dp size.
 

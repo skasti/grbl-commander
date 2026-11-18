@@ -86,31 +86,43 @@ class GCodeKeyboardTest {
         onNodeWithText("123 1/2 ▸").assertExists()
     }
 
+    @Test fun `margin compacts only on the constrained axis before scrolling`() = runComposeUiTest {
+        var height by mutableStateOf(620.dp)
+        setContent {
+            MaterialTheme {
+                GCodeKeyboard({}, Modifier.size(320.dp, height).testTag("keypad-panel"))
+            }
+        }
+        fun bounds(tag: String) = onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+        assertEquals(30f, bounds("keypad-panel").bottom - bounds("keypad-123-next").bottom, .1f)
+        runOnIdle { height = 532.dp }
+        val panel = bounds("keypad-panel")
+        val page = bounds("keypad-123-next")
+        val first = bounds("keypad-ABC-0")
+        assertEquals(7f, first.top - panel.top, .1f)
+        assertEquals(7f, panel.bottom - page.bottom, .1f)
+        assertTrue(panel.right - page.right >= 30f)
+        assertEquals(44f, first.width, .1f)
+        onNodeWithTag("keypad-123-next").assertIsDisplayed()
+    }
+
     @Test fun `undersized viewport scrolls instead of shrinking the keys`() = runComposeUiTest {
         var enters = 0
         setContent {
             MaterialTheme {
-                GCodeKeyboard({ if (it == KeypadAction.Enter) enters++ }, Modifier.size(200.dp, 300.dp).testTag("keypad-panel"))
+                GCodeKeyboard({ if (it == KeypadAction.Enter) enters++ }, Modifier.size(200.dp, 300.dp))
             }
         }
         val first = onNodeWithTag("keypad-ABC-0").fetchSemanticsNode().boundsInRoot
         assertEquals(44f, first.width, .1f)
         assertEquals(44f, first.height, .1f)
-        val panel = onNodeWithTag("keypad-panel").fetchSemanticsNode().boundsInRoot
-        assertEquals(30f, first.top - panel.top, .1f)
-        assertTrue(first.left - panel.left >= 30f)
         onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(
             androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange), useUnmergedTree = true)
             .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy) { it(0f, 1000f) }
         onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(
             androidx.compose.ui.semantics.SemanticsProperties.HorizontalScrollAxisRange), useUnmergedTree = true)
             .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy) { it(1000f, 0f) }
-        val enter = onNodeWithTag("keypad-123-15").assertIsDisplayed()
-        val bounds = enter.fetchSemanticsNode().boundsInRoot
-        assertEquals(30f, panel.right - bounds.right, .1f)
-        val page = onNodeWithTag("keypad-123-next").fetchSemanticsNode().boundsInRoot
-        assertEquals(30f, panel.bottom - page.bottom, .1f)
-        enter.performClick()
+        onNodeWithTag("keypad-123-15").assertIsDisplayed().performClick()
         runOnIdle { assertEquals(1, enters) }
     }
 
