@@ -573,7 +573,8 @@ At the minimum supported **1024×720 viewport**, Terminal and MDI have 532 dp of
 height for the panel. At 1× scale, the two 44 dp clusters and their page controls
 need 518 dp, leaving a 7 dp vertical panel margin on each side. The full group
 remains visible. Terminal and MDI allow up to 40% of workspace width, capped at
-400 dp, for the panel including its margin. Larger viewports grow keys up to 72 dp.
+400 dp, for the keys and page controls, with the margin outside that budget.
+Larger viewports grow keys up to 72 dp.
 
 The viewport dimensions describe available Compose content at its logical dp
 size, excluding window decorations. When the group cannot fit at 44 dp even

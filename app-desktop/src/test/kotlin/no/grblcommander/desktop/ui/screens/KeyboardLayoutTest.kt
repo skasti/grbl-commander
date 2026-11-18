@@ -16,6 +16,8 @@ import no.grblcommander.desktop.ui.navigation.*
 import java.util.UUID
 import java.util.prefs.Preferences
 import kotlin.test.*
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalTestApi::class)
 class KeyboardLayoutTest {
@@ -58,8 +60,12 @@ class KeyboardLayoutTest {
                 assertTrue(field.height >= 47.99f, "Input remains a usable touch target: $field")
                 assertTrue(first.left >= field.right, "Keyboard must stay to the right of the input")
                 assertTrue(numbersFirst.top >= lettersFooter.bottom, "Numbers must be below letters")
-                // Bottom tiles add an 8 dp inset to the screen's consistent 8 dp margin.
-                assertEquals(16f, bottom.top - footer.bottom, 1f, "Combined panel keeps its bottom margin")
+                val minimumKey = ceil(44f * scale).toInt()
+                val minimumGrid = 4 * minimumKey + 3 * (.30f * minimumKey).roundToInt()
+                val minimumGroup = (2 * minimumGrid + 2 * minimumKey) / scale
+                val margin = ((height - 188f - minimumGroup) / 2).coerceIn(0f, 30f)
+                // The screen and bottom tile each contribute an additional 8 dp.
+                assertEquals(16f + margin, bottom.top - footer.bottom, 2f, "Combined panel keeps its adaptive bottom margin")
                 if (height >= 1050f) {
                     assertEquals(72f, first.width, .1f, "Larger viewports reach the capped size")
                     assertTrue(first.top - 78f > 8f, "Excess height stays above the combined panel")
@@ -73,7 +79,7 @@ class KeyboardLayoutTest {
                         assertEquals(bounds.width, bounds.height, .1f, "Every key stays square")
                         assertEquals(first.width, bounds.width, .1f, "Both clusters share a key size")
                         assertTrue(bounds.top >= 78f && bounds.bottom <= bottom.top - 8f, "Key must stay between header and softkeys")
-                        assertTrue(bounds.left >= field.right && bounds.right <= right.left - 9f, "Key must stay beside input, inside workspace")
+                        assertTrue(bounds.left >= field.right && bounds.right <= right.left - 39f, "Key must stay beside input, inside workspace")
                         if (slot % 4 > 0) {
                             val previous = onNodeWithTag("keypad-$cluster-${slot - 1}").bounds()
                             val factor = if (cluster == "123" && slot % 4 == 3) .6f else .3f
