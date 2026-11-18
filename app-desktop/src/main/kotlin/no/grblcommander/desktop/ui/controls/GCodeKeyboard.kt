@@ -22,26 +22,37 @@ fun GCodeKeyboard(
     letters: KeyClusterState = remember { KeyClusterState(GCodeKeymaps.letters) },
     numbers: KeyClusterState = remember { KeyClusterState(GCodeKeymaps.numbers) },
 ) {
+    KeypadPanel(listOf(letters, numbers), onAction, modifier)
+}
+
+@Composable
+internal fun KeypadPanel(
+    clusters: List<KeyClusterState>,
+    onAction: (KeypadAction) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     BoxWithConstraints(modifier.clipToBounds(), contentAlignment = Alignment.BottomCenter) {
         val density = LocalDensity.current
         val minimum = with(density) { ceil(44.dp.toPx()).toInt() }
         val maximum = with(density) { floor(72.dp.toPx()).toInt() }
         val pageHeight = minimum
-        fun gridsHeight(size: Int) = letters.layout.heightInPixels(size) + numbers.layout.heightInPixels(size)
+        val count = clusters.size
+        fun gridsHeight(size: Int) = clusters.sumOf { it.layout.heightInPixels(size) }
+        fun gridsWidth(size: Int) = clusters.maxOf { it.layout.widthInPixels(size) }
         // Fit the largest square using compact outer spacing, never changing keymap gaps.
         val keyPixels = (maximum downTo minimum).firstOrNull { size ->
-            maxOf(letters.layout.widthInPixels(size), numbers.layout.widthInPixels(size)) <= constraints.maxWidth &&
-                gridsHeight(size) + 2 * pageHeight <= constraints.maxHeight
+            gridsWidth(size) <= constraints.maxWidth &&
+                gridsHeight(size) + count * pageHeight <= constraints.maxHeight
         } ?: minimum
-        val spareHeight = (constraints.maxHeight - gridsHeight(keyPixels) - 2 * pageHeight).coerceAtLeast(0)
+        val spareHeight = (constraints.maxHeight - gridsHeight(keyPixels) - count * pageHeight).coerceAtLeast(0)
         val pageSpacingPixels = minOf(with(density) { 8.dp.roundToPx() },
-            spareHeight / 2)
+            spareHeight / count)
         val clusterSpacingPixels = minOf(with(density) { 16.dp.roundToPx() },
-            (spareHeight - 2 * pageSpacingPixels).coerceAtLeast(0))
+            (spareHeight - count * pageSpacingPixels) / (count - 1).coerceAtLeast(1))
         val keySize = with(density) { keyPixels.toDp() }
         val pageSpacing = with(density) { pageSpacingPixels.toDp() }
-        val contentWidth = maxOf(letters.layout.widthInPixels(keyPixels), numbers.layout.widthInPixels(keyPixels))
-        val contentHeight = gridsHeight(keyPixels) + 2 * (pageHeight + pageSpacingPixels) + clusterSpacingPixels
+        val contentWidth = gridsWidth(keyPixels)
+        val contentHeight = gridsHeight(keyPixels) + count * (pageHeight + pageSpacingPixels) + (count - 1) * clusterSpacingPixels
         val scrollVertically = contentHeight > constraints.maxHeight
         val scrollHorizontally = contentWidth > constraints.maxWidth
         // Separate scroll containers expose each axis correctly when a custom map or viewport cannot fit.
@@ -50,9 +61,10 @@ fun GCodeKeyboard(
                 Modifier.horizontalScroll(rememberScrollState(), enabled = scrollHorizontally),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                KeyCluster(letters, keySize, onAction, pageSpacing = pageSpacing)
-                Spacer(Modifier.height(with(density) { clusterSpacingPixels.toDp() }))
-                KeyCluster(numbers, keySize, onAction, pageSpacing = pageSpacing)
+                clusters.forEachIndexed { index, cluster ->
+                    if (index > 0) Spacer(Modifier.height(with(density) { clusterSpacingPixels.toDp() }))
+                    KeyCluster(cluster, keySize, onAction, pageSpacing = pageSpacing)
+                }
             }
         }
     }

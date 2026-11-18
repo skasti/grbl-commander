@@ -495,10 +495,10 @@ traffic. No competing metadata/capabilities cache is introduced.
 ControllerSettings exposes the complete savedDraft alongside its configured
 endpoint. Save and successful Connect persist it through the same versioned record
 and configuration lock. The form's F8 restore uses this saved form or normal
-defaults, without controller I/O. Child editors, advanced serial options and
+defaults, without controller I/O. Port and baud selectors, advanced serial options and
 post-connect screens return typed draft results on the existing Util stack.
-Ports/baud use six numbered selections per page; input screens reuse KeyCluster
-and editWithKeypad with an explicit field owner.
+Ports and baud use six numbered selections per page. The connection form keeps
+field edits inline and uses the same keypad sizing and edit actions as Terminal and MDI.
 
 Serial native open seeds requested DTR/RTS levels before opening and checks both
 levels after opening. This never alternates levels to generate a reset pulse.

@@ -149,17 +149,6 @@ class ConnectionEditorsTest {
         runOnIdle { assertNull(result) }
     }
 
-    @Test fun numericTouchInputAtSmallViewport() = runSkikoComposeUiTest(size = Size(800f, 600f)) {
-        val (_, root) = host()
-        var result: String? = null
-        runOnIdle { ConnectionTextInput("TCP port", "1234", true).open(root) { result = it } }
-        onNodeWithTag("keypad-Numbers-8").performClick() // replace selection with 1
-        onNodeWithTag("keypad-Numbers-9").performClick() // 2
-        onNodeWithTag("keypad-Numbers-3").performClick() // backspace
-        onNodeWithTag("keypad-Numbers-15").performClick()
-        runOnIdle { assertEquals("1", result) }
-    }
-
     @Test fun selectorCaptureStates() = runAtScreenshotSizes { screenshot ->
         val (stack, root) = host()
         val discovery = CompletableDeferred<List<Pair<String, String>>>()

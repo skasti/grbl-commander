@@ -148,7 +148,8 @@ F5 opens shared Post-Connect Actions; F6 connects or disconnects; F7 saves;
 F8 restores the last saved form, with confirmation before discarding edits.
 R7 returns to Terminal. Serial selectors show six numbered touch rows per page;
 F1–F6 select, F7 pages and F8 cancels. Manual device and custom baud entry remain
-available through field-owned touch keyboards. Advanced F1–F6 cycle settings;
+available through touch keypads beside the active field. Keypads share Terminal
+and MDI sizing and spacing. Advanced F1–F6 cycle settings;
 F7 applies to the parent draft and F8 confirms discarding changed values.
 
 Serial defaults are 115200 baud, 8N1, no flow control, DTR on and RTS off.
@@ -268,8 +269,8 @@ it does not imply coverage of all application screens.
 | `connection-port-discovery-*` | Loading, empty and failed serial discovery |
 | `connection-port-page-*`, `connection-port-single-page` | Six numbered device rows, paging/wrap and a partial final page; single-page bank |
 | `connection-baud-page-*` | Both pages of the production common-baud selector |
-| `connection-device-input`, `connection-host-input*` | Manual device entry and all three address keyboard pages |
-| `connection-port-input`, `connection-custom-baud-input` | Field-owned numeric entry for TCP port and custom baud |
+| `connection-device-input`, `connection-host-input*` | Inline device entry and all three address keypad pages |
+| `connection-port-input`, `connection-custom-baud-input` | Inline numeric entry for TCP port and custom baud |
 | `connection-advanced-*` | Four grouped combinations cover every data-bit/parity/stop/flow value and both control-line levels, plus discard confirmation |
 | `connection-post-connect-all-*`, `connection-post-connect-extended` | Grouped all-off/all-on choices and extended firmware query |
 | `connection-*-validation`, `connection-restore-confirmation`, `connection-reset-confirmation` | Serial/TCP validation, draft restoration and explicit reset consent |

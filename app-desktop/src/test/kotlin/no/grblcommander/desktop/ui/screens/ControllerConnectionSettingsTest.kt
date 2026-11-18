@@ -9,6 +9,8 @@ import no.grblcommander.core.connection.description
 import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.desktop.ui.runAtScreenshotSizes
 import androidx.compose.ui.test.*
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.dp
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -37,6 +39,7 @@ import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.MachineSession
 import no.grblcommander.machine.session.MachineSnapshot.Connection
 import kotlin.test.*
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalTestApi::class)
 class ControllerConnectionSettingsTest {
@@ -327,7 +330,7 @@ class ControllerConnectionSettingsTest {
             runOnIdle { assertEquals(ControllerEndpointDraft(), screen.draft) }
             screenshot("connection-serial-defaults")
             onNodeWithText("Device path / port name").performScrollTo().performClick()
-            onNode(hasSetTextAction()).performTextReplacement("/dev/ttyACM0")
+            onNodeWithTag("connection-field-input").performTextReplacement("/dev/ttyACM0")
             screenshot("connection-device-input")
             onNodeWithTag("softkey-F8").performClick()
             onNodeWithTag("softkey-F3").performClick()
@@ -338,7 +341,7 @@ class ControllerConnectionSettingsTest {
             screenshot("connection-baud-page-two")
             onNodeWithTag("softkey-F8").performClick()
             onNodeWithText("Baud rate (custom entry)").performScrollTo().performClick()
-            onNode(hasSetTextAction()).performTextReplacement("250000")
+            onNodeWithTag("connection-field-input").performTextReplacement("250000")
             screenshot("connection-custom-baud-input")
             onNodeWithTag("softkey-F8").performClick()
             val saved = fixture.draft.copy(serialPort = "COM42", baudRate = "230400", dtr = false)
@@ -360,13 +363,26 @@ class ControllerConnectionSettingsTest {
             val screen = open(fixture)
             onNodeWithTag("softkey-F2").performClick()
             onNodeWithTag("softkey-R7").assertIsNotEnabled()
+            onNodeWithText("Controller connection").assertIsDisplayed()
+            val field = onNodeWithTag("connection-field-input").assertIsFocused().getUnclippedBoundsInRoot()
+            val first = onNodeWithTag("keypad-Address-0").getUnclippedBoundsInRoot()
+            val second = onNodeWithTag("keypad-Address-1").getUnclippedBoundsInRoot()
+            val nextRow = onNodeWithTag("keypad-Address-8").getUnclippedBoundsInRoot()
+            assertTrue(first.left >= field.right)
+            val keySize = first.right - first.left
+            assertTrue(keySize in 44.dp..72.dp)
+            assertEquals(keySize, first.bottom - first.top)
+            val gap = (keySize.value * .30f).roundToInt().dp
+            assertEquals(gap, second.left - first.right)
+            assertEquals(gap, nextRow.top - first.bottom)
+            runOnIdle { assertSame(screen, fixture.stack.top) }
             screenshot("connection-host-input")
             onNodeWithTag("keypad-Address-next").performClick()
             onNodeWithTag("keypad-Address-0").assertTextEquals("A")
             screenshot("connection-host-input-uppercase")
             onNodeWithTag("keypad-Address-next").performClick()
             screenshot("connection-host-input-symbols")
-            onNode(hasSetTextAction()).performTextReplacement("controller.local")
+            onNodeWithTag("connection-field-input").performTextReplacement("controller.local")
             onNodeWithTag("softkey-F7").performClick()
             runOnIdle { assertEquals("controller.local", screen.draft.host) }
             onNodeWithTag("softkey-F3").performClick()
@@ -375,6 +391,26 @@ class ControllerConnectionSettingsTest {
             screenshot("connection-port-input")
             onNodeWithTag("softkey-F7").performClick()
             runOnIdle { assertEquals("12", screen.draft.tcpPort); assertTrue(fixture.transports.isEmpty()) }
+            onNodeWithTag("keypad-Numbers-8").assertDoesNotExist()
+            onNodeWithTag("softkey-R7").assertIsEnabled()
+        }
+    }
+
+    @Test fun numericTouchInputAtSmallViewport() = runSkikoComposeUiTest(size = Size(800f, 600f)) {
+        Fixture().use { fixture ->
+            val screen = open(fixture)
+            onNodeWithTag("softkey-F3").performClick()
+            onNodeWithTag("keypad-Numbers-8").performClick()
+            onNodeWithTag("keypad-Numbers-9").performClick()
+            onNodeWithTag("keypad-Numbers-3").performClick()
+            onNodeWithTag("keypad-Numbers-15").performClick()
+            runOnIdle { assertEquals("1", screen.draft.tcpPort); assertSame(screen, fixture.stack.top) }
+
+            onNodeWithTag("softkey-F3").performClick()
+            onNodeWithTag("keypad-Numbers-9").performClick()
+            onNodeWithTag("softkey-F8").performClick()
+            runOnIdle { assertEquals("1", screen.draft.tcpPort) }
+            onNodeWithTag("keypad-Numbers-8").assertDoesNotExist()
         }
     }
 

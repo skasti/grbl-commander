@@ -1,8 +1,13 @@
 package no.grblcommander.desktop.ui.screens
 
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.key
+import androidx.compose.ui.Alignment
+import no.grblcommander.desktop.ui.controls.KeypadPanel
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -24,6 +29,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import java.net.ConnectException
 import java.net.UnknownHostException
@@ -63,8 +70,22 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
     private val canDisconnect get() = loaded && confirmation == null &&
         (operation == null || operation?.action == Action.CONNECT)
 
+    private enum class Field(val label: String, val numeric: Boolean = false) {
+        HOST("Hostname / IP address"), PORT("TCP port (1–65535)", numeric = true),
+        DEVICE("Device path / port name"), BAUD("Baud rate (custom entry)", numeric = true),
+    }
+
+    private data class Edit(val field: Field, val input: ConnectionTextInput)
+    private var edit by mutableStateOf<Edit?>(null)
+    private val formFocus = FocusRequester()
+    private val editKeys = mapOf(
+        BottomSoftKeySlot.F7 to SoftKeyDefinition("Apply", action = ::applyEdit, repeatable = false),
+        BottomSoftKeySlot.F8 to SoftKeyDefinition("Cancel", action = ::endEdit, repeatable = false),
+    )
+
     private var connectionPresent by mutableStateOf(false)
-    override val bottomKeys get() = buildMap {
+    override val bottomKeys get() = if (edit != null) editKeys else formKeys
+    private val formKeys get() = buildMap {
         val serial = draft.transport == ControllerEndpointDraft.Transport.SERIAL
         fun key(slot: BottomSoftKeySlot, label: String, action: () -> Unit) {
             put(slot, SoftKeyDefinition(label, action = action, enabled = { !busy && confirmation == null }, repeatable = false))
@@ -72,8 +93,8 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
         key(BottomSoftKeySlot.F1, if (serial) "Serial / TCP" else "TCP / Serial") {
             if (!busy) draft = draft.copy(transport = if (serial) ControllerEndpointDraft.Transport.TCP else ControllerEndpointDraft.Transport.SERIAL)
         }
-        key(BottomSoftKeySlot.F2, if (serial) "Select Port 🔗" else "Hostname / IP") { if (serial) selectPort() else edit("Hostname / IP address", draft.host) { draft = draft.copy(host = it) } }
-        key(BottomSoftKeySlot.F3, if (serial) "Select Baud 📈" else "Port") { if (serial) selectBaud() else edit("TCP port (1–65535)", draft.tcpPort, true) { draft = draft.copy(tcpPort = it) } }
+        key(BottomSoftKeySlot.F2, if (serial) "Select Port 🔗" else "Hostname / IP") { if (serial) selectPort() else beginEdit(Field.HOST) }
+        key(BottomSoftKeySlot.F3, if (serial) "Select Baud 📈" else "Port") { if (serial) selectBaud() else beginEdit(Field.PORT) }
         if (serial) key(BottomSoftKeySlot.F4, "Advanced 🎛️") {
             AdvancedSerialSettings(draft).open(this@ControllerConnectionSettings) { it?.let { changed -> draft = changed } }
         }
@@ -86,9 +107,47 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
         key(BottomSoftKeySlot.F7, "Save", ::save)
         key(BottomSoftKeySlot.F8, "Reset", ::restore)
     }
-    private fun edit(title: String, value: String, numeric: Boolean = false, apply: (String) -> Unit) {
-        if (!busy && confirmation == null) ConnectionTextInput(title, value, numeric).open(this) { it?.let(apply) }
+    private fun fieldValue(field: Field) = when (field) {
+        Field.HOST -> draft.host
+        Field.PORT -> draft.tcpPort
+        Field.DEVICE -> draft.serialPort
+        Field.BAUD -> draft.baudRate
     }
+
+    private fun beginEdit(field: Field) {
+        if (!busy && confirmation == null && edit == null) {
+            edit = Edit(field, ConnectionTextInput(fieldValue(field), field.numeric))
+        }
+    }
+
+    private fun applyEdit() {
+        val current = edit ?: return
+        val value = current.input.value.text
+        draft = when (current.field) {
+            Field.HOST -> draft.copy(host = value)
+            Field.PORT -> draft.copy(tcpPort = value)
+            Field.DEVICE -> draft.copy(serialPort = value)
+            Field.BAUD -> draft.copy(baudRate = value)
+        }
+        endEdit()
+    }
+
+    private fun endEdit() {
+        // Move focus before removing the text field so physical softkeys still reach the shell.
+        formFocus.requestFocus()
+        edit = null
+    }
+
+    @Composable
+    private fun FormField(field: Field, editable: Boolean) {
+        val current = edit
+        if (current?.field == field) {
+            key(current) { current.input.Field(field.label) }
+        } else {
+            Entry(field.label, fieldValue(field), editable && current == null) { beginEdit(field) }
+        }
+    }
+
     private fun selectPort() {
         if (busy) return
         ConnectionChoice("Select serial port") {
@@ -113,7 +172,7 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
     }
     override val rightKeys = mapOf(
         RightSoftKeySlot.R7 to SoftKeyDefinition(
-            "⌨\nTerminal", action = ::close, enabled = { confirmation == null }, repeatable = false,
+            "⌨\nTerminal", action = ::close, enabled = { confirmation == null && edit == null }, repeatable = false,
         ),
     )
     // Neither bank inherits: covered Terminal actions remain inactive.
@@ -222,42 +281,55 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
         val editable = !busy && confirmation == null
         val disconnecting = state.closing || operation?.action == Action.DISCONNECT
         Surface(Modifier.fillMaxSize()) {
-            Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text("Controller connection", style = MaterialTheme.typography.headlineSmall)
-                Text(if (disconnecting) "Closing connection…" else "Controller: ${state.snapshot.connection}")
-                Text("Current endpoint: ${state.endpoint?.description() ?: "None"}")
-                if (!disconnecting) state.snapshot.failure?.let { Text("Last connection error: $it", color = MaterialTheme.colorScheme.error) }
-                state.snapshot.status?.let { Text("Last machine state: ${it.executionState}") }
-                if (disconnecting) Text("Disconnecting…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                else when (state.snapshot.connection) {
-                    Connection.DISCONNECTED, Connection.CLOSED -> Text(
-                        "Disconnected. Machine state is not being updated.", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Connection.CONNECTING -> Text("Waiting for controller status…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    else -> if (state.reportIsStale(now)) Text(
-                        "Machine state is stale or unavailable. Do not treat retained values as live.", color = MaterialTheme.colorScheme.tertiary,
-                    )
+            BoxWithConstraints(Modifier.fillMaxSize().padding(12.dp)) {
+                val keypadWidth = minOf(maxWidth * .58f, 740.dp)
+                Row(Modifier.fillMaxSize().focusRequester(formFocus).focusable(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top) {
+                    Column(
+                        Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text("Controller connection", style = MaterialTheme.typography.headlineSmall)
+                        Text(if (disconnecting) "Closing connection…" else "Controller: ${state.snapshot.connection}")
+                        Text("Current endpoint: ${state.endpoint?.description() ?: "None"}")
+                        if (!disconnecting) state.snapshot.failure?.let { Text("Last connection error: $it", color = MaterialTheme.colorScheme.error) }
+                        state.snapshot.status?.let { Text("Last machine state: ${it.executionState}") }
+                        if (disconnecting) Text("Disconnecting…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        else when (state.snapshot.connection) {
+                            Connection.DISCONNECTED, Connection.CLOSED -> Text(
+                                "Disconnected. Machine state is not being updated.", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Connection.CONNECTING -> Text("Waiting for controller status…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            else -> if (state.reportIsStale(now)) Text(
+                                "Machine state is stale or unavailable. Do not treat retained values as live.", color = MaterialTheme.colorScheme.tertiary,
+                            )
+                        }
+                        if (busy) CircularProgressIndicator()
+                        Text(if (draft.transport == ControllerEndpointDraft.Transport.SERIAL) "Serial / USB" else "TCP / network", style = MaterialTheme.typography.titleMedium)
+                        if (draft.transport == ControllerEndpointDraft.Transport.TCP) {
+                            FormField(Field.HOST, editable)
+                            FormField(Field.PORT, editable)
+                        } else {
+                            FormField(Field.DEVICE, editable)
+                            FormField(Field.BAUD, editable)
+                            Text("${draft.dataBits} data bits • ${draft.stopBits} stop bits • ${draft.parity} • ${draft.flowControl} • DTR ${draft.dtr} / RTS ${draft.rts}")
+                            Text("F2 refreshes discovery. Manual entry works for undiscovered devices.")
+                            Text("If connection fails, check device permissions and whether another program is using the port.")
+                        }
+                        if (state.postConnectPending && state.snapshot.connection == Connection.CONNECTED) Text("Running post-connect actions…")
+                        state.postConnectResults.forEach { Text(it) }
+                        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        message?.let { Text(it) }
+                    }
+                    edit?.let { current ->
+                        KeypadPanel(
+                            listOf(current.input.keyboard),
+                            onAction = { current.input.handle(it, ::applyEdit) },
+                            modifier = Modifier.widthIn(max = keypadWidth),
+                        )
+                    }
                 }
-                if (busy) CircularProgressIndicator()
-                Text(if (draft.transport == ControllerEndpointDraft.Transport.SERIAL) "Serial / USB" else "TCP / network", style = MaterialTheme.typography.titleMedium)
-                if (draft.transport == ControllerEndpointDraft.Transport.TCP) {
-                    Entry("Hostname / IP address", draft.host, editable) { edit("Hostname / IP address", draft.host) { draft = draft.copy(host = it) } }
-                    Entry("TCP port (1–65535)", draft.tcpPort, editable) { edit("TCP port (1–65535)", draft.tcpPort, true) { draft = draft.copy(tcpPort = it) } }
-                } else {
-                    Entry("Device path / port name", draft.serialPort, editable) { edit("Device path / port name", draft.serialPort) { draft = draft.copy(serialPort = it) } }
-                    Entry("Baud rate (custom entry)", draft.baudRate, editable) { edit("Baud rate", draft.baudRate, true) { draft = draft.copy(baudRate = it) } }
-                    Text("${draft.dataBits} data bits • ${draft.stopBits} stop bits • ${draft.parity} • ${draft.flowControl} • DTR ${draft.dtr} / RTS ${draft.rts}")
-                    Text("F2 refreshes discovery. Manual entry works for undiscovered devices.")
-                    Text("If connection fails, check device permissions and whether another program is using the port.")
-                }
-                if (state.postConnectPending && state.snapshot.connection == Connection.CONNECTED) Text("Running post-connect actions…")
-                state.postConnectResults.forEach { Text(it) }
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                message?.let { Text(it) }
-
             }
         }
     }

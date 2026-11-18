@@ -453,13 +453,15 @@ alignment inside the field decoration; the entire 48 dp prompt is a focus target
 ### Connection form
 
 Connection settings retain a complete serial/TCP draft separate from the active
-endpoint. Narrow 56 dp field targets open an input screen with native text
-editing, selection, paste and a field-owned shared KeyCluster keyboard. Numeric
-fields use a digit map; hostname/device fields include letters, digits and path/IP
-punctuation. F7 applies the field and F8 cancels. Keyboard actions edit the caret
-and selection directly; they never synthesize OS keys or send machine commands.
-The form scrolls on small viewports, including 800×600; Terminal/MDI retain their
-documented 1024×720 supported keyboard viewport.
+endpoint. Selecting a field enables native text editing, selection and paste in
+place, with a touch keypad to its right. Numeric fields use a digit map.
+Hostname and device fields include letters, digits and path/IP punctuation.
+F7 or keypad Enter applies the field to the draft. F8 cancels the edit. The
+form remains visible with the field-edit softkeys until the edit closes.
+
+The keypad uses the same responsive sizing as Terminal and MDI: square keys
+from 44 to 72 dp and gaps of 30% of the key size. The numeric action column
+uses a 60% gap. The form and keypad scroll as needed on small viewports.
 
 | Slot | Serial | TCP |
 | --- | --- | --- |

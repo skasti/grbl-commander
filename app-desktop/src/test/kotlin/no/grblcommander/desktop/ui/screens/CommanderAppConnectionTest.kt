@@ -64,11 +64,12 @@ class CommanderAppConnectionTest {
             }
             onNodeWithTag("softkey-F1").performClick()
             onNodeWithTag("softkey-F2").performClick()
-            onNode(hasSetTextAction()).performTextReplacement("controller.example")
+            onNodeWithTag("connection-field-input").performTextReplacement("controller.example")
             onNodeWithTag("softkey-F7").performClick()
             onNodeWithTag("softkey-F3").performClick()
-            onNode(hasSetTextAction()).performTextReplacement("0")
+            onNodeWithTag("connection-field-input").performTextReplacement("0")
             onNodeWithTag("softkey-F7").performClick()
+            onNodeWithText("0").assertExists()
             onRoot().performKeyInput { pressKey(Key.F6) }
             onNodeWithText("TCP port must be a number between 1 and 65535").assertExists()
             runOnIdle { assertEquals(0, opened); assertNull(owner.state.value.endpoint) }
