@@ -86,20 +86,21 @@ fun KeyCluster(
                 }
             }
         }
-        Spacer(Modifier.height(pageSpacing))
-        Box(
-            Modifier.fillMaxWidth().height(pageHeight).testTag("keypad-${layout.name}-next")
-                .focusProperties { canFocus = false }
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = LocalIndication.current,
-                    enabled = layout.pages.size > 1,
-                    role = Role.Button,
-                ) { state.next() },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("${layout.name} ${state.pageIndex + 1}/${layout.pages.size}" + if (layout.pages.size > 1) " ▸" else "",
-                style = MaterialTheme.typography.labelLarge)
+        if (layout.pages.size > 1) {
+            Spacer(Modifier.height(pageSpacing))
+            Box(
+                Modifier.fillMaxWidth().height(pageHeight).testTag("keypad-${layout.name}-next")
+                    .focusProperties { canFocus = false }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = LocalIndication.current,
+                        role = Role.Button,
+                    ) { state.next() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("${layout.name} ${state.pageIndex + 1}/${layout.pages.size} ▸",
+                    style = MaterialTheme.typography.labelLarge)
+            }
         }
     }
 }

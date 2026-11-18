@@ -130,9 +130,12 @@ class GCodeKeyboardTest {
         val state = KeyClusterState(KeypadLayout("Custom", rows = 2, columns = 3,
             pages = listOf(mapOf(5 to KeypadKey("Macro", KeypadAction.Insert("G65 P1"))))))
         var action: KeypadAction? = null
-        setContent { MaterialTheme { KeyCluster(state, 50.dp, { action = it }) } }
-        onNodeWithText("Custom 1/1").assertExists()
-        onNodeWithTag("keypad-Custom-next").assertIsNotEnabled()
+        setContent { MaterialTheme { KeyCluster(state, 50.dp, { action = it }, Modifier.testTag("custom-keypad")) } }
+        onNodeWithText("Custom 1/1").assertDoesNotExist()
+        onNodeWithTag("keypad-Custom-next").assertDoesNotExist()
+        val keypad = onNodeWithTag("custom-keypad").fetchSemanticsNode().boundsInRoot
+        val lastKey = onNodeWithTag("keypad-Custom-5").fetchSemanticsNode().boundsInRoot
+        assertEquals(keypad.bottom, lastKey.bottom, .1f)
         onNodeWithTag("keypad-Custom-0").assertDoesNotExist()
         onNodeWithText("Macro").performClick()
         runOnIdle { assertEquals(KeypadAction.Insert("G65 P1"), action) }

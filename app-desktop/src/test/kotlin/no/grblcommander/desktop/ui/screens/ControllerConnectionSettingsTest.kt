@@ -342,6 +342,7 @@ class ControllerConnectionSettingsTest {
             onNodeWithTag("softkey-F8").performClick()
             onNodeWithText("Baud rate (custom entry)").performScrollTo().performClick()
             onNodeWithTag("connection-field-input").performTextReplacement("250000")
+            onNodeWithTag("keypad-Numbers-next").assertDoesNotExist()
             screenshot("connection-custom-baud-input")
             onNodeWithTag("softkey-F8").performClick()
             val saved = fixture.draft.copy(serialPort = "COM42", baudRate = "230400", dtr = false)
@@ -388,6 +389,7 @@ class ControllerConnectionSettingsTest {
             onNodeWithTag("softkey-F3").performClick()
             onNodeWithTag("keypad-Numbers-8").performClick()
             onNodeWithTag("keypad-Numbers-9").performClick()
+            onNodeWithTag("keypad-Numbers-next").assertDoesNotExist()
             screenshot("connection-port-input")
             onNodeWithTag("softkey-F7").performClick()
             runOnIdle { assertEquals("12", screen.draft.tcpPort); assertTrue(fixture.transports.isEmpty()) }

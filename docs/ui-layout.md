@@ -528,7 +528,7 @@ cluster in a right-hand workspace panel beside the Util Terminal console and
 the local MDI buffer. The console/input occupies the full available height.
 Each cluster has independent retained
 `KeyClusterState`, a square grid and one page-count/Next control below it, wrapping
-to the first page. A single-page map disables cycling. Paging preserves focus,
+to the first page. Single-page maps omit the page control. Paging preserves focus,
 caret, selection and the other cluster's page. Empty positions retain their space.
 The control does not use F8/R7 or the screen-navigation mechanism.
 
@@ -558,7 +558,8 @@ slots 7 and 11.
 
 Keys remain square with a clickable size of **44–72 dp**. The shared size is the
 largest whole-pixel value fitting both cluster widths and their combined grid
-height plus two 44 dp page controls. Each key and spacer is measured with the
+height plus 44 dp for each cluster with multiple pages. Single-page clusters
+display only their keys. Each key and spacer is measured with the
 same pixel rounding as Compose; the lower size bound rounds upward and the upper
 bound downward. Configured ordinary row/column gaps remain 30% of key size, with
 a total 60% gap before numeric column four. Changing pages does not change size.

@@ -38,29 +38,31 @@ internal fun KeypadPanel(
         val minimum = with(density) { ceil(44.dp.toPx()).toInt() }
         val maximum = with(density) { floor(72.dp.toPx()).toInt() }
         val pageHeight = minimum
-        val count = clusters.size
+        val pageControlCount = clusters.count { it.layout.pages.size > 1 }
+        val pageControlsHeight = pageControlCount * pageHeight
+        val clusterGaps = clusters.size - 1
         fun gridsHeight(size: Int) = clusters.sumOf { it.layout.heightInPixels(size) }
         fun gridsWidth(size: Int) = clusters.maxOf { it.layout.widthInPixels(size) }
         val preferredMargin = with(density) { keypadPanelMargin.roundToPx() }
         val horizontalMargin = minOf(preferredMargin, (constraints.maxWidth - gridsWidth(minimum)).coerceAtLeast(0) / 2)
-        val minimumHeight = gridsHeight(minimum) + count * pageHeight
+        val minimumHeight = gridsHeight(minimum) + pageControlsHeight
         val verticalMargin = minOf(preferredMargin, (constraints.maxHeight - minimumHeight).coerceAtLeast(0) / 2)
         val availableWidth = constraints.maxWidth - 2 * horizontalMargin
         val availableHeight = constraints.maxHeight - 2 * verticalMargin
         // Fit the largest square using compact outer spacing, never changing keymap gaps.
         val keyPixels = (maximum downTo minimum).firstOrNull { size ->
             gridsWidth(size) <= availableWidth &&
-                gridsHeight(size) + count * pageHeight <= availableHeight
+                gridsHeight(size) + pageControlsHeight <= availableHeight
         } ?: minimum
-        val spareHeight = (availableHeight - gridsHeight(keyPixels) - count * pageHeight).coerceAtLeast(0)
-        val pageSpacingPixels = minOf(with(density) { 8.dp.roundToPx() },
-            spareHeight / count)
+        val spareHeight = (availableHeight - gridsHeight(keyPixels) - pageControlsHeight).coerceAtLeast(0)
+        val pageSpacingPixels = if (pageControlCount == 0) 0 else
+            minOf(with(density) { 8.dp.roundToPx() }, spareHeight / pageControlCount)
         val clusterSpacingPixels = minOf(with(density) { 16.dp.roundToPx() },
-            (spareHeight - count * pageSpacingPixels) / (count - 1).coerceAtLeast(1))
+            (spareHeight - pageControlCount * pageSpacingPixels) / clusterGaps.coerceAtLeast(1))
         val keySize = with(density) { keyPixels.toDp() }
         val pageSpacing = with(density) { pageSpacingPixels.toDp() }
         val contentWidth = gridsWidth(keyPixels)
-        val contentHeight = gridsHeight(keyPixels) + count * (pageHeight + pageSpacingPixels) + (count - 1) * clusterSpacingPixels
+        val contentHeight = gridsHeight(keyPixels) + pageControlCount * (pageHeight + pageSpacingPixels) + clusterGaps * clusterSpacingPixels
         val scrollVertically = contentHeight > availableHeight
         val scrollHorizontally = contentWidth > availableWidth
         // Separate scroll containers expose each axis correctly when a custom map or viewport cannot fit.
