@@ -10,6 +10,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
+import no.grblcommander.desktop.ui.layout.LocalKeyUnit
 import kotlin.test.*
 
 @OptIn(ExperimentalTestApi::class)
@@ -110,12 +111,14 @@ class GCodeKeyboardTest {
         var enters = 0
         setContent {
             MaterialTheme {
-                GCodeKeyboard({ if (it == KeypadAction.Enter) enters++ }, Modifier.size(200.dp, 300.dp))
+                CompositionLocalProvider(LocalKeyUnit provides 52.dp) {
+                    GCodeKeyboard({ if (it == KeypadAction.Enter) enters++ }, Modifier.size(200.dp, 300.dp))
+                }
             }
         }
         val first = onNodeWithTag("keypad-CODE-0").fetchSemanticsNode().boundsInRoot
-        assertEquals(44f, first.width, .1f)
-        assertEquals(44f, first.height, .1f)
+        assertEquals(52f, first.width, .1f)
+        assertEquals(52f, first.height, .1f)
         onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(
             androidx.compose.ui.semantics.SemanticsProperties.VerticalScrollAxisRange), useUnmergedTree = true)
             .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy) { it(0f, 1000f) }
@@ -126,11 +129,40 @@ class GCodeKeyboardTest {
         runOnIdle { assertEquals(1, enters) }
     }
 
+    @Test fun `an instance override leaves the shared unit and proportional margins intact`() = runComposeUiTest {
+        fun cluster(name: String) = KeyClusterState(KeypadLayout(name, rows = 1, columns = 1,
+            pages = listOf(mapOf(0 to KeypadKey("1", KeypadAction.Insert("1"))))))
+        val first = cluster("Default")
+        val second = cluster("Override")
+        val third = cluster("Direct")
+        setContent {
+            MaterialTheme {
+                CompositionLocalProvider(LocalKeyUnit provides 61.dp) {
+                    Row {
+                        KeypadPanel(listOf(first), {})
+                        GCodeKeyboard({}, letters = second, numbers = cluster("OverrideNumbers"), keySize = 50.dp)
+                        Box(Modifier.testTag("margin").padding(start = LocalKeyUnit.current * .5f)) {
+                            KeyCluster(third, {})
+                        }
+                    }
+                }
+            }
+        }
+        fun bounds(tag: String) = onNodeWithTag(tag).getUnclippedBoundsInRoot()
+        val direct = bounds("keypad-Direct-0")
+        for ((tag, expected) in listOf("Default" to 61.dp, "Override" to 50.dp, "OverrideNumbers" to 50.dp, "Direct" to 61.dp)) {
+            val key = bounds("keypad-$tag-0")
+            assertEquals(expected, key.right - key.left)
+            assertEquals(expected, key.bottom - key.top)
+        }
+        assertEquals(31.dp, direct.left - bounds("margin").left)
+    }
+
     @Test fun `custom dimensions labels actions gaps and single page use the same renderer`() = runComposeUiTest {
         val state = KeyClusterState(KeypadLayout("Custom", rows = 2, columns = 3,
             pages = listOf(mapOf(5 to KeypadKey("Macro", KeypadAction.Insert("G65 P1"))))))
         var action: KeypadAction? = null
-        setContent { MaterialTheme { KeyCluster(state, 50.dp, { action = it }, Modifier.testTag("custom-keypad")) } }
+        setContent { MaterialTheme { KeyCluster(state, { action = it }, Modifier.testTag("custom-keypad"), keySize = 50.dp) } }
         onNodeWithText("Custom 1/1").assertDoesNotExist()
         onNodeWithTag("keypad-Custom-next").assertDoesNotExist()
         val keypad = onNodeWithTag("custom-keypad").fetchSemanticsNode().boundsInRoot
