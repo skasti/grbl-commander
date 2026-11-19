@@ -236,7 +236,9 @@ Capture Terminal, MDI and connection-settings integration tests locally on JDK 2
 ```bash
 gradle :app-desktop:test -PuiScreenshots \
   --tests '*TerminalTest' \
-  --tests '*ConnectionEditorsTest' \
+  --tests '*ConnectionSelectorsTest' \
+  --tests '*AdvancedSerialSettingsTest' \
+  --tests '*PostConnectSettingsTest' \
   --tests '*ControllerConnectionSettingsTest'
 ```
 
