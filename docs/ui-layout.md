@@ -455,9 +455,10 @@ alignment inside the field decoration; the entire 48 dp prompt is a focus target
 Connection settings retain a complete serial/TCP draft separate from the active
 endpoint. Selecting a field enables native text editing, selection and paste in
 place, with a touch keypad to its right. Numeric fields use a digit map.
-Hostname and device fields stack a two-page letter keypad (lowercase and uppercase)
-above a separate single-page keypad for digits, path/IP punctuation, Backspace
-and Enter.
+Hostname and device fields stack a two-page QWERTY keypad (lowercase and uppercase)
+above the same independently paged number keypad used by Terminal and MDI. Both
+letter pages have a double-width Space key beside N and M. Characters outside the
+touch keymaps can be entered with the physical keyboard or pasted.
 F7 or keypad Enter applies the field to the draft. F8 cancels the edit. The
 form remains visible with the field-edit softkeys until the edit closes.
 
@@ -532,6 +533,8 @@ Each cluster has independent retained
 `KeyClusterState`, a square grid and one page-count/Next control below it, wrapping
 to the first page. Single-page maps omit the page control. Paging preserves focus,
 caret, selection and the other cluster's page. Empty positions retain their space.
+A key can span adjacent columns in the same row. Its width includes the gaps
+between those columns, and its height stays the same as other keys.
 The control does not use F8/R7 or the screen-navigation mechanism.
 
 Default letter pages (each cell lists columns 1–4):

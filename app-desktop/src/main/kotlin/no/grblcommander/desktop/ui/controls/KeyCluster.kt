@@ -45,10 +45,12 @@ fun KeyCluster(
         repeat(layout.rows) { row ->
             if (row > 0) Spacer(Modifier.height(rowSpacing))
             Row {
-                repeat(layout.columns) { column ->
+                var column = 0
+                while (column < layout.columns) {
                     if (column > 0) Spacer(Modifier.width(with(density) { (keyPixels * layout.gapBefore(column)).roundToInt().toDp() }))
                     val slot = row * layout.columns + column
                     val definition = state.keys[slot]
+                    val span = definition?.columnSpan ?: 1
                     // A page change cancels a pointer gesture started on the preceding page.
                     key(state.pageIndex, definition) {
                         if (definition == null) {
@@ -64,8 +66,9 @@ fun KeyCluster(
                                 is KeypadAction.Insert -> MaterialTheme.colorScheme.onSecondaryContainer
                                 else -> Color.White
                             }
+                            val keyWidth = with(density) { layout.spanWidthInPixels(keyPixels, column, span).toDp() }
                             Box(
-                                Modifier.size(keySize).testTag("keypad-${layout.name}-$slot")
+                                Modifier.size(keyWidth, keySize).testTag("keypad-${layout.name}-$slot")
                                     .clip(shape).background(background)
                                     .border(1.dp, MaterialTheme.colorScheme.outline, shape)
                                     .focusProperties { canFocus = false }
@@ -83,6 +86,7 @@ fun KeyCluster(
                             }
                         }
                     }
+                    column += span
                 }
             }
         }

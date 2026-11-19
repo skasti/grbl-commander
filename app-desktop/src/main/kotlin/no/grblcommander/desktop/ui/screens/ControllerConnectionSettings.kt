@@ -283,7 +283,8 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
         val disconnecting = state.closing || operation?.action == Action.DISCONNECT
         Surface(Modifier.fillMaxSize()) {
             BoxWithConstraints(Modifier.fillMaxSize().padding(12.dp)) {
-                val keypadWidth = minOf(maxWidth * .58f, 740.dp) + keypadPanelMargin * 2f
+                val keypadFraction = if (edit?.field?.numeric == false) .66f else .58f
+                val keypadWidth = minOf(maxWidth * keypadFraction, 740.dp) + keypadPanelMargin * 2f
                 Row(Modifier.fillMaxSize().focusRequester(formFocus).focusable(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.Top) {

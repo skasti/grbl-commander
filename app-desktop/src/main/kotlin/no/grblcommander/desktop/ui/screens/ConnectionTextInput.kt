@@ -22,7 +22,7 @@ internal class ConnectionTextInput(initial: String, numeric: Boolean) {
     val keypads = if (numeric) {
         listOf(KeyClusterState(digits))
     } else {
-        listOf(KeyClusterState(letters), KeyClusterState(addressSymbols))
+        listOf(KeyClusterState(letters), KeyClusterState(GCodeKeymaps.numbers))
     }
 
     @Composable
@@ -53,18 +53,20 @@ internal class ConnectionTextInput(initial: String, numeric: Boolean) {
                 "", "0", "", "↵"),
         ))
 
-        val letters = KeypadLayout("Address", columns = 8, pages = listOf(
-            page(*"abcdefghijklmnopqrstuvwxyz".map(Char::toString).toTypedArray()),
-            page(*"ABCDEFGHIJKLMNOPQRSTUVWXYZ".map(Char::toString).toTypedArray()),
+        val letters = KeypadLayout("Address", rows = 3, columns = 10, pages = listOf(
+            letterPage("qwertyuiop", "asdfghjkl", "zxcvbnm"),
+            letterPage("QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"),
         ))
 
-        val addressSymbols = KeypadLayout("Address symbols", rows = 3, columns = 8,
-            gapsBeforeColumns = mapOf(7 to .60f), pages = listOf(
-                page("7", "8", "9", "0", ".", "-", ":", "⌫",
-                    "4", "5", "6", "/", "_", "[", "]", "\\",
-                    "1", "2", "3", "@", "%", "+", "~", "↵"),
-            ),
-        )
+        fun letterPage(vararg rows: String): Map<Int, KeypadKey> = buildMap {
+            rows.forEachIndexed { row, letters ->
+                letters.forEachIndexed { column, letter ->
+                    val text = letter.toString()
+                    put(row * 10 + column, KeypadKey(text, KeypadAction.Insert(text)))
+                }
+            }
+            put(27, KeypadKey("Space", KeypadAction.Insert(" "), columnSpan = 2))
+        }
 
         fun page(vararg labels: String): Map<Int, KeypadKey> =
             labels.mapIndexedNotNull { index, label ->
