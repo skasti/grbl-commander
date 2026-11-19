@@ -120,6 +120,27 @@ class PostConnectActionsTest {
         } finally { first.release.complete(Unit); owner.close(); owner.awaitClosed() }
     }
 
+    @Test fun ownerShutdownClearsPendingOnlyAfterPostConnectTerminates() = scenario {
+        val first = HeldQuery()
+        val owner = ControllerConnection(this, { _, scope -> first.sessionFor(scope) })
+        try {
+            owner.connect(endpoint)
+            assertEquals("\$I\n", first.transport.nextNonStatusWrite())
+            owner.close()
+            first.cleaningUp.await()
+            val joined = async(start = CoroutineStart.UNDISPATCHED) { owner.awaitClosed() }
+            assertFalse(joined.isCompleted)
+            assertTrue(owner.state.value.postConnectPending)
+
+            first.release.complete(Unit)
+            joined.await()
+            assertTrue(first.job.await().isCompleted)
+            assertEquals(Connection.CLOSED, owner.state.value.snapshot.connection)
+            assertFalse(owner.state.value.postConnectPending)
+            assertEquals(1, first.transport.closeCount)
+        } finally { first.release.complete(Unit); owner.close(); owner.awaitClosed() }
+    }
+
     @Test fun resetWaitsForInterruptedPostConnectAndDoesNotResumeIt() = scenario {
         val first = HeldQuery()
         val owner = ControllerConnection(this, { _, scope -> first.sessionFor(scope) })

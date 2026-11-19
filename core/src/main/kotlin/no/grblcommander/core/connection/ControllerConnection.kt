@@ -380,7 +380,10 @@ class ControllerConnection(
         active?.session?.awaitClosed()
         synchronized(gate) {
             active?.let { finishObservations(it) }
-            mutableState.value = state.value.copy(snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.CLOSED, failure = null), closing = false)
+            mutableState.value = state.value.copy(
+                snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.CLOSED, failure = null),
+                closing = false, postConnectPending = false,
+            )
         }
     }
 }
