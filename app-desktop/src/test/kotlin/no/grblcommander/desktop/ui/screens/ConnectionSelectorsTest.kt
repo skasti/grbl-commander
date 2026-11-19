@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.*
 import kotlinx.coroutines.CompletableDeferred
+import no.grblcommander.core.connection.ControllerEndpointDraft
 import no.grblcommander.desktop.ui.runAtScreenshotSizes
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -86,5 +87,19 @@ class ConnectionSelectorsTest {
         screenshot("connection-port-discovery-failed")
         onNodeWithTag("softkey-F8").performClick()
         runOnIdle { assertSame(root, stack.top) }
+    }
+
+    @Test fun commonBaudSelectorPages() = runAtScreenshotSizes { screenshot ->
+        ConnectionSettingsFixture().use { fixture ->
+            val screen = openConnectionSettings(fixture)
+            runOnIdle { screen.draft = ControllerEndpointDraft() }
+            onNodeWithTag("softkey-F3").performClick()
+            onNodeWithText("5️⃣  115200").assertExists()
+            screenshot("connection-baud-page-one")
+            onNodeWithTag("softkey-F7").performClick()
+            onNodeWithText("1️⃣  460800").assertExists()
+            screenshot("connection-baud-page-two")
+            onNodeWithTag("softkey-F8").performClick()
+        }
     }
 }
