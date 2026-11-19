@@ -28,6 +28,7 @@ class ControllerTrafficTest {
         override suspend fun reset() = Unit
         override suspend fun queryStatus(): ControllerStatus = error("Not needed")
         override fun close() { state.value = state.value.copy(connection = MachineSnapshot.Connection.CLOSED) }
+        override fun prepareSessionTask(block: suspend () -> Unit): Job = error("Post-connect is disabled")
         override suspend fun awaitClosed() = Unit
     }
     private val endpoint = ControllerEndpoint.Tcp("localhost", 1234, no.grblcommander.core.connection.noPostConnectActions())

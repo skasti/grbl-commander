@@ -52,6 +52,7 @@ class ControllerPollingTest {
             if (state.value.connection != MachineSnapshot.Connection.FAILED)
                 state.value = state.value.copy(connection = MachineSnapshot.Connection.CLOSED)
         }
+        override fun prepareSessionTask(block: suspend () -> Unit): Job = error("Post-connect is disabled")
         override suspend fun awaitClosed() = Unit
     }
 

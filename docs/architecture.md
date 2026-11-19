@@ -476,7 +476,10 @@ parameters/$G parser state default On. The shared ControllerConnection runs them
 after its existing transport/status handshake. This work belongs to the active session;
 Connect returns after handshake and starts persistence independently of query completion.
 Returning to Terminal keeps that established session and its post-connect work alive.
-A manual reset preference requires
+Session shutdown cancels and joins post-connect, including after unexpected transport
+loss. A replacement session starts only after the old session has finished closing.
+An operator reset on an established connection joins any interrupted post-connect
+work before transmitting reset. A manual reset preference requires
 per-attempt confirmation at both settings and connection boundaries; startup
 always suppresses reset. Confirmed reset calls the existing session reset once,
 then awaits its banner/status synchronization before queries.
@@ -486,8 +489,8 @@ collection. They are not subject to the terminal's motion-state admission policy
 the controller may reject them in its actual state. Post-connect work reserves
 normal manual admission and Cycle Start while realtime status remains independent.
 Unsupported commands retain correlated errors and permit later queries when safe.
-Timeout, alarm or reset failure remains diagnostic; unsafe normal correlation
-skips remaining queries. No uncertain command is retried, and a live connection
+Timeout, alarm or reset failure remains diagnostic. An interrupted or uncertain
+query ends the sequence even if a late response restores normal correlation. No uncertain command is retried, and a live connection
 is not marked disconnected merely because a query fails. Core exposes bounded
 per-attempt result messages; ordinary responses are retained in existing terminal
 traffic. No competing metadata/capabilities cache is introduced.

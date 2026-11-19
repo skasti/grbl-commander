@@ -103,13 +103,13 @@ class PostConnectActionsTest {
             first.transport.disconnect()
             first.cleaningUp.await()
             val joined = async(start = CoroutineStart.UNDISPATCHED) { first.session.awaitClosed() }
-            assertTrue(first.job.await().isCancelled)
             assertFalse(joined.isCompleted)
             assertTrue(owner.state.value.postConnectPending)
             assertTrue(first.transport.closed)
 
             first.release.complete(Unit)
             joined.await()
+            assertTrue(first.job.await().isCancelled)
             assertTrue(first.job.await().isCompleted)
             owner.state.first { it.snapshot.connection == Connection.FAILED && !it.postConnectPending }
             assertEquals(1, first.transport.closeCount)
@@ -273,6 +273,25 @@ class PostConnectActionsTest {
             assertTrue(owner.state.value.postConnectResults.any { it.contains("skipped") })
             owner.sendRealtime(RealtimeCommand.STATUS_QUERY)
             assertEquals("?", transport.writes.receive())
+        } finally { owner.close(); owner.awaitClosed() }
+    }
+
+    @Test fun recoverableAlarmStopsQueriesEvenAfterTheOldAcknowledgmentDrains() = scenario {
+        val transport = ConnectionTestTransport()
+        val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope) })
+        try {
+            owner.connect(endpoint)
+            assertEquals("\$I\n", transport.nextNonStatusWrite())
+            transport.emit("ALARM:3\r\n")
+            val interrupted = owner.state.first { !it.postConnectPending && it.snapshot.alarmCode == 3 }
+            assertEquals(Connection.CONNECTED, interrupted.snapshot.connection)
+            assertFalse(interrupted.snapshot.resetRequired)
+            assertFalse(interrupted.snapshot.normalCommandsSynchronized)
+            assertTrue(interrupted.postConnectResults.any { it.contains("skipped", ignoreCase = true) })
+
+            transport.emit("ok\r\n")
+            owner.state.first { it.snapshot.normalCommandsSynchronized }
+            assertTrue(transport.drainWrites().all { it == "?" })
         } finally { owner.close(); owner.awaitClosed() }
     }
 

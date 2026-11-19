@@ -1,6 +1,7 @@
 package no.grblcommander.machine.session
 
 import java.io.Closeable
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.Flow
 import no.grblcommander.machine.protocol.ControllerStatus
@@ -37,6 +38,11 @@ interface MachineSession : Closeable {
     suspend fun reset()
     /** Request and await a subsequent controller report, independently of normal commands. */
     suspend fun queryStatus(): ControllerStatus
+    /**
+     * Prepare a lazy task owned by this session. The caller starts it after the handshake.
+     * Closing the session cancels the task, and awaitClosed waits for its cleanup.
+     */
+    fun prepareSessionTask(block: suspend () -> Unit): Job
     /** Close is idempotent; wait for owned coroutines after closing when disposing a service. */
     suspend fun awaitClosed()
 }
