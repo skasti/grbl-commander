@@ -10,7 +10,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
-import no.grblcommander.desktop.ui.layout.LocalKeyUnit
+import no.grblcommander.desktop.ui.layout.LocalGridUnit
 import kotlin.test.*
 
 @OptIn(ExperimentalTestApi::class)
@@ -111,7 +111,7 @@ class GCodeKeyboardTest {
         var enters = 0
         setContent {
             MaterialTheme {
-                CompositionLocalProvider(LocalKeyUnit provides 52.dp) {
+                CompositionLocalProvider(LocalGridUnit provides 52.dp) {
                     GCodeKeyboard({ if (it == KeypadAction.Enter) enters++ }, Modifier.size(200.dp, 300.dp))
                 }
             }
@@ -137,11 +137,11 @@ class GCodeKeyboardTest {
         val third = cluster("Direct")
         setContent {
             MaterialTheme {
-                CompositionLocalProvider(LocalKeyUnit provides 61.dp) {
+                CompositionLocalProvider(LocalGridUnit provides 61.dp) {
                     Row {
                         KeypadPanel(listOf(first), {})
                         GCodeKeyboard({}, letters = second, numbers = cluster("OverrideNumbers"), keySize = 50.dp)
-                        Box(Modifier.testTag("margin").padding(start = LocalKeyUnit.current * .5f)) {
+                        Box(Modifier.testTag("margin").padding(start = LocalGridUnit.current * .5f)) {
                             KeyCluster(third, {})
                         }
                     }

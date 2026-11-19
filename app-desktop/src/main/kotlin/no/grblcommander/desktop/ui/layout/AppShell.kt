@@ -43,13 +43,13 @@ fun AppShell(
     val stack = currentStack()
     val pressedKeys = remember { mutableSetOf<androidx.compose.ui.input.key.Key>() }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val keyUnit = with(LocalDensity.current) {
+        val gridUnit = with(LocalDensity.current) {
             val workspaceWidth = (constraints.maxWidth - rightBankWidth.roundToPx()).coerceAtLeast(0)
             val workspaceHeight = (constraints.maxHeight - headerHeight.roundToPx() - bottomBankHeight.roundToPx())
                 .coerceAtLeast(0)
-            workspaceKeyUnit(workspaceWidth, workspaceHeight)
+            workspaceGridUnit(workspaceWidth, workspaceHeight)
         }
-        CompositionLocalProvider(LocalKeyUnit provides keyUnit) {
+        CompositionLocalProvider(LocalGridUnit provides gridUnit) {
             Column(Modifier.fillMaxSize().background(ShellColors.frame)
                 .onPreviewKeyEvent { handleSoftKeyEvent(it, liveStack.value, pressedKeys) }) {
                 ShellHeader(state, Modifier.fillMaxWidth().height(headerHeight), headerControls)

@@ -463,7 +463,7 @@ touch keymaps can be entered with the physical keyboard or pasted.
 F7 or keypad Enter applies the field to the draft. F8 cancels the edit. The
 form remains visible with the field-edit softkeys until the edit closes.
 
-NUM, NUM+ and QWERTY use the same window key unit as Terminal and MDI. Switching
+NUM, NUM+ and QWERTY use the same workspace grid unit as Terminal and MDI. Switching
 between numeric and text fields keeps the standard key dimensions. The form and
 keypad scroll as needed on constrained viewports.
 
@@ -562,28 +562,40 @@ has a green background, both with white symbols. Colors follow the typed action
 rather than the label or position, including custom keymaps. `*` and `+` stay at
 slots 7 and 11.
 
-`AppShell` provides `ui.layout.LocalKeyUnit` using a reference budget of **65%**
-of the main workspace width and **75%** of its height. The workspace excludes
-the header, both softkey banks and native window decorations. The calculation
-chooses the largest whole-pixel key size within **44–72 dp** at the current
-display density that fits QWERTY stacked above NUM+. It measures the keymaps
-with their configured gaps and spans, a 44 dp page control for each cluster
-with multiple pages, 8 dp above each page control and 16 dp between clusters.
-It uses the 44 dp minimum when the reference does not fit at any allowed size.
-Resizing the window updates the unit. Switching screens, fields or pages keeps
-the same standard key size.
+`AppShell` provides `ui.layout.LocalGridUnit` for proportional Compose layouts.
+It chooses the largest whole-pixel grid unit within **44–72 dp** that satisfies
+fixed reference dimensions within **65%** of the main workspace width and
+**75%** of its height. The workspace excludes the header, both softkey banks
+and native window decorations. The unit falls back to the 44 dp minimum when
+the reference does not fit. Resizing the window updates the unit. Switching
+screens, fields or pages keeps it stable.
 
-The reference budget only determines the shared key size. It reserves no
-workspace region. Each keypad panel measures and scrolls according to the
-space its screen actually provides.
+The fixed reference dimensions are calibrated to QWERTY stacked above NUM+:
 
-The unit is the width and height of one square key, excluding gaps. Compose
-layouts can use fractions such as `LocalKeyUnit.current * 0.5f` for a margin or
-`LocalKeyUnit.current * 0.3f` for spacing. `GCodeKeyboard`, `KeypadPanel` and
+- **Width** is 12.7 units before rounding. QWERTY has ten columns and nine
+  gaps of 0.3 units. Its spanning Space key occupies two columns and the
+  intervening gap within that footprint. NUM+ has four columns, two 0.3-unit
+  gaps and one 0.6-unit gap, for a width of 5.2 units.
+- **Height** is 8.5 units before rounding. The two clusters have seven rows
+  in total and five internal gaps of 0.3 units. The fixed vertical allowance
+  totals 120 dp before pixel rounding. It covers two 44 dp page controls, two
+  8 dp gaps above them and one 16 dp gap between the clusters.
+
+The calculation rounds each gap and each fixed dimension separately to match
+Compose measurement. Page control heights round up to meet their 44 dp minimum.
+`ui.layout` owns the fixed dimensions. Keypad controls consume the resulting
+unit, and changing a keymap alone leaves the shared grid unit stable.
+
+A standard keypad key is **1 × 1 grid unit**, excluding gaps. Compose layouts
+can use `LocalGridUnit.current * 0.5f` for a margin or
+`LocalGridUnit.current * 0.3f` for spacing. `GCodeKeyboard`, `KeypadPanel` and
 `KeyCluster` default to the shared unit. Passing `keySize` explicitly sizes
-that instance. Configured ordinary row and column gaps default to 30% of the
-rendered key size, with a total 60% gap before the numeric action column.
-A spanning key includes the rounded gaps between its columns.
+that instance. The budget only determines the unit. Each keypad panel uses
+the actual space its screen provides.
+
+Configured ordinary row and column gaps default to 30% of the rendered key
+size, with a total 60% gap before the numeric action column. A spanning key
+includes the rounded gaps between its columns.
 
 The keypad panel aims for **30 dp** around the group and reduces the margin
 symmetrically on a constrained axis. Its page controls have a 44 dp minimum
