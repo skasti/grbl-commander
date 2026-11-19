@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import no.grblcommander.desktop.ui.layout.LocalKeyUnit
-import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /** Emits intentions without taking focus from an input. Empty positions retain their geometry. */
@@ -34,14 +33,14 @@ fun KeyCluster(
     onAction: (KeypadAction) -> Unit,
     modifier: Modifier = Modifier,
     keySize: Dp = LocalKeyUnit.current,
-    pageSpacing: Dp = 8.dp,
+    pageSpacing: Dp = keypadPageSpacing,
 ) {
     val layout = state.layout
     val density = LocalDensity.current
     val keyPixels = with(density) { keySize.roundToPx() }
     val width = with(density) { layout.widthInPixels(keyPixels).toDp() }
     val rowSpacing = with(density) { (keyPixels * layout.spacing).roundToInt().toDp() }
-    val pageHeight = with(density) { ceil(44.dp.toPx()).toInt().toDp() }
+    val pageHeight = with(density) { keypadPageHeightInPixels().toDp() }
     Column(modifier.width(width), horizontalAlignment = Alignment.CenterHorizontally) {
         repeat(layout.rows) { row ->
             if (row > 0) Spacer(Modifier.height(rowSpacing))

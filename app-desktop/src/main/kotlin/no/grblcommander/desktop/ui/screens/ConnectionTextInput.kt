@@ -22,7 +22,7 @@ internal class ConnectionTextInput(initial: String, numeric: Boolean) {
     val keypads = if (numeric) {
         listOf(KeyClusterState(digits))
     } else {
-        listOf(KeyClusterState(letters), KeyClusterState(GCodeKeymaps.numbers))
+        listOf(KeyClusterState(GCodeKeymaps.qwerty), KeyClusterState(GCodeKeymaps.numbers))
     }
 
     @Composable
@@ -52,21 +52,6 @@ internal class ConnectionTextInput(initial: String, numeric: Boolean) {
                 "1", "2", "3", "",
                 "", "0", "", "↵"),
         ))
-
-        val letters = KeypadLayout("QWERTY", rows = 3, columns = 10, pages = listOf(
-            letterPage("qwertyuiop", "asdfghjkl", "zxcvbnm"),
-            letterPage("QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"),
-        ))
-
-        fun letterPage(vararg rows: String): Map<Int, KeypadKey> = buildMap {
-            rows.forEachIndexed { row, letters ->
-                letters.forEachIndexed { column, letter ->
-                    val text = letter.toString()
-                    put(row * 10 + column, KeypadKey(text, KeypadAction.Insert(text)))
-                }
-            }
-            put(27, KeypadKey("Space", KeypadAction.Insert(" "), columnSpan = 2))
-        }
 
         fun page(vararg labels: String): Map<Int, KeypadKey> =
             labels.mapIndexedNotNull { index, label ->

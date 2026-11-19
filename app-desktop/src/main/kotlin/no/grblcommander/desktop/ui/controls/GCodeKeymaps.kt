@@ -20,4 +20,18 @@ object GCodeKeymaps {
             text("["), text("]"), text("%"), text("+"),
             text("−", "-"), text("Space", " "), text(":"), enter),
     ))
+
+    internal val qwerty = KeypadLayout("QWERTY", rows = 3, columns = 10, pages = listOf(
+        letterPage("qwertyuiop", "asdfghjkl", "zxcvbnm"),
+        letterPage("QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"),
+    ))
+
+    fun letterPage(vararg rows: String): Map<Int, KeypadKey> = buildMap {
+        rows.forEachIndexed { row, letters ->
+            letters.forEachIndexed { column, letter ->
+                put(row * 10 + column, text(letter.toString()))
+            }
+        }
+        put(27, KeypadKey("Space", KeypadAction.Insert(" "), columnSpan = 2))
+    }
 }
