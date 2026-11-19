@@ -463,9 +463,9 @@ touch keymaps can be entered with the physical keyboard or pasted.
 F7 or keypad Enter applies the field to the draft. F8 cancels the edit. The
 form remains visible with the field-edit softkeys until the edit closes.
 
-The keypad uses the same responsive sizing as Terminal and MDI: square keys
-from 44 to 72 dp and gaps of 30% of the key size. The numeric action column
-uses a 60% gap. The form and keypad scroll as needed on small viewports.
+NUM, NUM+ and QWERTY use the same window key unit as Terminal and MDI. Switching
+between numeric and text fields keeps the standard key dimensions. The form and
+keypad scroll as needed on constrained viewports.
 
 | Slot | Serial | TCP |
 | --- | --- | --- |
@@ -562,33 +562,35 @@ has a green background, both with white symbols. Colors follow the typed action
 rather than the label or position, including custom keymaps. `*` and `+` stay at
 slots 7 and 11.
 
-Keys remain square with a clickable size of **44–72 dp**. The shared size is the
-largest whole-pixel value fitting both cluster widths and their combined grid
-height plus 44 dp for each cluster with multiple pages. Single-page clusters
-display only their keys. Each key and spacer is measured with the
-same pixel rounding as Compose; the lower size bound rounds upward and the upper
-bound downward. Configured ordinary row/column gaps remain 30% of key size, with
-a total 60% gap before numeric column four. Changing pages does not change size.
+`AppShell` provides `ui.layout.LocalKeyUnit` from the logical dp dimensions of
+the entire window client area, including the header and both softkey banks.
+Native window decorations are outside these dimensions. The size scales from
+44 dp by the smaller of window width / 1024 dp and window height / 720 dp. It
+stays within **44–72 dp** and is rounded to the nearest whole pixel within those
+bounds at the current display density. Resizing the window updates the unit.
+Switching screens, fields or pages keeps the same standard key size.
 
-The shared keypad container aims for **30 dp** around the whole group. Each axis
-reduces its margin symmetrically only as far as needed to fit the minimum-size
-keys and page controls. The gap above each page control ranges from 0 to 8 dp
-and the gap between clusters ranges from 0 to 16 dp. Spare height restores these
-gaps up to their caps. The clusters share a right edge inside the panel. The
-group aligns to the bottom right of the viewport when it fits.
+The unit is the width and height of one square key, excluding gaps. Compose
+layouts can use fractions such as `LocalKeyUnit.current * 0.5f` for a margin or
+`LocalKeyUnit.current * 0.3f` for spacing. `GCodeKeyboard`, `KeypadPanel` and
+`KeyCluster` default to the shared unit. Passing `keySize` explicitly sizes
+that instance. Configured ordinary row and column gaps default to 30% of the
+rendered key size, with a total 60% gap before the numeric action column.
+A spanning key includes the rounded gaps between its columns.
 
-At the minimum supported **1024×720 viewport**, Terminal and MDI have 532 dp of
-height for the panel. At 1× scale, the two 44 dp clusters and their page controls
-need 518 dp, leaving a 7 dp vertical panel margin on each side. The full group
-remains visible. Terminal and MDI allow up to 40% of workspace width, capped at
-400 dp, for the keys and page controls, with the margin outside that budget.
-Larger viewports grow keys up to 72 dp.
+The keypad panel aims for **30 dp** around the group and reduces the margin
+symmetrically on a constrained axis. Its page controls have a 44 dp minimum
+height, with up to 8 dp of space above each and up to 16 dp between clusters,
+depending on available height. The clusters share a right edge, and the group
+aligns to the bottom right of the panel when it fits. The panel scrolls on
+each axis where the grids and page controls exceed the available space at the
+shared size.
 
-The viewport dimensions describe available Compose content at its logical dp
-size, excluding window decorations. When the group cannot fit at 44 dp even
-after reducing the margin, the panel scrolls on the constrained axis.
-Native display
-scaling can reduce the available logical viewport; it does not reduce key dp size.
+At the minimum supported **1024×720 viewport**, Terminal and MDI have 532 dp
+of height for the panel. At 1× scale, their two 44 dp grids and page controls
+need 518 dp, leaving 7 dp for each vertical margin. Terminal and MDI allow up
+to 40% of workspace width, capped at 400 dp, for the keys and page controls,
+with the margin outside that budget.
 
 `KeypadLayout` is a copied configuration snapshot with rows/columns, a list of
 row-major slot maps, labels, typed actions, ordinary spacing and optional total

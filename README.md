@@ -94,10 +94,10 @@ entry; cross-entry selection/export is not implemented.
 Terminal and MDI provide a touch CNC/G-code keyboard with two independently paged
 square key clusters stacked in a panel to the right of the console/editor,
 with letters above numbers. The terminal keeps its full-height log and prompt.
-Keys grow with available space from 44 to 72 dp. The shared keypad panel aims
-for 30 dp of clearance on each side of the group. It reduces the margin as needed
-to keep both clusters visible at the minimum 1024×720 viewport. Smaller viewports
-scroll when it takes more than the available space to fit the minimum-size keys.
+All keypads in a window share a square key size of 44–72 dp based on the window's
+logical dimensions. Compose layouts can use this length through `LocalKeyUnit`.
+Each keypad panel reduces its preferred 30 dp margin as needed and scrolls on
+any constrained axis when the keys and page controls cannot fit.
 The default letter grid starts `O N G P`; the numeric grid
 keeps Backspace, `*`, `+` and Enter in its separated fourth column. Further pages
 provide the remaining letters and macro/editing symbols. Tapping inserts at the
