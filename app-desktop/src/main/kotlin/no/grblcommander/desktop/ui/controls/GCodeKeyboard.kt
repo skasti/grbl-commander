@@ -33,7 +33,7 @@ internal fun KeypadPanel(
     onAction: (KeypadAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(modifier, contentAlignment = Alignment.BottomCenter) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.BottomEnd) {
         val density = LocalDensity.current
         val minimum = with(density) { ceil(44.dp.toPx()).toInt() }
         val maximum = with(density) { floor(72.dp.toPx()).toInt() }
@@ -72,7 +72,7 @@ internal fun KeypadPanel(
         Box(margin.clipToBounds().verticalScroll(rememberScrollState(), enabled = scrollVertically)) {
             Column(
                 Modifier.horizontalScroll(rememberScrollState(), enabled = scrollHorizontally),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                horizontalAlignment = Alignment.End,
             ) {
                 clusters.forEachIndexed { index, cluster ->
                     if (index > 0) Spacer(Modifier.height(with(density) { clusterSpacingPixels.toDp() }))

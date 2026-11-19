@@ -381,7 +381,13 @@ class ControllerConnectionSettingsTest {
             val numberPage = onNodeWithTag("keypad-NUM+-next").assertIsDisplayed().assertTextEquals("NUM+ 1/2 ▸")
             val digit = onNodeWithTag("keypad-NUM+-0").assertIsDisplayed()
             val digitBounds = digit.getUnclippedBoundsInRoot()
-            assertTrue(digitBounds.top >= letterPage.getUnclippedBoundsInRoot().bottom)
+            val letterPageBounds = letterPage.getUnclippedBoundsInRoot()
+            assertTrue(digitBounds.top >= letterPageBounds.bottom)
+            assertEquals(letterPageBounds.right, numberPage.getUnclippedBoundsInRoot().right)
+            assertEquals(
+                onNodeWithTag("keypad-QWERTY-9").getUnclippedBoundsInRoot().right,
+                onNodeWithTag("keypad-NUM+-3").getUnclippedBoundsInRoot().right,
+            )
             onNodeWithTag("keypad-QWERTY-0").assertTextEquals("q")
             val m = onNodeWithTag("keypad-QWERTY-26").assertTextEquals("m").getUnclippedBoundsInRoot()
             val spaceKey = onNodeWithTag("keypad-QWERTY-27").assertIsDisplayed()

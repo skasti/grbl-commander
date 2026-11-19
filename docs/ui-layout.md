@@ -574,7 +574,8 @@ The shared keypad container aims for **30 dp** around the whole group. Each axis
 reduces its margin symmetrically only as far as needed to fit the minimum-size
 keys and page controls. The gap above each page control ranges from 0 to 8 dp
 and the gap between clusters ranges from 0 to 16 dp. Spare height restores these
-gaps up to their caps. The group aligns to the bottom of the viewport when it fits.
+gaps up to their caps. The clusters share a right edge inside the panel. The
+group aligns to the bottom right of the viewport when it fits.
 
 At the minimum supported **1024×720 viewport**, Terminal and MDI have 532 dp of
 height for the panel. At 1× scale, the two 44 dp clusters and their page controls
