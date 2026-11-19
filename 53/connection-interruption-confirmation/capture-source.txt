@@ -1,1 +1,1 @@
-app-desktop/src/test/kotlin/no/grblcommander/desktop/ui/screens/ControllerConnectionSettingsTest.kt
+app-desktop/src/test/kotlin/no/grblcommander/desktop/ui/screens/ConnectionLifecycleTest.kt
