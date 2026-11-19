@@ -21,7 +21,7 @@ class MdiMode : Screen<Unit>(Unit) {
         var buffer by remember { mutableStateOf(TextFieldValue()) }
         Surface(Modifier.fillMaxSize()) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
-                val keyboardWidth = minOf(400.dp, maxWidth * .40f)
+                val keyboardWidth = minOf(400.dp, maxWidth * .40f) + keypadPanelMargin * 2f
                 Row(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("MDI · local text buffer only (not executable)")

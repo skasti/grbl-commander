@@ -60,12 +60,17 @@ class CommanderAppConnectionTest {
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
             onNodeWithTag("softkey-R7").performClick()
             waitUntil(timeoutMillis = 5_000) {
-                runCatching { onNodeWithText("TCP / network", substring = true).assertIsEnabled() }.isSuccess
+                runCatching { onNodeWithTag("softkey-F7").assertIsEnabled() }.isSuccess
             }
-            onNodeWithText("TCP / network", substring = true).performClick()
-            onNodeWithText("Hostname / IP address").performTextReplacement("controller.example")
-            onNodeWithText("TCP port (1–65535)").performTextReplacement("0")
-            onRoot().performKeyInput { pressKey(Key.F2) }
+            onNodeWithTag("softkey-F1").performClick()
+            onNodeWithTag("softkey-F2").performClick()
+            onNodeWithTag("connection-field-input").performTextReplacement("controller.example")
+            onNodeWithTag("softkey-F7").performClick()
+            onNodeWithTag("softkey-F3").performClick()
+            onNodeWithTag("connection-field-input").performTextReplacement("0")
+            onNodeWithTag("softkey-F7").performClick()
+            onNodeWithText("0").assertExists()
+            onRoot().performKeyInput { pressKey(Key.F6) }
             onNodeWithText("TCP port must be a number between 1 and 65535").assertExists()
             runOnIdle { assertEquals(0, opened); assertNull(owner.state.value.endpoint) }
             onNodeWithText("Program", substring = true).performClick()

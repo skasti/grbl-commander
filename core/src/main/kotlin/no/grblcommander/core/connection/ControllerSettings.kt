@@ -66,23 +66,27 @@ class ControllerSettings(
     private val mutableConfiguration = MutableStateFlow<ControllerEndpoint?>(null)
     /** Saved configuration, independent of the endpoint of an active session and the UI's draft. */
     val configuration = mutableConfiguration.asStateFlow()
+    private val mutableSavedDraft = MutableStateFlow(ControllerEndpointDraft())
+    val savedDraft = mutableSavedDraft.asStateFlow()
     private val serialPorts = SerialPortDiscovery()
 
     suspend fun load(): ControllerEndpointDraft = configurationLock.withLock {
-        val endpoint = withContext(Dispatchers.IO) { ControllerEndpointRecord.decode(preferences.load()) }
-        mutableConfiguration.value = endpoint
-        endpoint?.let(ControllerEndpointDraft::from) ?: ControllerEndpointDraft()
+        val draft = withContext(Dispatchers.IO) { ControllerEndpointRecord.decodeDraft(preferences.load()) }
+        mutableConfiguration.value = draft?.endpoint()
+        mutableSavedDraft.value = draft ?: ControllerEndpointDraft()
+        mutableSavedDraft.value
     }
 
     suspend fun save(draft: ControllerEndpointDraft) {
         val endpoint = draft.endpoint()
         stopStartup()
-        persist(endpoint)
+        persist(endpoint, draft)
     }
 
-    private suspend fun persist(endpoint: ControllerEndpoint) = configurationLock.withLock {
-        withContext(Dispatchers.IO) { preferences.save(ControllerEndpointRecord.encode(endpoint)) }
+    private suspend fun persist(endpoint: ControllerEndpoint, draft: ControllerEndpointDraft) = configurationLock.withLock {
+        withContext(Dispatchers.IO) { preferences.save(ControllerEndpointRecord.encode(endpoint, draft)) }
         mutableConfiguration.value = endpoint
+        mutableSavedDraft.value = draft
     }
 
     suspend fun discoverSerialPorts() = serialPorts.discover()
@@ -97,15 +101,17 @@ class ControllerSettings(
     suspend fun connect(
         draft: ControllerEndpointDraft,
         interruptionConfirmed: Boolean = false,
+        resetConfirmed: Boolean = false,
         onHandshakeComplete: () -> Unit = {},
     ) {
         val endpoint = draft.endpoint() // Validate before any connection lifecycle action.
         check(interruptionConfirmed || !requiresInterruptionConfirmation) { "Confirm interruption of the current connection first" }
+        check(!endpoint.postConnect.resetController || resetConfirmed) { "Confirm controller reset for this connection first" }
         stopStartup()
-        connection.connect(endpoint)
+        connection.connect(endpoint, resetConfirmed)
         onHandshakeComplete()
         // The handshake has completed. A storage failure must not hide actual connected health.
-        try { persist(endpoint) }
+        try { persist(endpoint, draft) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (error: Exception) { throw IOException("Controller connected, but settings could not be saved: ${error.message}", error) }
     }

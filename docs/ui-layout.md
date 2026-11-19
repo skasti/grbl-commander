@@ -21,7 +21,11 @@ remaining width. The initial default sizes are 78 dp for the header, 94 dp for
 the bottom keys and 142 dp for the right column; they may be adjusted for screen
 sizes and touch targets. The supported layout starts at 1024 × 720 pixels
 at 1× density. See the [Compose UI screenshots](../README.md#compose-ui-screenshots)
-for the fixed CI capture resolutions and the published views.
+for fixed CI capture resolutions, local verification and published views.
+PR review comments compare captures with the main baseline and also include
+captures from modified tests. Each scenario shows one expanded resolution;
+additional sizes are collapsed. Capture checkpoints remain in tests, without a
+per-screen workflow list or generated documentation gallery.
 
 `AppShell` owns the persistent regions, accepts a Compose content slot for the
 workspace, and exposes an optional header-controls slot for UI-mode selection.
@@ -448,60 +452,77 @@ alignment inside the field decoration; the entire 48 dp prompt is a focus target
 
 ### Connection form
 
-Settings is a scrolling touch-friendly form with Serial/USB and TCP/network
-selection. TCP requires host/IP and port 1–65535; serial supports optional refresh,
-descriptive port buttons and manual device entry. Baud is always visible, while
-Advanced exposes bits, parity, stop bits, flow control and DTR/RTS. Manual entry
-remains enabled when discovery is empty or fails. Defaults are 115200, 8N1, no
-flow control, DTR/RTS false. Edits never change the current endpoint/session.
+Connection settings retain a complete serial/TCP draft separate from the active
+endpoint. Selecting a field enables native text editing, selection and paste in
+place, with a touch keypad to its right. Numeric fields use the single-page NUM keypad.
+Hostname and device fields stack a two-page QWERTY keypad (lowercase and uppercase)
+above NUM+, the same independently paged number and symbol keypad used alongside
+CODE in Terminal and MDI. Both
+letter pages have a double-width Space key beside N and M. Characters outside the
+touch keymaps can be entered with the physical keyboard or pasted.
+F7 or keypad Enter applies the field to the draft. F8 cancels the edit. The
+form remains visible with the field-edit softkeys until the edit closes.
 
-F1 **Save**, F2 **Connect**, F3 **Disconnect** and R7 **Terminal**
-use the existing guarded softkey activation. Close remains a workspace button;
-there is no separate Close softkey. Matching workspace actions
-use the same screen callbacks. Invalid values show validation errors before any
-transport is created. Save persists without connecting; Connect awaits the status
-handshake before saving and reporting success. Progress/errors, current endpoint,
-last connection failure and stale/unknown report warning reflect shared owner
-state. Staleness expires after three seconds without reports and is also reflected
-in the header. Core owns background status polling every 500 ms after handshake,
-independently of the active screen/mode; UI does not start additional pollers.
-Polling stops on connection disposal/failure and pauses during reset handshake.
-Missing replies still become stale; sending a poll is not a confirmed report.
-Deliberate Disconnect displays neutral progress/status, with no technical
-"Session closed" error or stale-state warning. Disconnected values remain labelled
-as last observations, and a neutral note explains that they are not being updated.
-Connecting displays a waiting note; actual failure and stale reports while
-connected retain warning/error styling. The header adds a stale qualifier only
-while connected, not during expected disconnect/shutdown.
+The keypad uses the same responsive sizing as Terminal and MDI: square keys
+from 44 to 72 dp and gaps of 30% of the key size. The numeric action column
+uses a 60% gap. The form and keypad scroll as needed on small viewports.
 
-Replacing/disconnecting an active or connecting session requires a screen-local
-`ModalDialog<Boolean>` describing interruption and uncertain pending command
-outcomes. F1 confirms and F8 cancels through the bottom bank; there are no
-workspace confirmation buttons. The modal opens above the form on the same
-Util stack. It
-never resets/stops/replays machine work implicitly. Disconnect can interrupt a
-handshake. Disconnect is disabled during Save and a running Disconnect; repeated
-callbacks cannot start competing operations. A confirmed Disconnect reserves the
-single operation slot before awaiting Connect cancellation and cleanup. If the
-handshake has completed, it waits for Connect's persistence instead of cancelling
-that save. Workspace buttons and softkeys use the same enabled condition.
-Close cancels unfinished form work but keeps a completed connection.
-Switching modes retains the form, its current operation and scroll state. Saving
-and discovery failures remain visible without claiming false connection health.
+| Slot | Serial | TCP |
+| --- | --- | --- |
+| F1 | Toggle to TCP | Toggle to Serial |
+| F2 | Select Port 🔗 | Edit Hostname/IP |
+| F3 | Select Baud 📈 | Edit Port |
+| F4 | Advanced 🎛️ | Unassigned |
+| F5 | Post-Connect Actions | Post-Connect Actions |
+| F6 | Connect / Disconnect | Connect / Disconnect |
+| F7 | Save | Save |
+| F8 | Restore saved/default form | Restore saved/default form |
 
-Presentation depends on `:core`. `ControllerSettings` owns the saved configuration
-and load/validation/save/connect workflows; the screen owns only its editable
-draft, progress, confirmations and navigation. It requests Save or Connect, and
-core performs any persistence internal to those operations. Neither Compose nor
-screens instantiate or refer to the JVM Preferences adapter. Serial discovery is
-requested through core and executed by infrastructure. `Main` supplies the shared
-core services to `CommanderApp`; changing mode never recreates them. Closing the
-application window exits Compose and runs application-owned cleanup before normal
-process completion: startup/polling are cancelled, the TCP/serial connection is
-closed, and owned work is awaited. Exit sends no automatic machine-control command.
+Switching transport keeps unsaved field values. F6 reflects actual lifecycle,
+permits cancellation of a pending handshake, and requires interruption confirmation
+before disconnecting active/pending sessions. Repeated activations cannot start
+competing operations. Disconnect waits for Connect persistence once that phase
+has begun; Save and running Disconnect cannot be cancelled by another Disconnect.
+Save persists without changing the session; Connect persists after successful
+connection. Progress, actual endpoint, failures and stale/unavailable observations
+come from the shared owner. Deliberate disconnect is neutral. Core's existing
+500 ms polling remains independent of the screen.
 
-See [architecture.md](architecture.md), especially sections 2, 5 and 10, and the
-repository [AGENTS.md](../AGENTS.md).
+F8 confirms replacing dirty edits with the latest saved complete form, including
+the selected transport, both transport fields and post-connect choices. Without
+a valid saved record it restores blank endpoint fields and normal defaults.
+It never sends a controller reset. R7 Terminal returns to the retained console.
+
+Port selection refreshes discovery each time it opens. Six numbered touch rows
+map to F1–F6. More than six choices enable F7 Next page with wrap; F8 cancels
+without changing the parent draft. Empty or failed discovery explains manual
+entry. Devices are advisory and may disappear before connection. Baud uses the
+same numbered selector with common rates including 115200; its main field also
+permits custom entry. Both banks are replaced while any selector/editor is open.
+
+Advanced serial settings own a separate draft. F1 cycles data bits 5–8, F2 stop
+bits, F3 parity, F4 flow control, F5 DTR and F6 RTS. F7 Save applies to the parent
+draft with green positive emphasis; it does not persist. F8 cancels unchanged
+values immediately or asks before discarding changed values. Normal defaults
+are 115200, 8N1, no flow control, DTR on and RTS off.
+
+The shared Post-Connect Actions screen uses F1 reset Off/On, F2 firmware info
+Off → $I → $I+ → Off, F3 parameters $#, F4 parser state $G, F7 Save & return
+and F8 Cancel. Defaults are reset Off, firmware $I, parameters/parser On.
+Saving returns choices to the parent draft; cancellation discards local edits.
+Reset consequences are visible and every manual connection with reset selected
+requires a separate Ctrl+X confirmation. Startup cannot supply that consent and
+always skips reset. Passive queries run after handshake/reset through the shared
+session. Connection diagnostics retain their outcomes; responses remain in Terminal.
+Query timeout does not imply disconnected health; uncertain correlation skips
+remaining queries. There is no automatic replay.
+
+ControllerSettings owns loading, validation, savedDraft and persistence. The UI
+does not instantiate Preferences, sessions or transports. v1 records retain
+explicit DTR/RTS; v2 adds post-connect preferences and complete saved form fields.
+ScreenStack and ModalDialog provide typed results and covered-screen isolation.
+Application shutdown closes and awaits the shared connection without sending
+automatic machine-control commands.
 
 
 ### CNC/G-code touch keyboard
@@ -511,8 +532,10 @@ cluster in a right-hand workspace panel beside the Util Terminal console and
 the local MDI buffer. The console/input occupies the full available height.
 Each cluster has independent retained
 `KeyClusterState`, a square grid and one page-count/Next control below it, wrapping
-to the first page. A single-page map disables cycling. Paging preserves focus,
+to the first page. Single-page maps omit the page control. Paging preserves focus,
 caret, selection and the other cluster's page. Empty positions retain their space.
+A key can span adjacent columns in the same row. Its width includes the gaps
+between those columns, and its height stays the same as other keys.
 The control does not use F8/R7 or the screen-navigation mechanism.
 
 Default letter pages (each cell lists columns 1–4):
@@ -541,30 +564,30 @@ slots 7 and 11.
 
 Keys remain square with a clickable size of **44–72 dp**. The shared size is the
 largest whole-pixel value fitting both cluster widths and their combined grid
-height plus two 44 dp page controls. Each key and spacer is measured with the
+height plus 44 dp for each cluster with multiple pages. Single-page clusters
+display only their keys. Each key and spacer is measured with the
 same pixel rounding as Compose; the lower size bound rounds upward and the upper
 bound downward. Configured ordinary row/column gaps remain 30% of key size, with
 a total 60% gap before numeric column four. Changing pages does not change size.
 
-Only outer spacing adapts: the gap above each page control ranges from 0 to 8 dp,
-and the inter-cluster gap ranges from 0 to 16 dp. Compact spacing makes room for
-larger keys first. Spare height restores these gaps up to their caps; further
-height stays above the combined keyboard. `GCodeKeyboard` aligns that unit at the
-bottom of its panel. Terminal and MDI retain an 8 dp workspace margin below it;
-excess height is never distributed between the clusters.
+The shared keypad container aims for **30 dp** around the whole group. Each axis
+reduces its margin symmetrically only as far as needed to fit the minimum-size
+keys and page controls. The gap above each page control ranges from 0 to 8 dp
+and the gap between clusters ranges from 0 to 16 dp. Spare height restores these
+gaps up to their caps. The clusters share a right edge inside the panel. The
+group aligns to the bottom right of the viewport when it fits.
 
-At the minimum supported **1024×720 viewport**, the 78 dp header, 94 dp bottom
-bank and 16 dp compact screen padding leave 532 dp for the keyboard. At density 1,
-two 45 dp grids use 444 pixels after spacer rounding and page controls use 88:
-532 in total, with no additional page/inter-cluster gaps. Both clusters fit without overlap
-or scrolling. Terminal and MDI allow up to 40% of workspace width, capped at
-400 dp, for the keyboard; its measured width follows the keys so the remaining
-space belongs to the console/editor. Larger viewports grow keys up to 72 dp.
+At the minimum supported **1024×720 viewport**, Terminal and MDI have 532 dp of
+height for the panel. At 1× scale, the two 44 dp clusters and their page controls
+need 518 dp, leaving a 7 dp vertical panel margin on each side. The full group
+remains visible. Terminal and MDI allow up to 40% of workspace width, capped at
+400 dp, for the keys and page controls, with the margin outside that budget.
+Larger viewports grow keys up to 72 dp.
 
 The viewport dimensions describe available Compose content at its logical dp
-size, excluding window decorations. Below the supported viewport, or with custom
-keymaps too large to fit at 44 dp, the keyboard panel scrolls vertically and/or
-horizontally instead of shrinking keys or overlapping the shell. Native display
+size, excluding window decorations. When the group cannot fit at 44 dp even
+after reducing the margin, the panel scrolls on the constrained axis.
+Native display
 scaling can reduce the available logical viewport; it does not reduce key dp size.
 
 `KeypadLayout` is a copied configuration snapshot with rows/columns, a list of

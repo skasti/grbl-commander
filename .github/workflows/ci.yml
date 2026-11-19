@@ -31,9 +31,9 @@ jobs:
         run: >-
           gradle :infrastructure:build :core:build :app-desktop:build
           --no-daemon --stacktrace
-          ${{ github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && '-PuiScreenshots' || '' }}
+          ${{ matrix.os == 'ubuntu-latest' && '-PuiScreenshots' || '' }}
       - name: Upload Compose UI screenshots
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' }}
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
         uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.build.outcome == 'success' && 'compose-ui-screenshots' || 'compose-ui-screenshots-partial' }}-${{ github.run_attempt }}
@@ -43,13 +43,20 @@ jobs:
 
   publish-ui-screenshots:
     name: Publish Compose UI screenshots (Linux)
-    needs: desktop-build
+    needs: [desktop-build, simulator-test, screenshot-tool-tests]
     if: >-
-      ${{ !cancelled() && github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository }}
+      ${{ !cancelled() && ((github.event_name == 'push' && needs.desktop-build.result == 'success' &&
+          needs.simulator-test.result == 'success' && needs.screenshot-tool-tests.result == 'success') ||
+          (github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository)) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
+    # Hold the same lock through both the Git update and the comment update.
+    concurrency:
+      group: ui-screenshots-${{ github.event.pull_request.number || 'main' }}
+      cancel-in-progress: false
     steps:
       - name: Download complete screenshot artifact
         id: screenshots
@@ -62,11 +69,12 @@ jobs:
         if: steps.screenshots.outcome == 'success'
         with:
           persist-credentials: false
-      - name: Publish this pull request's screenshots
+      - name: Publish screenshots
+        id: publish
         if: steps.screenshots.outcome == 'success'
         env:
           SCREENSHOT_DIRECTORY: ${{ runner.temp }}/compose-ui-screenshots
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SCREENSHOT_TARGET: ${{ github.event.pull_request.number || 'main' }}
           GH_TOKEN: ${{ github.token }}
         run: |
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w 0)
@@ -75,7 +83,43 @@ jobs:
           export GIT_CONFIG_KEY_0="http.${GITHUB_SERVER_URL}/.extraheader"
           export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth"
           bash .github/scripts/publish-ui-screenshots.sh \
-            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$PR_NUMBER" "$SCREENSHOT_DIRECTORY"
+            "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$SCREENSHOT_TARGET" "$SCREENSHOT_DIRECTORY"
+
+      - name: Check out published snapshot for comparison
+        if: steps.publish.outputs.published == 'true' && github.event_name == 'pull_request'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.publish.outputs.commit }}
+          path: screenshot-assets
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        if: steps.publish.outputs.published == 'true' && github.event_name == 'pull_request'
+        with:
+          python-version: '3.13'
+      - name: Install image decoder
+        if: steps.publish.outputs.published == 'true' && github.event_name == 'pull_request'
+        run: python -m pip install Pillow==12.0.0
+      - name: Update screenshot review comment
+        if: steps.publish.outputs.published == 'true' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CAPTURE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ASSET_COMMIT: ${{ steps.publish.outputs.commit }}
+        run: >-
+          python .github/scripts/review_ui_screenshots.py
+          --assets screenshot-assets --commit "$ASSET_COMMIT" --pr "$PR_NUMBER"
+
+  screenshot-tool-tests:
+    name: Screenshot selection and publication tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: python -m pip install Pillow==12.0.0
+      - run: python -m unittest discover -s .github/scripts -p 'test_*screenshots.py'
 
   simulator-test:
     name: grblHAL Simulator integration (Linux)

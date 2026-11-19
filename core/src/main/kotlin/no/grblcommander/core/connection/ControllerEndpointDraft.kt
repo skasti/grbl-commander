@@ -13,19 +13,20 @@ data class ControllerEndpointDraft(
     val stopBits: SerialConfiguration.StopBits = SerialConfiguration.StopBits.ONE,
     val parity: SerialConfiguration.Parity = SerialConfiguration.Parity.NONE,
     val flowControl: SerialConfiguration.FlowControl = SerialConfiguration.FlowControl.NONE,
-    val dtr: Boolean = false,
+    val dtr: Boolean = true,
     val rts: Boolean = false,
+    val postConnect: PostConnectActions = PostConnectActions(),
 ) {
     enum class Transport { SERIAL, TCP }
 
     fun endpoint(): ControllerEndpoint = when (transport) {
-        Transport.TCP -> ControllerEndpoint.Tcp(host.trim(), number(tcpPort, "TCP port", 1..65535))
+        Transport.TCP -> ControllerEndpoint.Tcp(host.trim(), number(tcpPort, "TCP port", 1..65535), postConnect)
         Transport.SERIAL -> ControllerEndpoint.Serial(SerialConfiguration(
             port = serialPort.trim(),
             baudRate = number(baudRate, "Baud rate", 1..Int.MAX_VALUE),
             dataBits = number(dataBits, "Data bits", 5..8),
             stopBits = stopBits, parity = parity, flowControl = flowControl, dtr = dtr, rts = rts,
-        ))
+        ), postConnect)
     }
 
     private fun number(text: String, name: String, range: IntRange): Int {
@@ -37,12 +38,12 @@ data class ControllerEndpointDraft(
     companion object {
         fun from(endpoint: ControllerEndpoint): ControllerEndpointDraft = when (endpoint) {
             is ControllerEndpoint.Tcp -> ControllerEndpointDraft(
-                transport = Transport.TCP, host = endpoint.host, tcpPort = endpoint.port.toString(),
+                transport = Transport.TCP, host = endpoint.host, tcpPort = endpoint.port.toString(), postConnect = endpoint.postConnect,
             )
             is ControllerEndpoint.Serial -> endpoint.configuration.let {
                 ControllerEndpointDraft(
                     serialPort = it.port, baudRate = it.baudRate.toString(), dataBits = it.dataBits.toString(),
-                    stopBits = it.stopBits, parity = it.parity, flowControl = it.flowControl, dtr = it.dtr, rts = it.rts,
+                    stopBits = it.stopBits, parity = it.parity, flowControl = it.flowControl, dtr = it.dtr, rts = it.rts, postConnect = endpoint.postConnect,
                 )
             }
         }

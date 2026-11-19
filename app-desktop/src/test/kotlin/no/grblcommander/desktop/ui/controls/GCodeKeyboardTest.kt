@@ -18,7 +18,7 @@ class GCodeKeyboardTest {
         val emitted = mutableListOf<String>()
         setContent { MaterialTheme { GCodeKeyboard({ if (it is KeypadAction.Insert) emitted += it.text }, Modifier.fillMaxSize()) } }
         val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
-            onNodeWithTag("keypad-123-$it").fetchSemanticsNode().boundsInRoot.center
+            onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
         }
         onRoot().performMouseInput {
             moveTo(positions.first())
@@ -50,40 +50,60 @@ class GCodeKeyboardTest {
         onNodeWithTag("input").performClick().assertIsFocused()
         // Set a reversed selection after the focus click, as an input owner/selection gesture would.
         runOnIdle { value = value.copy(selection = TextRange(6, 4)) }
-        onNodeWithTag("keypad-123-0").performClick() // 7 replaces selection.
+        onNodeWithTag("keypad-NUM+-0").performClick() // 7 replaces selection.
         runOnIdle { assertEquals(TextFieldValue("G0 X7", TextRange(5)), value) }
         onNodeWithTag("input").assertIsFocused()
-        onNodeWithTag("keypad-123-3").performClick()
+        onNodeWithTag("keypad-NUM+-3").performClick()
         runOnIdle { assertEquals("G0 X", value.text) }
-        val before = onNodeWithTag("keypad-ABC-0").fetchSemanticsNode().boundsInRoot
-        val number = onNodeWithTag("keypad-123-0").fetchSemanticsNode().boundsInRoot
+        val before = onNodeWithTag("keypad-CODE-0").fetchSemanticsNode().boundsInRoot
+        val number = onNodeWithTag("keypad-NUM+-0").fetchSemanticsNode().boundsInRoot
         assertEquals(before.width, before.height, .1f)
         assertTrue(before.width in 44f..72.1f)
-        val nextNumber = onNodeWithTag("keypad-123-1").fetchSemanticsNode().boundsInRoot
-        val third = onNodeWithTag("keypad-123-2").fetchSemanticsNode().boundsInRoot
-        val fourth = onNodeWithTag("keypad-123-3").fetchSemanticsNode().boundsInRoot
+        val nextNumber = onNodeWithTag("keypad-NUM+-1").fetchSemanticsNode().boundsInRoot
+        val third = onNodeWithTag("keypad-NUM+-2").fetchSemanticsNode().boundsInRoot
+        val fourth = onNodeWithTag("keypad-NUM+-3").fetchSemanticsNode().boundsInRoot
         assertEquals(number.width * .3f, nextNumber.left - number.right, 1.1f)
         assertEquals(number.width * .6f, fourth.left - third.right, 1.1f)
-        onNodeWithTag("keypad-ABC-next").performClick()
-        onNodeWithText("ABC 2/2 ▸").assertExists()
-        onNodeWithText("123 1/2 ▸").assertExists()
-        assertEquals(before, onNodeWithTag("keypad-ABC-0").fetchSemanticsNode().boundsInRoot)
-        assertEquals(number, onNodeWithTag("keypad-123-0").fetchSemanticsNode().boundsInRoot)
+        onNodeWithTag("keypad-CODE-next").performClick()
+        onNodeWithText("CODE 2/2 ▸").assertExists()
+        onNodeWithText("NUM+ 1/2 ▸").assertExists()
+        assertEquals(before, onNodeWithTag("keypad-CODE-0").fetchSemanticsNode().boundsInRoot)
+        assertEquals(number, onNodeWithTag("keypad-NUM+-0").fetchSemanticsNode().boundsInRoot)
         onNodeWithTag("input").assertIsFocused()
-        onNodeWithTag("keypad-ABC-0").performClick() // B
-        onNodeWithTag("keypad-123-next").performClick()
-        onNodeWithTag("keypad-123-13").performClick() // Space.
-        onNodeWithTag("keypad-123-15").performClick()
+        onNodeWithTag("keypad-CODE-0").performClick() // B
+        onNodeWithTag("keypad-NUM+-next").performClick()
+        onNodeWithTag("keypad-NUM+-13").performClick() // Space.
+        onNodeWithTag("keypad-NUM+-15").performClick()
         runOnIdle { assertEquals("G0 XB ", value.text); assertEquals(1, enterCount); enter = { enterCount += 10 } }
-        onNodeWithTag("keypad-123-15").performClick()
+        onNodeWithTag("keypad-NUM+-15").performClick()
         runOnIdle { assertEquals(11, enterCount) }
         onNodeWithTag("input").assertIsFocused().performTextInput("Z")
         runOnIdle { assertEquals("G0 XB Z", value.text) }
-        onNodeWithTag("keypad-ABC-next").performClick()
-        onNodeWithText("ABC 1/2 ▸").assertExists()
-        onNodeWithText("123 2/2 ▸").assertExists()
-        onNodeWithTag("keypad-123-next").performClick()
-        onNodeWithText("123 1/2 ▸").assertExists()
+        onNodeWithTag("keypad-CODE-next").performClick()
+        onNodeWithText("CODE 1/2 ▸").assertExists()
+        onNodeWithText("NUM+ 2/2 ▸").assertExists()
+        onNodeWithTag("keypad-NUM+-next").performClick()
+        onNodeWithText("NUM+ 1/2 ▸").assertExists()
+    }
+
+    @Test fun `margin compacts only on the constrained axis before scrolling`() = runComposeUiTest {
+        var height by mutableStateOf(620.dp)
+        setContent {
+            MaterialTheme {
+                GCodeKeyboard({}, Modifier.size(320.dp, height).testTag("keypad-panel"))
+            }
+        }
+        fun bounds(tag: String) = onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+        assertEquals(30f, bounds("keypad-panel").bottom - bounds("keypad-NUM+-next").bottom, .1f)
+        runOnIdle { height = 532.dp }
+        val panel = bounds("keypad-panel")
+        val page = bounds("keypad-NUM+-next")
+        val first = bounds("keypad-CODE-0")
+        assertEquals(7f, first.top - panel.top, .1f)
+        assertEquals(7f, panel.bottom - page.bottom, .1f)
+        assertTrue(panel.right - page.right >= 30f)
+        assertEquals(44f, first.width, .1f)
+        onNodeWithTag("keypad-NUM+-next").assertIsDisplayed()
     }
 
     @Test fun `undersized viewport scrolls instead of shrinking the keys`() = runComposeUiTest {
@@ -93,7 +113,7 @@ class GCodeKeyboardTest {
                 GCodeKeyboard({ if (it == KeypadAction.Enter) enters++ }, Modifier.size(200.dp, 300.dp))
             }
         }
-        val first = onNodeWithTag("keypad-ABC-0").fetchSemanticsNode().boundsInRoot
+        val first = onNodeWithTag("keypad-CODE-0").fetchSemanticsNode().boundsInRoot
         assertEquals(44f, first.width, .1f)
         assertEquals(44f, first.height, .1f)
         onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(
@@ -102,7 +122,7 @@ class GCodeKeyboardTest {
         onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(
             androidx.compose.ui.semantics.SemanticsProperties.HorizontalScrollAxisRange), useUnmergedTree = true)
             .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy) { it(1000f, 0f) }
-        onNodeWithTag("keypad-123-15").assertIsDisplayed().performClick()
+        onNodeWithTag("keypad-NUM+-15").assertIsDisplayed().performClick()
         runOnIdle { assertEquals(1, enters) }
     }
 
@@ -110,9 +130,12 @@ class GCodeKeyboardTest {
         val state = KeyClusterState(KeypadLayout("Custom", rows = 2, columns = 3,
             pages = listOf(mapOf(5 to KeypadKey("Macro", KeypadAction.Insert("G65 P1"))))))
         var action: KeypadAction? = null
-        setContent { MaterialTheme { KeyCluster(state, 50.dp, { action = it }) } }
-        onNodeWithText("Custom 1/1").assertExists()
-        onNodeWithTag("keypad-Custom-next").assertIsNotEnabled()
+        setContent { MaterialTheme { KeyCluster(state, 50.dp, { action = it }, Modifier.testTag("custom-keypad")) } }
+        onNodeWithText("Custom 1/1").assertDoesNotExist()
+        onNodeWithTag("keypad-Custom-next").assertDoesNotExist()
+        val keypad = onNodeWithTag("custom-keypad").fetchSemanticsNode().boundsInRoot
+        val lastKey = onNodeWithTag("keypad-Custom-5").fetchSemanticsNode().boundsInRoot
+        assertEquals(keypad.bottom, lastKey.bottom, .1f)
         onNodeWithTag("keypad-Custom-0").assertDoesNotExist()
         onNodeWithText("Macro").performClick()
         runOnIdle { assertEquals(KeypadAction.Insert("G65 P1"), action) }

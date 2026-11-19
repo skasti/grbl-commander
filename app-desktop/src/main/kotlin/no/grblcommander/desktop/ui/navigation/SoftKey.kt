@@ -28,6 +28,7 @@ data class SoftKeyDefinition(
     val active: () -> Boolean = { false },
     /** Machine actions can opt out of OS key-repeat until physical key release. */
     val repeatable: Boolean = true,
+    val tone: SoftKeyTone = SoftKeyTone.DEFAULT,
 ) : SoftKeyOverride {
     companion object {
         val Blank = SoftKeyDefinition(label = "", enabled = { false })

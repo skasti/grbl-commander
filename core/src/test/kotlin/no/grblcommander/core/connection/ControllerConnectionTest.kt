@@ -13,8 +13,8 @@ import no.grblcommander.machine.transport.TcpTransport
 import kotlin.test.*
 
 class ControllerConnectionTest {
-    private val tcp = ControllerEndpoint.Tcp("localhost", 23)
-    private val serial = ControllerEndpoint.Serial(SerialConfiguration("test-port"))
+    private val tcp = ControllerEndpoint.Tcp("localhost", 23, no.grblcommander.core.connection.noPostConnectActions())
+    private val serial = ControllerEndpoint.Serial(SerialConfiguration("test-port"), no.grblcommander.core.connection.noPostConnectActions())
 
     private suspend fun ControllerConnection.awaitDiagnostics(predicate: (List<ControllerTraffic>) -> Boolean): List<ControllerTraffic> = withTimeout(5_000) {
         var snapshot: List<ControllerTraffic>
@@ -83,7 +83,7 @@ class ControllerConnectionTest {
         val serialTransport = assertIs<SerialTransport>(controllerTransport(serial))
         assertEquals(serial.configuration, serialTransport.configuration)
         assertEquals(115_200, serialTransport.configuration.baudRate)
-        assertFalse(serialTransport.configuration.dtr)
+        assertTrue(serialTransport.configuration.dtr)
         assertFalse(serialTransport.configuration.rts)
         serialTransport.close()
     }

@@ -12,7 +12,7 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ControllerPollingTest {
-    private val endpoint = ControllerEndpoint.Tcp("localhost", 4321)
+    private val endpoint = ControllerEndpoint.Tcp("localhost", 4321, no.grblcommander.core.connection.noPostConnectActions())
 
     private class Session : MachineSession {
         override val state = MutableStateFlow(MachineSnapshot())
@@ -52,6 +52,7 @@ class ControllerPollingTest {
             if (state.value.connection != MachineSnapshot.Connection.FAILED)
                 state.value = state.value.copy(connection = MachineSnapshot.Connection.CLOSED)
         }
+        override fun prepareSessionTask(block: suspend () -> Unit): Job = error("Post-connect is disabled")
         override suspend fun awaitClosed() = Unit
     }
 

@@ -2,15 +2,16 @@
 set -euo pipefail
 
 remote=${1:?expected Git remote URL}
-pr_number=${2:?expected pull request number}
+target=${2:?expected PR number or main}
 source_dir=$(cd "${3:?expected screenshot directory}" && pwd)
 run_number=${GITHUB_RUN_NUMBER:?expected workflow run number}
 run_attempt=${GITHUB_RUN_ATTEMPT:?expected workflow run attempt}
 branch=refs/heads/pr-assets
 
 is_number() { [[ $1 =~ ^[1-9][0-9]*$ ]]; }
-is_number "$pr_number" && is_number "$run_number" && is_number "$run_attempt" || {
-    echo "Invalid pull request or workflow run identity" >&2
+[[ $target == main ]] || is_number "$target" || { echo "Invalid screenshot target" >&2; exit 1; }
+is_number "$run_number" && is_number "$run_attempt" || {
+    echo "Invalid workflow run identity" >&2
     exit 1
 }
 if [[ -z $(find "$source_dir" -type f -name '*.png' -print -quit) ]]; then
@@ -39,27 +40,34 @@ for attempt in {1..6}; do
             fi
         fi
 
-        marker="$pr_number/.workflow-run"
+        marker="$target/.workflow-run"
         if [[ -f $marker ]] && read -r previous_run previous_attempt < "$marker" &&
             is_number "$previous_run" && is_number "$previous_attempt" &&
             (( previous_run > run_number || (previous_run == run_number && previous_attempt > run_attempt) )); then
-            echo "PR #$pr_number already has screenshots from a newer workflow run."
+            echo "$target already has screenshots from a newer workflow run."
+            [[ -z ${GITHUB_OUTPUT:-} ]] || echo "published=false" >> "$GITHUB_OUTPUT"
             exit 0
         fi
 
-        rm -rf -- "$pr_number"
-        mkdir -- "$pr_number"
-        cp -R -- "$source_dir/." "$pr_number/"
+        rm -rf -- "$target"
+        mkdir -- "$target"
+        cp -R -- "$source_dir/." "$target/"
         printf '%s %s\n' "$run_number" "$run_attempt" > "$marker"
-        git add -- "$pr_number"
+        git add -- "$target"
         if git diff --cached --quiet; then
-            echo "PR #$pr_number screenshots are already published."
+            echo "$target screenshots are already published."
+            if [[ -n ${GITHUB_OUTPUT:-} ]]; then
+                printf 'published=true\ncommit=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            fi
             exit 0
         fi
-        git -c user.name='github-actions[bot]'             -c user.email='41898282+github-actions[bot]@users.noreply.github.com'             commit --quiet -m "Publish UI screenshots for PR #$pr_number"
+        git -c user.name='github-actions[bot]'             -c user.email='41898282+github-actions[bot]@users.noreply.github.com'             commit --quiet -m "Publish UI screenshots for $target"
         # A concurrent push rejects this update. Retry with a fresh branch tip,
         # preserving other PR directories and checking same-PR run ordering again.
         git push "$remote" "HEAD:$branch" || exit 75
+        if [[ -n ${GITHUB_OUTPUT:-} ]]; then
+            printf 'published=true\ncommit=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        fi
     )
     result=$?
     set -e

@@ -21,11 +21,19 @@ class KeypadLayout(
         require(spacing.isFinite() && spacing >= 0f)
         require(this.gapsBeforeColumns.all { (column, gap) -> column in 1 until columns && gap.isFinite() && gap >= 0f })
         require(this.pages.all { page -> page.keys.all { it in 0 until rows * columns } })
+        for (page in this.pages) {
+            for ((slot, key) in page) {
+                require(key.columnSpan in 1..(columns - slot % columns)) { "Key span crosses a row boundary" }
+                require((slot + 1 until slot + key.columnSpan).none { it in page }) { "Key span overlaps another key" }
+            }
+        }
     }
 
     // Compose rounds every key and spacer separately during measurement.
-    internal fun widthInPixels(keyPixels: Int): Int = columns * keyPixels +
-        (1 until columns).sumOf { (keyPixels * gapBefore(it)).roundToInt() }
+    internal fun widthInPixels(keyPixels: Int): Int = spanWidthInPixels(keyPixels, 0, columns)
+
+    internal fun spanWidthInPixels(keyPixels: Int, column: Int, span: Int): Int =
+        span * keyPixels + (column + 1 until column + span).sumOf { (keyPixels * gapBefore(it)).roundToInt() }
     internal fun heightInPixels(keyPixels: Int): Int = rows * keyPixels +
         (rows - 1) * (keyPixels * spacing).roundToInt()
 

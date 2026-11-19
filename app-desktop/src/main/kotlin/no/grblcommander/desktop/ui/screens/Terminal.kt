@@ -251,7 +251,7 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
         }
         Surface(Modifier.fillMaxSize()) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
-                val keyboardWidth = minOf(400.dp, maxWidth * .40f)
+                val keyboardWidth = minOf(400.dp, maxWidth * .40f) + keypadPanelMargin * 2f
                 Row(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("${state.snapshot.connection} · ${state.endpoint?.description() ?: "No endpoint"} · ${state.snapshot.status?.executionState ?: "Unknown"}")

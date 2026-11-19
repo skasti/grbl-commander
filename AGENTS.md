@@ -193,6 +193,39 @@ actually been tested on hardware.
 If testing is incomplete or a behavior cannot be verified, document the
 limitation explicitly.
 
+### Screenshot coverage for UI changes
+
+Every PR adding or changing visible UI functionality must add or update saved
+Compose screenshot checkpoints for the affected UI as part of the same work.
+
+- Cover each added or affected screen, modal/dialog and visually distinct state,
+  including relevant toggle/selection values, expanded content, validation and
+  confirmation states. Include alternative layouts or interactions when they
+  materially change what the reviewer needs to inspect.
+- Minimize the number of capture scenarios while covering those states. For
+  independent toggles on one screen/dialog, prefer one capture with all toggles
+  off and one with all toggles on, rather than a separate before/after pair for
+  each toggle. For controls with more than two values, group remaining values
+  into as few additional captures as possible. Use valid, reachable combinations;
+  add specific combinations only when their interaction changes the visible UI.
+- Minimize checkpoints, not resolution coverage: use the shared
+  `runAtScreenshotSizes` and explicit `screenshot("scenario")` checkpoints so
+  every scenario retains the existing six-resolution output and source metadata.
+  Extend existing functional tests and deterministic fixtures wherever possible;
+  do not introduce another harness or per-screen workflow configuration.
+- Keep functional assertions for individual controls and their interactions.
+  Grouping controls into fewer screenshots does not reduce behavioral test
+  coverage, and screenshots do not replace assertions.
+- Run affected capture tests with `-PuiScreenshots`, verify that the intended
+  PNGs are saved and inspect representative output for legibility and clipping.
+  Review the available CI artifacts/comment. Report capture or inspection that
+  could not be completed instead of claiming it was verified.
+- Describe the covered screens/states and any remaining gaps in the PR. Compare
+  the coverage with the UI changes before considering the work complete.
+
+See [Compose UI screenshots](README.md#compose-ui-screenshots) for capture commands,
+artifact paths, publication and review selection.
+
 ## 8. Keep implementations focused
 
 Prefer simple, maintainable solutions consistent with the documented

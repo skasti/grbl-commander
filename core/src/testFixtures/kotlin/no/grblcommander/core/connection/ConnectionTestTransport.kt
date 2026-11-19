@@ -55,3 +55,8 @@ class ConnectionTestTransport : MachineTransport {
     override fun close() { closeCount++; closed = true; input.close() }
 }
 
+
+/** Lifecycle/terminal fixtures opt out of optional startup metadata queries. */
+fun noPostConnectActions() = PostConnectActions(
+    firmwareInfo = PostConnectActions.FirmwareInfo.OFF, parameters = false, parserState = false,
+)

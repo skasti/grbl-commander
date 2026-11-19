@@ -6,6 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import kotlin.test.assertNull
 import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.machine.transport.SerialConfiguration
@@ -44,7 +45,7 @@ class ControllerEndpointSettingsTest {
         }
         val defaults = ControllerEndpointDraft(serialPort = "/dev/absent-device").endpoint()
         assertEquals(ControllerEndpoint.Serial(SerialConfiguration("/dev/absent-device")), defaults)
-        assertFalse((defaults as ControllerEndpoint.Serial).configuration.dtr)
+        assertTrue((defaults as ControllerEndpoint.Serial).configuration.dtr)
         assertFalse(defaults.configuration.rts)
         ControllerEndpointPreferences(node).save(ControllerEndpointRecord.encode(defaults))
         assertEquals(defaults, ControllerEndpointRecord.decode(ControllerEndpointPreferences(node).load()))
@@ -53,7 +54,7 @@ class ControllerEndpointSettingsTest {
     @Test fun `invalid stored records leave endpoint unselected`() = preferences { node ->
         val valid = "version=1\ntransport=SERIAL\ndevice=COM3\nbaud=115200\nbits=8\nstop=ONE\nparity=NONE\nflow=NONE\ndtr=false\nrts=false"
         val records = listOf(
-            "", "garbage", "version=2\ntransport=TCP\nhost=localhost\nport=1234",
+            "", "garbage", "version=99\ntransport=TCP\nhost=localhost\nport=1234",
             "version=1\ntransport=TCP\nhost=localhost\nport=0",
             "version=1\ntransport=TCP\nhost=\nport=1234",
             "version=1\ntransport=TCP\nhost=localhost\nport=65536",
@@ -67,6 +68,35 @@ class ControllerEndpointSettingsTest {
             node.put("endpoint", record)
             assertNull(ControllerEndpointRecord.decode(ControllerEndpointPreferences(node).load()), record)
         }
+    }
+
+    @Test fun `legacy explicit false survives and action preferences round trip for both transports`() {
+        val legacy = "version=1\ntransport=SERIAL\ndevice=COM3\nbaud=115200\nbits=8\nstop=ONE\nparity=NONE\nflow=NONE\ndtr=false\nrts=false"
+        val decoded = ControllerEndpointRecord.decode(legacy) as ControllerEndpoint.Serial
+        assertFalse(decoded.configuration.dtr)
+        assertEquals(PostConnectActions(), decoded.postConnect)
+        for (firmware in PostConnectActions.FirmwareInfo.entries) for (flag in listOf(false, true)) {
+            val actions = PostConnectActions(flag, firmware, flag, !flag)
+            for (endpoint in listOf(ControllerEndpoint.Tcp("localhost", 1234, actions), decoded.copy(postConnect = actions))) {
+                assertEquals(endpoint, ControllerEndpointRecord.decode(ControllerEndpointRecord.encode(endpoint)))
+                assertEquals(endpoint, ControllerEndpointDraft.from(endpoint).endpoint())
+            }
+        }
+        assertNull(ControllerEndpointRecord.decode(legacy + "\npost.reset=maybe"))
+        assertNull(ControllerEndpointRecord.decode(legacy + "\npost.firmware=UNKNOWN"))
+    }
+
+    @Test fun `complete saved draft retains both transports and invalid v2 falls back`() {
+        val draft = ControllerEndpointDraft(
+            transport = ControllerEndpointDraft.Transport.TCP, host = "localhost", tcpPort = "1234",
+            serialPort = "COM42", baudRate = "230400", dtr = false,
+            postConnect = PostConnectActions(parameters = false),
+        )
+        val record = ControllerEndpointRecord.encode(draft.endpoint(), draft)
+        assertEquals(draft, ControllerEndpointRecord.decodeDraft(record))
+        assertNull(ControllerEndpointRecord.decodeDraft(record.replace("draft.dtr=false", "draft.dtr=invalid")))
+        assertNull(ControllerEndpointRecord.decodeDraft(record.lineSequence().filterNot { it.startsWith("draft.host=") }.joinToString("\n")))
+        assertNull(ControllerEndpointRecord.decode("version=2\ntransport=TCP\nhost=localhost\nport=1234"))
     }
 
     @Test fun `draft validates only selected transport and accepts manual Windows and Linux devices`() {

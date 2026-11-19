@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -498,6 +499,9 @@ class GrblMachineSession(
             owner.cancel(CancellationException("Session terminated", error))
         }
     }
+
+    override fun prepareSessionTask(block: suspend () -> Unit): Job =
+        scope.launch(start = CoroutineStart.LAZY) { block() }
 
     override fun close() { terminate(IOException("Session closed"), Connection.CLOSED) }
     override suspend fun awaitClosed() { owner.join() }

@@ -74,6 +74,7 @@ class ControllerConnection(
 
     private class Active(val session: MachineSession, val id: Long, val endpoint: ControllerEndpoint) {
         lateinit var connecting: Deferred<Unit>
+        var postConnect: Job? = null
         val observers = mutableListOf<Job>()
         var dropped = 0L
         var lastObservedSequence = 0L
@@ -86,7 +87,7 @@ class ControllerConnection(
     private var manualLifecycleIntent = 0L
 
     /** Startup shares the ordinary lifecycle lock and never replaces a manual operation. */
-    internal suspend fun connectAtStartup(endpoint: ControllerEndpoint) = connect(endpoint, automatic = true)
+    internal suspend fun connectAtStartup(endpoint: ControllerEndpoint) = establish(endpoint, automatic = true)
 
     internal fun startupFailed(error: Throwable) = synchronized(gate) {
         if (!closed && manualLifecycleIntent == 0L) mutableState.value = state.value.copy(
@@ -96,9 +97,12 @@ class ControllerConnection(
     }
 
     /** Explicit connect/switch; the old one-shot session is fully disposed before creating another. */
-    suspend fun connect(endpoint: ControllerEndpoint) = connect(endpoint, automatic = false)
+    suspend fun connect(endpoint: ControllerEndpoint, resetConfirmed: Boolean = false) {
+        check(!endpoint.postConnect.resetController || resetConfirmed) { "Confirm controller reset for this connection first" }
+        establish(endpoint, automatic = false)
+    }
 
-    private suspend fun connect(endpoint: ControllerEndpoint, automatic: Boolean) {
+    private suspend fun establish(endpoint: ControllerEndpoint, automatic: Boolean) {
         if (!automatic) synchronized(gate) { manualLifecycleIntent++ }
         val entry = lifecycle.withLock {
             if (automatic && synchronized(gate) { manualLifecycleIntent != 0L || active != null }) return
@@ -118,8 +122,14 @@ class ControllerConnection(
                 }
                 val id = ++nextSessionId
                 val entry = Active(session, id, endpoint)
+                val actions = endpoint.postConnect
+                if (actions.resetController || actions.queries().isNotEmpty()) {
+                    entry.postConnect = session.prepareSessionTask { runPostConnect(entry, automatic) }
+                }
                 active = entry
-                mutableState.value = ControllerConnectionState(endpoint, session.state.value)
+                mutableState.value = ControllerConnectionState(
+                    endpoint, session.state.value, postConnectPending = entry.postConnect != null,
+                )
                 // Subscribe before connect, including the first status query/banner in history.
                 entry.observers += scope.launch(start = CoroutineStart.UNDISPATCHED) {
                     session.communication.collect { event -> synchronized(gate) {
@@ -163,16 +173,27 @@ class ControllerConnection(
                         synchronized(gate) {
                             if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
                         }
+                        entry.postConnect?.start()
                     }
                     catch (error: Throwable) {
                         withContext(NonCancellable) { entry.close(); session.awaitClosed() }
                         synchronized(gate) {
-                            if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
+                            if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value, postConnectPending = false)
                         }
                         throw error
                     }
                 }
                 entry.connecting.start()
+                entry.postConnect?.let { task ->
+                    entry.observers += scope.launch {
+                        // Joining a lazy task starts it, so wait until handshake has started or disposed it.
+                        entry.connecting.join()
+                        task.join()
+                        synchronized(gate) {
+                            if (active === entry) mutableState.value = state.value.copy(postConnectPending = false)
+                        }
+                    }
+                }
                 entry
             }
         }
@@ -185,6 +206,48 @@ class ControllerConnection(
                 entry.session.awaitClosed()
             }
             throw error
+        }
+    }
+
+    /** One session owns all normal responses; failures never replay a query or imply transport loss. */
+    private suspend fun runPostConnect(entry: Active, automatic: Boolean) {
+        val session = entry.session
+        val actions = entry.endpoint.postConnect
+        fun result(text: String) = synchronized(gate) {
+            if (active === entry) mutableState.value = state.value.copy(
+                postConnectResults = state.value.postConnectResults + text,
+            )
+        }
+        if (actions.resetController && automatic) result("Controller reset skipped: startup has no operator consent.")
+        if (actions.resetController && !automatic) {
+            try { session.reset(); result("Controller reset synchronized.") }
+            catch (error: Exception) {
+                currentCoroutineContext().ensureActive()
+                result("Controller reset failed: ${error.message}. Queries skipped.")
+                return
+            }
+        }
+        val queries = actions.queries()
+        for ((index, query) in queries.withIndex()) {
+            currentCoroutineContext().ensureActive()
+            val snapshot = session.state.value
+            if (snapshot.connection != MachineSnapshot.Connection.CONNECTED || !snapshot.normalCommandsSynchronized ||
+                snapshot.resetRequired || snapshot.resetInProgress) {
+                result("$query and remaining queries skipped: normal command correlation unavailable.")
+                break
+            }
+            try {
+                val acknowledgment = session.executeLine(query)
+                result(if (acknowledgment.accepted) "$query acknowledged." else "$query rejected: error:${acknowledgment.errorCode}.")
+            } catch (error: Exception) {
+                // A delayed response may restore correlation before this coroutine observes the failure.
+                currentCoroutineContext().ensureActive()
+                result("$query failed: ${error.message}")
+                queries.getOrNull(index + 1)?.let { next ->
+                    result("$next and remaining queries skipped: previous query was interrupted.")
+                }
+                break
+            }
         }
     }
 
@@ -231,7 +294,7 @@ class ControllerConnection(
                     // Retain the last observation, but not the session's technical close reason.
                     snapshot = old.session.state.value.copy(connection = if (closed) MachineSnapshot.Connection.CLOSED
                         else MachineSnapshot.Connection.DISCONNECTED, failure = null),
-                    closing = false, manualCommandPending = false,
+                    closing = false, manualCommandPending = false, postConnectPending = false,
                 )
             }
         }
@@ -272,6 +335,7 @@ class ControllerConnection(
         } }
     }
     suspend fun sendRealtime(command: RealtimeCommand) {
+        if (command == RealtimeCommand.SOFT_RESET) return reset()
         val selected = synchronized(gate) {
             val current = session()
             if (command == RealtimeCommand.CYCLE_START) check(state.value.copy(snapshot = current.state.value).canCycleStart()) {
@@ -281,13 +345,23 @@ class ControllerConnection(
         }
         selected.sendRealtime(command)
     }
-    suspend fun reset() = session().reset()
+    suspend fun reset() {
+        val selected = synchronized(gate) { activeSession() }
+        val connection = selected.session.state.value.connection
+        if (connection != MachineSnapshot.Connection.CONNECTED) throw IOException("Session is $connection")
+        currentCoroutineContext().ensureActive()
+        // A completed reset can restore normal admission on this very session.
+        selected.postConnect?.cancelAndJoin()
+        selected.session.reset()
+    }
     suspend fun queryStatus() = session().queryStatus()
 
-    private fun session(): MachineSession = synchronized(gate) {
+    private fun session(): MachineSession = synchronized(gate) { activeSession().session }
+
+    private fun activeSession(): Active {
         checkOpen()
         if (state.value.closing) throw IOException("Controller connection is closing")
-        active?.session ?: throw IOException("No controller connected")
+        return active ?: throw IOException("No controller connected")
     }
 
     private fun checkOpen() { check(!closed && owner.isActive) { "Controller connection owner closed" } }
@@ -306,7 +380,10 @@ class ControllerConnection(
         active?.session?.awaitClosed()
         synchronized(gate) {
             active?.let { finishObservations(it) }
-            mutableState.value = state.value.copy(snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.CLOSED, failure = null), closing = false)
+            mutableState.value = state.value.copy(
+                snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.CLOSED, failure = null),
+                closing = false, postConnectPending = false,
+            )
         }
     }
 }

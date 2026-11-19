@@ -15,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import no.grblcommander.desktop.ui.navigation.SoftKeyTone
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
@@ -48,14 +50,15 @@ internal fun SoftkeyTile(
         // Snapshot reads occur in composition, including predicates retained by modifiers.
         val enabled = definition.enabled() && definition.action != null
         val active = definition.active()
-        val foreground = if (enabled) ShellColors.text else ShellColors.muted
+        val positive = enabled && definition.tone == SoftKeyTone.POSITIVE
+        val foreground = if (positive) Color.White else if (enabled) ShellColors.text else ShellColors.muted
         Column(
             modifier = modifier
                 .testTag("softkey-${slot.shortcut}")
                 .semantics { selected = active }
                 .border(1.dp, if (active) ShellColors.accent else ShellColors.outline, RoundedCornerShape(6.dp))
                 .background(
-                    if (active) ShellColors.header else ShellColors.key,
+                    if (positive) Color(0xFF1B5E20) else if (active) ShellColors.header else ShellColors.key,
                     androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
                 )
                 .clickable(enabled = enabled, role = Role.Button) {

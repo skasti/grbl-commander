@@ -8,7 +8,7 @@ data class SerialConfiguration(
     val stopBits: StopBits = StopBits.ONE,
     val parity: Parity = Parity.NONE,
     val flowControl: FlowControl = FlowControl.NONE,
-    val dtr: Boolean = false,
+    val dtr: Boolean = true,
     val rts: Boolean = false,
 ) {
     enum class StopBits { ONE, TWO }

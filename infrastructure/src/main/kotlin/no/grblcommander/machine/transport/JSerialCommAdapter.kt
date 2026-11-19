@@ -29,9 +29,9 @@ internal class JSerialCommAdapter(portName: String) : SerialPortAdapter {
         if (!port.setComPortParameters(configuration.baudRate, configuration.dataBits, stop, parity) ||
             !port.setFlowControl(flow) ||
             !port.setComPortTimeouts(SerialPort.TIMEOUT_NONBLOCKING, 0, 0)) return false
-        if (configuration.dtr) port.setDTR() else port.clearDTR()
-        if (configuration.rts) port.setRTS() else port.clearRTS()
-        if (!port.openPort()) return false
+        if (!openWithControlLines(configuration, port::openPort,
+                { if (it) port.setDTR() else port.clearDTR() },
+                { if (it) port.setRTS() else port.clearRTS() })) return false
         // isOpen alone does not detect USB unplug on every platform.
         return port.addDataListener(object : SerialPortDataListener {
             override fun getListeningEvents() = SerialPort.LISTENING_EVENT_PORT_DISCONNECTED

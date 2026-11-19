@@ -30,7 +30,7 @@ class TerminalPerformanceTest {
         val stack = ScreenStack(terminal)
         try {
             setContent { MaterialTheme { AppShell(ShellState.startup(), { stack }) { ScreenStackHost(stack) } } }
-            runBlocking { owner.connect(ControllerEndpoint.Tcp("localhost", 1234)) }
+            runBlocking { owner.connect(ControllerEndpoint.Tcp("localhost", 1234, no.grblcommander.core.connection.noPostConnectActions())) }
             val started = System.nanoTime()
             runBlocking {
                 repeat(625) { batch ->
