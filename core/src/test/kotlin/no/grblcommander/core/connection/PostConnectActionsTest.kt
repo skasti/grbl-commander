@@ -1,9 +1,12 @@
 package no.grblcommander.core.connection
 
+import java.io.IOException
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import no.grblcommander.configuration.ControllerEndpointPreferences
+import no.grblcommander.machine.session.CommandCorrelationException
 import no.grblcommander.machine.session.GrblMachineSession
+import no.grblcommander.machine.session.MachineSession
 import no.grblcommander.machine.session.MachineSnapshot.Connection
 import no.grblcommander.machine.session.RealtimeCommand
 import java.util.UUID
@@ -14,6 +17,185 @@ class PostConnectActionsTest {
     private fun scenario(test: suspend CoroutineScope.() -> Unit) = runBlocking {
         withTimeout(10_000) { supervisorScope { test() } }
     }
+    private val endpoint = ControllerEndpoint.Tcp("localhost", 1234)
+    private val replacement = ControllerEndpoint.Tcp("localhost", 2345, noPostConnectActions())
+
+    // Hold the real executeLine caller in cleanup after its command was interrupted.
+    private class HeldQuery {
+        val transport = ConnectionTestTransport()
+        val job = CompletableDeferred<Job>()
+        val cleaningUp = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val terminated = CompletableDeferred<Unit>()
+        lateinit var session: MachineSession
+            private set
+
+        fun sessionFor(scope: CoroutineScope): MachineSession {
+            val real = GrblMachineSession(transport, scope, commandTimeoutMillis = 60_000)
+            session = real
+            return object : MachineSession by real {
+                override suspend fun awaitClosed() {
+                    real.awaitClosed()
+                    terminated.complete(Unit)
+                }
+
+                override suspend fun executeLine(command: String) = try {
+                    job.complete(currentCoroutineContext().job)
+                    real.executeLine(command)
+                } finally {
+                    withContext(NonCancellable) {
+                        cleaningUp.complete(Unit)
+                        release.await()
+                    }
+                }
+            }
+        }
+    }
+
+    @Test fun disconnectWaitsForPostConnectTerminationAndThenAllowsReconnect() = scenario {
+        val first = HeldQuery()
+        val second = ConnectionTestTransport()
+        val replacementCreated = CompletableDeferred<Unit>()
+        lateinit var postConnectJob: Job
+        val owner = ControllerConnection(this, { endpoint, scope ->
+            if (endpoint == replacement) {
+                assertTrue(first.terminated.isCompleted, "Old session must be joined before replacement")
+                assertTrue(postConnectJob.isCompleted, "Old post-connect job must be terminated at factory entry")
+                replacementCreated.complete(Unit)
+                GrblMachineSession(second, scope)
+            } else first.sessionFor(scope)
+        })
+        try {
+            owner.connect(endpoint)
+            assertEquals("\$I\n", first.transport.nextNonStatusWrite())
+            postConnectJob = first.job.await()
+            val disconnecting = async { owner.disconnect() }
+            first.cleaningUp.await()
+            assertTrue(first.transport.closed)
+            assertTrue(first.job.await().isCancelled)
+            assertFalse(first.job.await().isCompleted)
+            assertFalse(disconnecting.isCompleted)
+
+            val reconnecting = async(start = CoroutineStart.UNDISPATCHED) { owner.connect(replacement) }
+            assertFalse(replacementCreated.isCompleted)
+            assertEquals(0, second.connectCount)
+            assertEquals(endpoint, owner.state.value.endpoint)
+            assertTrue(owner.state.value.closing)
+
+            first.release.complete(Unit)
+            disconnecting.await()
+            reconnecting.await()
+            assertTrue(first.job.await().isCompleted)
+            assertTrue(replacementCreated.isCompleted)
+            assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
+            assertEquals(replacement, owner.state.value.endpoint)
+            assertEquals(1, second.connectCount)
+            assertTrue(first.transport.drainWrites().all { it == "?" })
+        } finally { first.release.complete(Unit); owner.close(); owner.awaitClosed() }
+    }
+
+    @Test fun transportEofCancelsPostConnectAndSessionJoinWaitsForItsCleanup() = scenario {
+        val first = HeldQuery()
+        val owner = ControllerConnection(this, { _, scope -> first.sessionFor(scope) })
+        try {
+            owner.connect(endpoint)
+            assertEquals("\$I\n", first.transport.nextNonStatusWrite())
+            first.transport.disconnect()
+            first.cleaningUp.await()
+            val joined = async(start = CoroutineStart.UNDISPATCHED) { first.session.awaitClosed() }
+            assertTrue(first.job.await().isCancelled)
+            assertFalse(joined.isCompleted)
+            assertTrue(owner.state.value.postConnectPending)
+            assertTrue(first.transport.closed)
+
+            first.release.complete(Unit)
+            joined.await()
+            assertTrue(first.job.await().isCompleted)
+            owner.state.first { it.snapshot.connection == Connection.FAILED && !it.postConnectPending }
+            assertEquals(1, first.transport.closeCount)
+            assertTrue(first.transport.drainWrites().all { it == "?" })
+        } finally { first.release.complete(Unit); owner.close(); owner.awaitClosed() }
+    }
+
+    @Test fun resetWaitsForInterruptedPostConnectAndDoesNotResumeIt() = scenario {
+        val first = HeldQuery()
+        val owner = ControllerConnection(this, { _, scope -> first.sessionFor(scope) })
+        try {
+            owner.connect(endpoint)
+            assertEquals("\$I\n", first.transport.nextNonStatusWrite())
+            val resetting = async { owner.reset() }
+            first.cleaningUp.await()
+            assertTrue(first.job.await().isCancelled)
+            assertFalse(resetting.isCompleted)
+            assertTrue(first.transport.drainWrites().all { it == "?" }, "Reset must wait for query cleanup")
+
+            first.release.complete(Unit)
+            assertEquals("\u0018", first.transport.nextNonStatusWrite())
+            resetting.await()
+            assertTrue(first.job.await().isCompleted)
+            owner.state.first { !it.postConnectPending && it.snapshot.normalCommandsSynchronized }
+            assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
+            assertTrue(first.transport.drainWrites().all { it == "?" })
+        } finally { first.release.complete(Unit); owner.close(); owner.awaitClosed() }
+    }
+
+    @Test fun lateAcknowledgmentDrainsTimedOutQueryWithoutResumingSequenceOrCompletingLaterLine() = scenario {
+        val transport = ConnectionTestTransport()
+        val timedOut = CompletableDeferred<Unit>()
+        val resume = CompletableDeferred<Unit>()
+        lateinit var session: GrblMachineSession
+        val owner = ControllerConnection(this, { _, scope ->
+            session = GrblMachineSession(transport, scope, commandTimeoutMillis = 1_000)
+            object : MachineSession by session {
+                override suspend fun executeLine(command: String) = try {
+                    session.executeLine(command)
+                } catch (error: TimeoutCancellationException) {
+                    timedOut.complete(Unit)
+                    resume.await()
+                    throw error
+                }
+            }
+        })
+        try {
+            owner.connect(endpoint)
+            assertEquals("\$I\n", transport.nextNonStatusWrite())
+            timedOut.await()
+            assertFalse(session.state.value.normalCommandsSynchronized)
+            assertFailsWith<CommandCorrelationException> { session.executeLine("G0 X1") }
+            assertTrue(transport.drainWrites().all { it == "?" })
+
+            transport.emit("ok\r\n")
+            session.state.first { it.normalCommandsSynchronized }
+            resume.complete(Unit)
+            owner.state.first { !it.postConnectPending }
+            assertTrue(transport.drainWrites().all { it == "?" }, "Draining the old response must not resume post-connect")
+
+            val later = async { owner.executeLine("G0 X2") }
+            assertEquals("G0 X2\n", transport.nextNonStatusWrite())
+            assertFalse(later.isCompleted)
+            transport.emit("error:2\r\n")
+            assertEquals(2, later.await().errorCode)
+        } finally { resume.complete(Unit); owner.close(); owner.awaitClosed() }
+    }
+
+    @Test fun successfulQueriesWaitForEachAcknowledgmentAndRunOnceInOrder() = scenario {
+        val transport = ConnectionTestTransport()
+        val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope) })
+        try {
+            owner.connect(endpoint)
+            val queries = listOf("\$I", "$#", "\$G")
+            for (query in queries) {
+                assertEquals("$query\n", transport.nextNonStatusWrite())
+                assertTrue(owner.state.value.postConnectPending)
+                assertTrue(transport.drainWrites().all { it == "?" })
+                transport.emit("ok\r\n")
+            }
+            val finished = owner.state.first { !it.postConnectPending }
+            assertEquals(queries.map { "$it acknowledged." }, finished.postConnectResults)
+            assertTrue(transport.drainWrites().all { it == "?" })
+        } finally { owner.close(); owner.awaitClosed() }
+    }
+
     @Test fun orderedQueriesAndUnsupportedExtension() = scenario {
         val transport = ConnectionTestTransport().apply {
             onWrite = { line -> if (line.endsWith('\n')) emit(if (line == "\$I+\n") "error:3\r\n" else "[MSG:metadata]\r\nok\r\n") }
