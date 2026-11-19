@@ -19,14 +19,11 @@ import no.grblcommander.desktop.ui.controls.*
 /** One inline edit, owned by the form until Apply, Enter or Cancel. */
 internal class ConnectionTextInput(initial: String, numeric: Boolean) {
     var value by mutableStateOf(TextFieldValue(initial, TextRange(0, initial.length)))
-    val keyboard = KeyClusterState(if (numeric) KeypadLayout("Numbers", gapsBeforeColumns = mapOf(3 to .60f), pages = listOf(
-        listOf("7", "8", "9", "⌫", "4", "5", "6", "", "1", "2", "3", "", "", "0", "", "↵")
-            .mapIndexedNotNull { index, text -> text.takeIf { it.isNotEmpty() }?.let { index to key(it) } }.toMap(),
-    )) else KeypadLayout("Address", columns = 8, rows = 4, pages = listOf(
-        "abcdefghijklmnopqrstuvwxyz.-:/_".map(Char::toString) + "⌫",
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123".map(Char::toString) + listOf("⌫", "↵"),
-        "456789[]\\@%+~".map(Char::toString) + listOf("⌫", "↵"),
-    ).map { page -> page.mapIndexed { i, text -> i to key(text) }.toMap() }))
+    val keypads = if (numeric) {
+        listOf(KeyClusterState(digits))
+    } else {
+        listOf(KeyClusterState(letters), KeyClusterState(addressSymbols))
+    }
 
     @Composable
     fun Field(label: String) {
@@ -48,9 +45,36 @@ internal class ConnectionTextInput(initial: String, numeric: Boolean) {
         editWithKeypad(value, action, { value = it }, apply)
     }
 
-    private fun key(text: String) = KeypadKey(text, when (text) {
-        "⌫" -> KeypadAction.Backspace
-        "↵" -> KeypadAction.Enter
-        else -> KeypadAction.Insert(text)
-    })
+    private companion object {
+        val digits = KeypadLayout("Numbers", gapsBeforeColumns = mapOf(3 to .60f), pages = listOf(
+            page("7", "8", "9", "⌫",
+                "4", "5", "6", "",
+                "1", "2", "3", "",
+                "", "0", "", "↵"),
+        ))
+
+        val letters = KeypadLayout("Address", columns = 8, pages = listOf(
+            page(*"abcdefghijklmnopqrstuvwxyz".map(Char::toString).toTypedArray()),
+            page(*"ABCDEFGHIJKLMNOPQRSTUVWXYZ".map(Char::toString).toTypedArray()),
+        ))
+
+        val addressSymbols = KeypadLayout("Address symbols", rows = 3, columns = 8,
+            gapsBeforeColumns = mapOf(7 to .60f), pages = listOf(
+                page("7", "8", "9", "0", ".", "-", ":", "⌫",
+                    "4", "5", "6", "/", "_", "[", "]", "\\",
+                    "1", "2", "3", "@", "%", "+", "~", "↵"),
+            ),
+        )
+
+        fun page(vararg labels: String): Map<Int, KeypadKey> =
+            labels.mapIndexedNotNull { index, label ->
+                val action = when (label) {
+                    "" -> return@mapIndexedNotNull null
+                    "⌫" -> KeypadAction.Backspace
+                    "↵" -> KeypadAction.Enter
+                    else -> KeypadAction.Insert(label)
+                }
+                index to KeypadKey(label, action)
+            }.toMap()
+    }
 }

@@ -325,7 +325,7 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
                     }
                     edit?.let { current ->
                         KeypadPanel(
-                            listOf(current.input.keyboard),
+                            current.input.keypads,
                             onAction = { current.input.handle(it, ::applyEdit) },
                             modifier = Modifier.widthIn(max = keypadWidth),
                         )

@@ -270,7 +270,7 @@ it does not imply coverage of all application screens.
 | `connection-port-discovery-*` | Loading, empty and failed serial discovery |
 | `connection-port-page-*`, `connection-port-single-page` | Six numbered device rows, paging/wrap and a partial final page; single-page bank |
 | `connection-baud-page-*` | Both pages of the production common-baud selector |
-| `connection-device-input`, `connection-host-input*` | Inline device entry and all three address keypad pages |
+| `connection-device-input`, `connection-host-input*` | Inline device entry and both address letter pages, with a separate keypad for digits and symbols |
 | `connection-port-input`, `connection-custom-baud-input` | Inline numeric entry for TCP port and custom baud |
 | `connection-advanced-*` | Four grouped combinations cover every data-bit/parity/stop/flow value and both control-line levels, plus discard confirmation |
 | `connection-post-connect-all-*`, `connection-post-connect-extended` | Grouped all-off/all-on choices and extended firmware query |

@@ -455,7 +455,9 @@ alignment inside the field decoration; the entire 48 dp prompt is a focus target
 Connection settings retain a complete serial/TCP draft separate from the active
 endpoint. Selecting a field enables native text editing, selection and paste in
 place, with a touch keypad to its right. Numeric fields use a digit map.
-Hostname and device fields include letters, digits and path/IP punctuation.
+Hostname and device fields stack a two-page letter keypad (lowercase and uppercase)
+above a separate single-page keypad for digits, path/IP punctuation, Backspace
+and Enter.
 F7 or keypad Enter applies the field to the draft. F8 cancels the edit. The
 form remains visible with the field-edit softkeys until the edit closes.
 
