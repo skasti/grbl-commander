@@ -46,14 +46,14 @@ internal class ConnectionTextInput(initial: String, numeric: Boolean) {
     }
 
     private companion object {
-        val digits = KeypadLayout("Numbers", gapsBeforeColumns = mapOf(3 to .60f), pages = listOf(
+        val digits = KeypadLayout("NUM", gapsBeforeColumns = mapOf(3 to .60f), pages = listOf(
             page("7", "8", "9", "⌫",
                 "4", "5", "6", "",
                 "1", "2", "3", "",
                 "", "0", "", "↵"),
         ))
 
-        val letters = KeypadLayout("Address", rows = 3, columns = 10, pages = listOf(
+        val letters = KeypadLayout("QWERTY", rows = 3, columns = 10, pages = listOf(
             letterPage("qwertyuiop", "asdfghjkl", "zxcvbnm"),
             letterPage("QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"),
         ))

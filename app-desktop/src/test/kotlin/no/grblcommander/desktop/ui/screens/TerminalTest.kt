@@ -65,7 +65,7 @@ class TerminalTest {
         Fixture().use { f ->
             host(f)
             val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
-                onNodeWithTag("keypad-123-$it").fetchSemanticsNode().boundsInRoot.center
+                onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
             }
             positions.forEach { position ->
                 onRoot().performMouseInput { animateMoveTo(position, durationMillis = 250) }
@@ -83,7 +83,7 @@ class TerminalTest {
         Fixture().use { f ->
             host(f)
             val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
-                onNodeWithTag("keypad-123-$it").fetchSemanticsNode().boundsInRoot.center
+                onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
             }
             onRoot().performMouseInput {
                 moveTo(positions.first())
@@ -103,7 +103,7 @@ class TerminalTest {
         Fixture().use { f ->
             host(f)
             val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
-                onNodeWithTag("keypad-123-$it").fetchSemanticsNode().boundsInRoot.center
+                onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
             }
             onRoot().performTouchInput {
                 positions.forEach { position ->
@@ -120,7 +120,7 @@ class TerminalTest {
         Fixture().use { f ->
             host(f)
             val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
-                onNodeWithTag("keypad-123-$it").fetchSemanticsNode().boundsInRoot.center
+                onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
             }
             onRoot().performMouseInput {
                 moveTo(positions.first())
@@ -163,41 +163,41 @@ class TerminalTest {
     @Test fun `touch Enter shares physical and IME admission and pages survive navigation`() = runAtScreenshotSizes { screenshot ->
         Fixture().use { f ->
             f.connect(); hostApplication(f)
-            onNodeWithText("ABC 1/2 ▸").assertExists()
-            onNodeWithText("123 1/2 ▸").assertExists()
+            onNodeWithText("CODE 1/2 ▸").assertExists()
+            onNodeWithText("NUM+ 1/2 ▸").assertExists()
             screenshot("terminal")
             onNodeWithTag("terminal-prompt").performClick().performTextInput("\$I")
-            onNodeWithTag("keypad-ABC-next").performClick()
-            onNodeWithTag("keypad-123-next").assertIsDisplayed().performClick()
+            onNodeWithTag("keypad-CODE-next").performClick()
+            onNodeWithTag("keypad-NUM+-next").assertIsDisplayed().performClick()
             onNodeWithTag("terminal-prompt").assertIsFocused()
-            onNodeWithText("ABC 2/2 ▸").assertExists()
-            onNodeWithText("123 2/2 ▸").assertExists()
+            onNodeWithText("CODE 2/2 ▸").assertExists()
+            onNodeWithText("NUM+ 2/2 ▸").assertExists()
             screenshot("terminal-page-2")
-            onNodeWithTag("keypad-123-15").assertIsDisplayed().performClick()
+            onNodeWithTag("keypad-NUM+-15").assertIsDisplayed().performClick()
             assertEquals("\$I\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
             enter()
             onNodeWithTag("terminal-prompt").performImeAction()
-            onNodeWithTag("keypad-123-15").assertIsDisplayed().performClick()
+            onNodeWithTag("keypad-NUM+-15").assertIsDisplayed().performClick()
             runOnIdle { assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND }) }
             onNodeWithTag("softkey-R7").performClick()
             onNodeWithTag("softkey-R7").performClick()
-            onNodeWithText("ABC 2/2 ▸").assertExists()
-            onNodeWithText("123 2/2 ▸").assertExists()
+            onNodeWithText("CODE 2/2 ▸").assertExists()
+            onNodeWithText("NUM+ 2/2 ▸").assertExists()
             onNode(hasText("MDI") and hasClickAction()).performClick()
             onNodeWithText("• MDI").assertIsSelected()
             onNodeWithText("Unsent text").performClick().performTextInput("G0 X1")
-            onNodeWithTag("keypad-123-15").assertIsDisplayed().performClick()
+            onNodeWithTag("keypad-NUM+-15").assertIsDisplayed().performClick()
             onNodeWithText("Unsent text").performTextInput("M2")
             onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G0 X1\nM2")))
             screenshot("mdi")
-            onNodeWithTag("keypad-ABC-next").performClick()
-            onNodeWithTag("keypad-123-next").assertIsDisplayed().performClick()
-            onNodeWithText("ABC 2/2 ▸").assertExists()
-            onNodeWithText("123 2/2 ▸").assertExists()
+            onNodeWithTag("keypad-CODE-next").performClick()
+            onNodeWithTag("keypad-NUM+-next").assertIsDisplayed().performClick()
+            onNodeWithText("CODE 2/2 ▸").assertExists()
+            onNodeWithText("NUM+ 2/2 ▸").assertExists()
             screenshot("mdi-page-2")
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
-            onNodeWithText("ABC 2/2 ▸").assertExists()
-            onNodeWithText("123 2/2 ▸").assertExists()
+            onNodeWithText("CODE 2/2 ▸").assertExists()
+            onNodeWithText("NUM+ 2/2 ▸").assertExists()
             runOnIdle { assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND }) }
         }
     }
@@ -208,10 +208,10 @@ class TerminalTest {
             onNodeWithTag("terminal-prompt").performClick().performTextInput("G1X100F500")
             enter()
             assertEquals("G1X100F500\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
-            onNodeWithTag("keypad-ABC-2").performTouchInput { down(center) }
+            onNodeWithTag("keypad-CODE-2").performTouchInput { down(center) }
             runBlocking { f.transport.emit("ok\n") }
             waitUntil(timeoutMillis = 5_000) { f.terminal.prompt.text.isEmpty() }
-            onNodeWithTag("keypad-ABC-2").performTouchInput { up() }
+            onNodeWithTag("keypad-CODE-2").performTouchInput { up() }
             onNodeWithTag("terminal-prompt").assertPromptText("G")
         }
     }
@@ -223,7 +223,7 @@ class TerminalTest {
             enter()
             assertEquals("G1X100F500\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
             onNodeWithTag("terminal-prompt").performTextClearance()
-            onNodeWithTag("keypad-ABC-2").performTouchInput { click() }
+            onNodeWithTag("keypad-CODE-2").performTouchInput { click() }
             onNodeWithTag("terminal-prompt").performTextInput("X")
             runBlocking { f.transport.emit("ok\n") }
             waitUntil(timeoutMillis = 5_000) { !f.owner.state.value.manualCommandPending }
@@ -239,7 +239,7 @@ class TerminalTest {
                 onNodeWithTag("keypad-$it").performMouseInput { click() }
             }
             onNodeWithTag("terminal-prompt").assertPromptText("G1X100F500")
-            onNodeWithTag("keypad-123-15").performMouseInput { click() }
+            onNodeWithTag("keypad-NUM+-15").performMouseInput { click() }
             assertEquals("G1X100F500\n", runBlocking { withTimeout(5_000) { f.transport.nextNonStatusWrite() } })
             f.transport.statusReport = "<Run|MPos:1,0,0>"
             runBlocking { f.transport.emit("ok\n" + f.transport.statusReport + "\n") }
@@ -247,7 +247,7 @@ class TerminalTest {
             f.transport.statusReport = "<Idle|MPos:100,0,0>"
             runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
             waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Idle" }
-            onNodeWithTag("keypad-ABC-2").performMouseInput { click() }
+            onNodeWithTag("keypad-CODE-2").performMouseInput { click() }
             onNodeWithTag("terminal-prompt").assertPromptText("G")
         }
     }
@@ -256,7 +256,7 @@ class TerminalTest {
         Fixture().use { f ->
             f.active = f.other
             host(f)
-            onNodeWithTag("keypad-ABC-2").performMouseInput { click() }
+            onNodeWithTag("keypad-CODE-2").performMouseInput { click() }
             onNode(hasSetTextAction()).assertPromptText("G")
         }
     }
@@ -297,8 +297,8 @@ class TerminalTest {
                 runBlocking { f.transport.emit(f.transport.statusReport + "\n") }
                 waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Idle" }
             }
-            if (mouse) onNodeWithTag("keypad-ABC-2").performMouseInput { click() }
-            else if (touch) onNodeWithTag("keypad-ABC-2").performTouchInput { click() }
+            if (mouse) onNodeWithTag("keypad-CODE-2").performMouseInput { click() }
+            else if (touch) onNodeWithTag("keypad-CODE-2").performTouchInput { click() }
             else onNodeWithTag("terminal-prompt").performTextInput("G")
             val expected = "G"
             onNodeWithTag("terminal-prompt").assertPromptText(expected).assertIsFocused()

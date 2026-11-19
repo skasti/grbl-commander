@@ -454,9 +454,10 @@ alignment inside the field decoration; the entire 48 dp prompt is a focus target
 
 Connection settings retain a complete serial/TCP draft separate from the active
 endpoint. Selecting a field enables native text editing, selection and paste in
-place, with a touch keypad to its right. Numeric fields use a digit map.
+place, with a touch keypad to its right. Numeric fields use the single-page NUM keypad.
 Hostname and device fields stack a two-page QWERTY keypad (lowercase and uppercase)
-above the same independently paged number keypad used by Terminal and MDI. Both
+above NUM+, the same independently paged number and symbol keypad used alongside
+CODE in Terminal and MDI. Both
 letter pages have a double-width Space key beside N and M. Characters outside the
 touch keymaps can be entered with the physical keyboard or pasted.
 F7 or keypad Enter applies the field to the draft. F8 cancels the edit. The
