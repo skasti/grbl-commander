@@ -10,9 +10,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import no.grblcommander.desktop.ui.layout.LocalGridUnit
 import kotlin.math.ceil
-import kotlin.math.floor
 
 internal val keypadPanelMargin = 30.dp
 
@@ -23,8 +24,9 @@ fun GCodeKeyboard(
     modifier: Modifier = Modifier,
     letters: KeyClusterState = remember { KeyClusterState(GCodeKeymaps.letters) },
     numbers: KeyClusterState = remember { KeyClusterState(GCodeKeymaps.numbers) },
+    keySize: Dp = LocalGridUnit.current,
 ) {
-    KeypadPanel(listOf(letters, numbers), onAction, modifier)
+    KeypadPanel(listOf(letters, numbers), onAction, modifier, keySize)
 }
 
 @Composable
@@ -32,37 +34,30 @@ internal fun KeypadPanel(
     clusters: List<KeyClusterState>,
     onAction: (KeypadAction) -> Unit,
     modifier: Modifier = Modifier,
+    keySize: Dp = LocalGridUnit.current,
 ) {
     BoxWithConstraints(modifier, contentAlignment = Alignment.BottomEnd) {
         val density = LocalDensity.current
-        val minimum = with(density) { ceil(44.dp.toPx()).toInt() }
-        val maximum = with(density) { floor(72.dp.toPx()).toInt() }
-        val pageHeight = minimum
+        val keyPixels = with(density) { keySize.roundToPx() }
+        val pageHeight = with(density) { ceil(44.dp.toPx()).toInt() }
         val pageControlCount = clusters.count { it.layout.pages.size > 1 }
         val pageControlsHeight = pageControlCount * pageHeight
         val clusterGaps = clusters.size - 1
-        fun gridsHeight(size: Int) = clusters.sumOf { it.layout.heightInPixels(size) }
-        fun gridsWidth(size: Int) = clusters.maxOf { it.layout.widthInPixels(size) }
+        val contentWidth = clusters.maxOf { it.layout.widthInPixels(keyPixels) }
+        val gridsHeight = clusters.sumOf { it.layout.heightInPixels(keyPixels) }
+        val compactHeight = gridsHeight + pageControlsHeight
         val preferredMargin = with(density) { keypadPanelMargin.roundToPx() }
-        val horizontalMargin = minOf(preferredMargin, (constraints.maxWidth - gridsWidth(minimum)).coerceAtLeast(0) / 2)
-        val minimumHeight = gridsHeight(minimum) + pageControlsHeight
-        val verticalMargin = minOf(preferredMargin, (constraints.maxHeight - minimumHeight).coerceAtLeast(0) / 2)
+        val horizontalMargin = minOf(preferredMargin, (constraints.maxWidth - contentWidth).coerceAtLeast(0) / 2)
+        val verticalMargin = minOf(preferredMargin, (constraints.maxHeight - compactHeight).coerceAtLeast(0) / 2)
         val availableWidth = constraints.maxWidth - 2 * horizontalMargin
         val availableHeight = constraints.maxHeight - 2 * verticalMargin
-        // Fit the largest square using compact outer spacing, never changing keymap gaps.
-        val keyPixels = (maximum downTo minimum).firstOrNull { size ->
-            gridsWidth(size) <= availableWidth &&
-                gridsHeight(size) + pageControlsHeight <= availableHeight
-        } ?: minimum
-        val spareHeight = (availableHeight - gridsHeight(keyPixels) - pageControlsHeight).coerceAtLeast(0)
+        val spareHeight = (availableHeight - compactHeight).coerceAtLeast(0)
         val pageSpacingPixels = if (pageControlCount == 0) 0 else
             minOf(with(density) { 8.dp.roundToPx() }, spareHeight / pageControlCount)
         val clusterSpacingPixels = minOf(with(density) { 16.dp.roundToPx() },
             (spareHeight - pageControlCount * pageSpacingPixels) / clusterGaps.coerceAtLeast(1))
-        val keySize = with(density) { keyPixels.toDp() }
         val pageSpacing = with(density) { pageSpacingPixels.toDp() }
-        val contentWidth = gridsWidth(keyPixels)
-        val contentHeight = gridsHeight(keyPixels) + pageControlCount * (pageHeight + pageSpacingPixels) + clusterGaps * clusterSpacingPixels
+        val contentHeight = compactHeight + pageControlCount * pageSpacingPixels + clusterGaps * clusterSpacingPixels
         val scrollVertically = contentHeight > availableHeight
         val scrollHorizontally = contentWidth > availableWidth
         // Separate scroll containers expose each axis correctly when a custom map or viewport cannot fit.
@@ -76,7 +71,7 @@ internal fun KeypadPanel(
             ) {
                 clusters.forEachIndexed { index, cluster ->
                     if (index > 0) Spacer(Modifier.height(with(density) { clusterSpacingPixels.toDp() }))
-                    KeyCluster(cluster, keySize, onAction, pageSpacing = pageSpacing)
+                    KeyCluster(cluster, onAction, keySize = keySize, pageSpacing = pageSpacing)
                 }
             }
         }

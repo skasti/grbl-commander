@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import no.grblcommander.desktop.ui.layout.LocalGridUnit
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -30,9 +31,9 @@ import kotlin.math.roundToInt
 @Composable
 fun KeyCluster(
     state: KeyClusterState,
-    keySize: Dp,
     onAction: (KeypadAction) -> Unit,
     modifier: Modifier = Modifier,
+    keySize: Dp = LocalGridUnit.current,
     pageSpacing: Dp = 8.dp,
 ) {
     val layout = state.layout

@@ -878,11 +878,15 @@ Reusable components include:
 
 The implemented touch keyboard lives in `ui.controls`. `GCodeKeyboard` composes
 independent `KeyCluster` grids stacked vertically in a right-hand workspace panel,
-leaving the console/editor its full height. Keys are square, 44–72 dp, and the
-combined panel is bottom-aligned. Responsive outer spacing fits the default maps
-at the minimum 1024×720 content viewport while preserving configured grid gaps.
-Oversized custom maps or smaller viewports scroll instead of shrinking keys.
-It uses `KeypadLayout` snapshots and screen-local
+leaving the console/editor its full height. `AppShell` provides
+`ui.layout.LocalGridUnit` for proportional workspace layouts. The layout package
+fits fixed reference dimensions within 65% of the workspace width and 75% of its
+height, yielding a 44–72 dp unit independently of controls and keymaps. Each
+standard keypad key occupies one grid unit per side. Keypad renderers accept
+explicit instance overrides. Each screen determines its actual keypad space.
+The panel fits the default keymaps at the minimum 1024×720 viewport by adjusting
+outer spacing and scrolls where the grids exceed the available bounds. The
+keyboard uses `KeypadLayout` snapshots and screen-local
 `KeyClusterState`. Terminal and MDI consume these generic controls and explicitly
 bind editing/Enter to their own inputs. Terminal reuses guarded manual submission;
 MDI inserts local newline/EOB without execution. Keymaps and spacing are data;

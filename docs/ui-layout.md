@@ -463,9 +463,9 @@ touch keymaps can be entered with the physical keyboard or pasted.
 F7 or keypad Enter applies the field to the draft. F8 cancels the edit. The
 form remains visible with the field-edit softkeys until the edit closes.
 
-The keypad uses the same responsive sizing as Terminal and MDI: square keys
-from 44 to 72 dp and gaps of 30% of the key size. The numeric action column
-uses a 60% gap. The form and keypad scroll as needed on small viewports.
+NUM, NUM+ and QWERTY use the same workspace grid unit as Terminal and MDI. Switching
+between numeric and text fields keeps the standard key dimensions. The form and
+keypad scroll as needed on constrained viewports.
 
 | Slot | Serial | TCP |
 | --- | --- | --- |
@@ -562,33 +562,54 @@ has a green background, both with white symbols. Colors follow the typed action
 rather than the label or position, including custom keymaps. `*` and `+` stay at
 slots 7 and 11.
 
-Keys remain square with a clickable size of **44–72 dp**. The shared size is the
-largest whole-pixel value fitting both cluster widths and their combined grid
-height plus 44 dp for each cluster with multiple pages. Single-page clusters
-display only their keys. Each key and spacer is measured with the
-same pixel rounding as Compose; the lower size bound rounds upward and the upper
-bound downward. Configured ordinary row/column gaps remain 30% of key size, with
-a total 60% gap before numeric column four. Changing pages does not change size.
+`AppShell` provides `ui.layout.LocalGridUnit` for proportional Compose layouts.
+It chooses the largest whole-pixel grid unit within **44–72 dp** that satisfies
+fixed reference dimensions within **65%** of the main workspace width and
+**75%** of its height. The workspace excludes the header, both softkey banks
+and native window decorations. The unit falls back to the 44 dp minimum when
+the reference does not fit. Resizing the window updates the unit. Switching
+screens, fields or pages keeps it stable.
 
-The shared keypad container aims for **30 dp** around the whole group. Each axis
-reduces its margin symmetrically only as far as needed to fit the minimum-size
-keys and page controls. The gap above each page control ranges from 0 to 8 dp
-and the gap between clusters ranges from 0 to 16 dp. Spare height restores these
-gaps up to their caps. The clusters share a right edge inside the panel. The
-group aligns to the bottom right of the viewport when it fits.
+The fixed reference dimensions are calibrated to QWERTY stacked above NUM+:
 
-At the minimum supported **1024×720 viewport**, Terminal and MDI have 532 dp of
-height for the panel. At 1× scale, the two 44 dp clusters and their page controls
-need 518 dp, leaving a 7 dp vertical panel margin on each side. The full group
-remains visible. Terminal and MDI allow up to 40% of workspace width, capped at
-400 dp, for the keys and page controls, with the margin outside that budget.
-Larger viewports grow keys up to 72 dp.
+- **Width** is 12.7 units before rounding. QWERTY has ten columns and nine
+  gaps of 0.3 units. Its spanning Space key occupies two columns and the
+  intervening gap within that footprint. NUM+ has four columns, two 0.3-unit
+  gaps and one 0.6-unit gap, for a width of 5.2 units.
+- **Height** is 8.5 units before rounding. The two clusters have seven rows
+  in total and five internal gaps of 0.3 units. The fixed vertical allowance
+  totals 120 dp before pixel rounding. It covers two 44 dp page controls, two
+  8 dp gaps above them and one 16 dp gap between the clusters.
 
-The viewport dimensions describe available Compose content at its logical dp
-size, excluding window decorations. When the group cannot fit at 44 dp even
-after reducing the margin, the panel scrolls on the constrained axis.
-Native display
-scaling can reduce the available logical viewport; it does not reduce key dp size.
+The calculation rounds each gap and each fixed dimension separately to match
+Compose measurement. Page control heights round up to meet their 44 dp minimum.
+`ui.layout` owns the fixed dimensions. Keypad controls consume the resulting
+unit, and changing a keymap alone leaves the shared grid unit stable.
+
+A standard keypad key is **1 × 1 grid unit**, excluding gaps. Compose layouts
+can use `LocalGridUnit.current * 0.5f` for a margin or
+`LocalGridUnit.current * 0.3f` for spacing. `GCodeKeyboard`, `KeypadPanel` and
+`KeyCluster` default to the shared unit. Passing `keySize` explicitly sizes
+that instance. The budget only determines the unit. Each keypad panel uses
+the actual space its screen provides.
+
+Configured ordinary row and column gaps default to 30% of the rendered key
+size, with a total 60% gap before the numeric action column. A spanning key
+includes the rounded gaps between its columns.
+
+The keypad panel aims for **30 dp** around the group and reduces the margin
+symmetrically on a constrained axis. Its page controls have a 44 dp minimum
+height, with up to 8 dp of space above each and up to 16 dp between clusters,
+depending on available height. The clusters share a right edge, and the group
+aligns to the bottom right of the panel when it fits. The panel scrolls on
+each axis where the grids and page controls exceed the available space at the
+shared size.
+
+At the minimum supported **1024×720 viewport**, Terminal and MDI have 532 dp
+of height for the panel. At 1× scale, their two 44 dp grids and page controls
+need 518 dp, leaving 7 dp for each vertical margin. Terminal and MDI allow up
+to 40% of workspace width, capped at 400 dp, for the keys and page controls,
+with the margin outside that budget.
 
 `KeypadLayout` is a copied configuration snapshot with rows/columns, a list of
 row-major slot maps, labels, typed actions, ordinary spacing and optional total

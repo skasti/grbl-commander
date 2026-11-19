@@ -3,12 +3,14 @@ package no.grblcommander.desktop.ui.layout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.handleSoftKeyEvent
@@ -26,6 +28,10 @@ internal object ShellColors {
     val accent = Color(0xFF56BBEF)
 }
 
+private val headerHeight = 78.dp
+private val bottomBankHeight = 94.dp
+private val rightBankWidth = 142.dp
+
 @Composable
 fun AppShell(
     state: ShellState,
@@ -36,21 +42,31 @@ fun AppShell(
     val liveStack = rememberUpdatedState(currentStack)
     val stack = currentStack()
     val pressedKeys = remember { mutableSetOf<androidx.compose.ui.input.key.Key>() }
-    Column(Modifier.fillMaxSize().background(ShellColors.frame)
-        .onPreviewKeyEvent { handleSoftKeyEvent(it, liveStack.value, pressedKeys) }) {
-        ShellHeader(state, Modifier.fillMaxWidth().height(78.dp), headerControls)
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val gridUnit = with(LocalDensity.current) {
+            val workspaceWidth = (constraints.maxWidth - rightBankWidth.roundToPx()).coerceAtLeast(0)
+            val workspaceHeight = (constraints.maxHeight - headerHeight.roundToPx() - bottomBankHeight.roundToPx())
+                .coerceAtLeast(0)
+            workspaceGridUnit(workspaceWidth, workspaceHeight)
+        }
+        CompositionLocalProvider(LocalGridUnit provides gridUnit) {
+            Column(Modifier.fillMaxSize().background(ShellColors.frame)
+                .onPreviewKeyEvent { handleSoftKeyEvent(it, liveStack.value, pressedKeys) }) {
+                ShellHeader(state, Modifier.fillMaxWidth().height(headerHeight), headerControls)
 
-        Row(Modifier.fillMaxSize()) {
-            Column(Modifier.weight(1f).fillMaxHeight()) {
-                Box(
-                    modifier = Modifier.weight(1f).fillMaxWidth().background(ShellColors.workspace),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    content()
+                Row(Modifier.fillMaxSize()) {
+                    Column(Modifier.weight(1f).fillMaxHeight()) {
+                        Box(
+                            modifier = Modifier.weight(1f).fillMaxWidth().background(ShellColors.workspace),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            content()
+                        }
+                        BottomSoftkeys(stack, { liveStack.value() }, Modifier.fillMaxWidth().height(bottomBankHeight))
+                    }
+                    RightSoftkeys(stack, { liveStack.value() }, Modifier.width(rightBankWidth).fillMaxHeight())
                 }
-                BottomSoftkeys(stack, { liveStack.value() }, Modifier.fillMaxWidth().height(94.dp))
             }
-            RightSoftkeys(stack, { liveStack.value() }, Modifier.width(142.dp).fillMaxHeight())
         }
     }
 }
