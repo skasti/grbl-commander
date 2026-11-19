@@ -71,7 +71,7 @@ class KeyboardLayoutTest {
                     assertTrue(first.top - 78f > 8f, "Excess height stays above the combined panel")
                     assertTrue(numbersFirst.top - lettersFooter.bottom <= 16.1f, "Excess height must not separate clusters")
                 }
-                for (cluster in listOf("ABC", "123")) {
+                for (cluster in listOf("CODE", "NUM+")) {
                     for (slot in 0 until 16) {
                         val bounds = onNodeWithTag("keypad-$cluster-$slot").assertHasClickAction().bounds()
                         assertTrue(bounds.width in 43.99f..72.01f, "$cluster/$slot width: $bounds")
@@ -82,7 +82,7 @@ class KeyboardLayoutTest {
                         assertTrue(bounds.left >= field.right && bounds.right <= right.left - 39f, "Key must stay beside input, inside workspace")
                         if (slot % 4 > 0) {
                             val previous = onNodeWithTag("keypad-$cluster-${slot - 1}").bounds()
-                            val factor = if (cluster == "123" && slot % 4 == 3) .6f else .3f
+                            val factor = if (cluster == "NUM+" && slot % 4 == 3) .6f else .3f
                             assertEquals(bounds.width * factor, bounds.left - previous.right, .6f, "Configured column spacing")
                         }
                         if (slot >= 4) {
