@@ -22,7 +22,6 @@ import java.util.UUID
 import java.util.prefs.Preferences
 import kotlin.test.*
 import kotlin.math.ceil
-import kotlin.math.floor
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalTestApi::class)
@@ -30,15 +29,18 @@ class KeyboardLayoutTest {
     @Test fun `terminal and MDI keyboard stay inside workspace at 1024 by 768`() = verifyLayout(1024f, 768f)
     @Test fun `terminal and MDI keyboard stay inside workspace at 1024 by 720`() = verifyLayout(1024f, 720f)
     @Test fun `terminal and MDI keyboard stay inside workspace at 1280 by 720`() = verifyLayout(1280f, 720f)
-    @Test fun `terminal and MDI keyboard stay inside workspace at 1680 by 1050`() = verifyLayout(1680f, 1050f)
-    @Test fun `terminal and MDI keyboard stay inside workspace at 1920 by 1080`() = verifyLayout(1920f, 1080f)
-    @Test fun `terminal and MDI keyboard stay inside workspace at 2560 by 1440`() = verifyLayout(2560f, 1440f)
+    @Test fun `terminal and MDI keyboard stay inside workspace at 1680 by 1050`() = verifyLayout(1680f, 1050f, keyDp = 63)
+    @Test fun `terminal and MDI keyboard stay inside workspace at 1920 by 1080`() = verifyLayout(1920f, 1080f, keyDp = 65)
+    @Test fun `terminal and MDI keyboard stay inside workspace at 2560 by 1440`() = verifyLayout(2560f, 1440f, keyDp = 72)
+
+    @Test fun `72 dp fits both the calculation budget and actual layouts at 1560 by 1152`() =
+        verifyLayout(1560f, 1152f, keyDp = 72)
 
     @Test fun `minimum logical viewport preserves 44 dp keys at fractional display density`() = verifyLayout(1024f, 720f, 1.25f)
 
     @Test fun `minimum logical viewport preserves minimum targets at 110 percent density`() = verifyLayout(1024f, 720f, 1.1f)
 
-    @Test fun `resizing the shell updates both clusters together`() = runSkikoComposeUiTest(size = Size(1680f, 1050f)) {
+    @Test fun `resizing the shell updates both clusters together`() = runSkikoComposeUiTest(size = Size(1560f, 1152f)) {
         val stack = ScreenStack(MdiMode())
         var viewport by mutableStateOf(Size(1024f, 720f))
         setContent {
@@ -56,13 +58,17 @@ class KeyboardLayoutTest {
             }
         }
         checkKeys(44)
-        runOnIdle { viewport = Size(1680f, 1050f) }
-        checkKeys(64)
+        runOnIdle { viewport = Size(1500f, 1152f) }
+        checkKeys(69)
+        runOnIdle { viewport = Size(1560f, 1152f) }
+        checkKeys(72)
+        runOnIdle { viewport = Size(1560f, 1100f) }
+        checkKeys(68)
         runOnIdle { viewport = Size(1024f, 720f) }
         checkKeys(44)
     }
 
-    private fun verifyLayout(width: Float, height: Float, scale: Float = 1f) = runSkikoComposeUiTest(
+    private fun verifyLayout(width: Float, height: Float, scale: Float = 1f, keyDp: Int = 44) = runSkikoComposeUiTest(
         size = Size(width * scale, height * scale), density = androidx.compose.ui.unit.Density(scale),
     ) {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -81,9 +87,7 @@ class KeyboardLayoutTest {
                 return androidx.compose.ui.geometry.Rect(rect.left / scale, rect.top / scale, rect.right / scale, rect.bottom / scale)
             }
             val minimumKey = ceil(44f * scale).toInt()
-            val maximumKey = floor(72f * scale).toInt()
-            val expectedKey = (44f * minOf(width / 1024f, height / 720f) * scale)
-                .roundToInt().coerceIn(minimumKey, maximumKey)
+            val expectedKey = (keyDp * scale).roundToInt().coerceAtLeast(minimumKey)
             fun assertStandardKey(tag: String) {
                 val bounds = onNodeWithTag("keypad-$tag").assertIsDisplayed().bounds()
                 assertEquals(expectedKey / scale, bounds.width, .01f, "$tag width")
@@ -105,6 +109,10 @@ class KeyboardLayoutTest {
                 val margin = ((height - 188f - compactHeight) / 2).coerceIn(0f, 30f)
                 // The screen and bottom tile each contribute an additional 8 dp.
                 assertEquals(16f + margin, bottom.top - footer.bottom, 2f, "Combined panel keeps its adaptive bottom margin")
+                if (height == 720f) {
+                    val budgetHeight = (height - 78f - 94f) * .75f
+                    assertTrue(footer.bottom - first.top > budgetHeight, "The workspace budget must not clip a fitting panel")
+                }
                 if (height >= 1050f) {
                     assertTrue(first.top - 78f > 8f, "Excess height stays above the combined panel")
                     assertTrue(numbersFirst.top - lettersFooter.bottom <= 16.1f, "Excess height must not separate clusters")

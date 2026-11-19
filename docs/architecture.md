@@ -880,8 +880,10 @@ The implemented touch keyboard lives in `ui.controls`. `GCodeKeyboard` composes
 independent `KeyCluster` grids stacked vertically in a right-hand workspace panel,
 leaving the console/editor its full height. `AppShell` owns the window-derived
 `ui.layout.LocalKeyUnit`, the default square key size for Terminal, MDI and
-connection settings. The unit is 44–72 dp and can also be used proportionally
-by Compose layouts. Keypad renderers accept explicit instance overrides.
+connection settings. It fits the QWERTY + NUM+ reference in a calculation
+budget of 65% of the workspace width and 75% of its height, within 44–72 dp.
+Each screen determines its actual keypad space. Compose layouts can also
+use the unit proportionally. Keypad renderers accept explicit instance overrides.
 The panel fits the default keymaps at the minimum 1024×720 viewport by adjusting
 outer spacing and scrolls where the grids exceed the available bounds. The
 keyboard uses `KeypadLayout` snapshots and screen-local

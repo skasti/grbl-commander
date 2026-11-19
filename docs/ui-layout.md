@@ -562,13 +562,20 @@ has a green background, both with white symbols. Colors follow the typed action
 rather than the label or position, including custom keymaps. `*` and `+` stay at
 slots 7 and 11.
 
-`AppShell` provides `ui.layout.LocalKeyUnit` from the logical dp dimensions of
-the entire window client area, including the header and both softkey banks.
-Native window decorations are outside these dimensions. The size scales from
-44 dp by the smaller of window width / 1024 dp and window height / 720 dp. It
-stays within **44–72 dp** and is rounded to the nearest whole pixel within those
-bounds at the current display density. Resizing the window updates the unit.
-Switching screens, fields or pages keeps the same standard key size.
+`AppShell` provides `ui.layout.LocalKeyUnit` using a reference budget of **65%**
+of the main workspace width and **75%** of its height. The workspace excludes
+the header, both softkey banks and native window decorations. The calculation
+chooses the largest whole-pixel key size within **44–72 dp** at the current
+display density that fits QWERTY stacked above NUM+. It measures the keymaps
+with their configured gaps and spans, a 44 dp page control for each cluster
+with multiple pages, 8 dp above each page control and 16 dp between clusters.
+It uses the 44 dp minimum when the reference does not fit at any allowed size.
+Resizing the window updates the unit. Switching screens, fields or pages keeps
+the same standard key size.
+
+The reference budget only determines the shared key size. It reserves no
+workspace region. Each keypad panel measures and scrolls according to the
+space its screen actually provides.
 
 The unit is the width and height of one square key, excluding gaps. Compose
 layouts can use fractions such as `LocalKeyUnit.current * 0.5f` for a margin or

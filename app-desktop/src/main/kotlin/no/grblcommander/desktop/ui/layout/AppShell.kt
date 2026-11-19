@@ -28,6 +28,10 @@ internal object ShellColors {
     val accent = Color(0xFF56BBEF)
 }
 
+private val headerHeight = 78.dp
+private val bottomBankHeight = 94.dp
+private val rightBankWidth = 142.dp
+
 @Composable
 fun AppShell(
     state: ShellState,
@@ -39,11 +43,16 @@ fun AppShell(
     val stack = currentStack()
     val pressedKeys = remember { mutableSetOf<androidx.compose.ui.input.key.Key>() }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val keyUnit = with(LocalDensity.current) { windowKeyUnit(maxWidth, maxHeight) }
+        val keyUnit = with(LocalDensity.current) {
+            val workspaceWidth = (constraints.maxWidth - rightBankWidth.roundToPx()).coerceAtLeast(0)
+            val workspaceHeight = (constraints.maxHeight - headerHeight.roundToPx() - bottomBankHeight.roundToPx())
+                .coerceAtLeast(0)
+            workspaceKeyUnit(workspaceWidth, workspaceHeight)
+        }
         CompositionLocalProvider(LocalKeyUnit provides keyUnit) {
             Column(Modifier.fillMaxSize().background(ShellColors.frame)
                 .onPreviewKeyEvent { handleSoftKeyEvent(it, liveStack.value, pressedKeys) }) {
-                ShellHeader(state, Modifier.fillMaxWidth().height(78.dp), headerControls)
+                ShellHeader(state, Modifier.fillMaxWidth().height(headerHeight), headerControls)
 
                 Row(Modifier.fillMaxSize()) {
                     Column(Modifier.weight(1f).fillMaxHeight()) {
@@ -53,9 +62,9 @@ fun AppShell(
                         ) {
                             content()
                         }
-                        BottomSoftkeys(stack, { liveStack.value() }, Modifier.fillMaxWidth().height(94.dp))
+                        BottomSoftkeys(stack, { liveStack.value() }, Modifier.fillMaxWidth().height(bottomBankHeight))
                     }
-                    RightSoftkeys(stack, { liveStack.value() }, Modifier.width(142.dp).fillMaxHeight())
+                    RightSoftkeys(stack, { liveStack.value() }, Modifier.width(rightBankWidth).fillMaxHeight())
                 }
             }
         }
