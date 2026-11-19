@@ -100,10 +100,13 @@ class PostConnectActionsTest {
         try {
             owner.connect(endpoint)
             assertEquals("\$I\n", first.transport.nextNonStatusWrite())
+            // This child completes on cancellation while the parent is still held in cleanup.
+            val cancellation = Job(first.job.await())
             first.transport.disconnect()
             first.cleaningUp.await()
             val joined = async(start = CoroutineStart.UNDISPATCHED) { first.session.awaitClosed() }
             assertFalse(joined.isCompleted)
+            cancellation.join()
             assertTrue(owner.state.value.postConnectPending)
             assertTrue(first.transport.closed)
 
