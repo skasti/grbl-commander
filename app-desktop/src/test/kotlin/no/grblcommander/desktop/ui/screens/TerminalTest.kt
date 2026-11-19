@@ -235,7 +235,7 @@ class TerminalTest {
         Fixture().use { f ->
             f.connect(); host(f)
             // G1X100F500, entirely through the mouse-operated keypad, with no input focus request.
-            listOf("ABC-2", "123-8", "ABC-4", "123-8", "123-13", "123-13", "ABC-12", "123-5", "123-13", "123-13").forEach {
+            listOf("CODE-2", "NUM+-8", "CODE-4", "NUM+-8", "NUM+-13", "NUM+-13", "CODE-12", "NUM+-5", "NUM+-13", "NUM+-13").forEach {
                 onNodeWithTag("keypad-$it").performMouseInput { click() }
             }
             onNodeWithTag("terminal-prompt").assertPromptText("G1X100F500")
