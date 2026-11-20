@@ -308,9 +308,10 @@ the same `Cancelled` result.
 
 ### Runnable example
 
-In **Program** mode, choose **Open navigation example** on the welcome screen,
-edit the draft, then
-choose **Open example file**. Each invocation creates a `FileExplorer` screen
+`mode.program` owns `Welcome`, `Editor`, `FileExplorer`, the typed explorer
+result and the example file fixtures. In **Program** mode, choose **Open
+navigation example** on the welcome screen, edit the draft, then choose **Open
+example file**. Each invocation creates a `FileExplorer` screen
 instance. **Cancel** or `pop()` restores the same editor and leaves its draft
 unchanged. Clicking a fixture selects it without closing the explorer. **Select
 file** or **F1 Select** delivers `Selected(filename)`; the editor looks up the

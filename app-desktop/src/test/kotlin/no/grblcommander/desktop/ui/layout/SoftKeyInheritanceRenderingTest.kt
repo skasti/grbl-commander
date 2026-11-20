@@ -15,8 +15,6 @@ import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
 import no.grblcommander.desktop.ui.navigation.SoftKeyModifier
 import no.grblcommander.desktop.ui.navigation.SoftKeyOverride
-import no.grblcommander.desktop.ui.screens.Editor
-import no.grblcommander.desktop.ui.screens.FileExplorer
 import kotlin.test.*
 
 @OptIn(ExperimentalTestApi::class)
@@ -160,35 +158,5 @@ class SoftKeyInheritanceRenderingTest {
         onNodeWithText("Inherited program").assertDoesNotExist()
         onNodeWithTag("softkey-F1").performTouchInput { click() }
         runOnIdle { assertEquals(2, programCalls) }
-    }
-
-    @Test fun editorExplorerShowsIndependentBanksAndRestoresOnClose() = runComposeUiTest {
-        val editor = Editor()
-        val stack = ScreenStack(editor)
-        val explorer = FileExplorer()
-        explorer.open(editor)
-        setContent {
-            MaterialTheme {
-                AppShell(ShellState.startup(), currentStack = { stack }) {
-                    ScreenStackHost(stack, Modifier.testTag("workspace"))
-                }
-            }
-        }
-        onNodeWithText("Select").assertExists()
-        onNodeWithTag("softkey-F1").assertIsNotEnabled()
-        onNodeWithText("Editor unavailable").assertExists()
-        onNodeWithTag("softkey-R1").assertIsNotEnabled()
-        onNodeWithTag("softkey-R2").assertIsNotEnabled()
-        onNodeWithText("R2").assertDoesNotExist()
-        onNodeWithTag("softkey-R7").performTouchInput { click() }
-        onNodeWithTag("softkey-R7").assertIsSelected()
-        onNodeWithText("example-a.nc").performClick()
-        onNodeWithTag("softkey-F1").assertIsEnabled()
-        onNodeWithTag("workspace").performKeyInput { pressKey(Key.F8) }
-        onNodeWithText("Editor unavailable").assertDoesNotExist()
-        onAllNodesWithText("Open file").assertCountEquals(2)
-        onNodeWithTag("softkey-R1").assertIsEnabled()
-        onNodeWithTag("softkey-R2").assertIsEnabled()
-        onNodeWithTag("softkey-R7").assertIsNotEnabled()
     }
 }

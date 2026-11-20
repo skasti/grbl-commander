@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.screens
+package no.grblcommander.desktop.mode.program
 
 /** In-memory fixture, not a filesystem adapter or an executable machine program. */
 data class ExampleFile(val name: String, val contents: String)

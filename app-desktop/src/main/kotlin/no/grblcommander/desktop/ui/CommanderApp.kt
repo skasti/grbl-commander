@@ -31,7 +31,7 @@ import no.grblcommander.desktop.mode.manual.ManualMode
 import no.grblcommander.desktop.ui.screens.MdiMode
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
-import no.grblcommander.desktop.ui.screens.Welcome
+import no.grblcommander.desktop.mode.program.Welcome
 
 /** Stable UI context identities, separate from GRBL controller execution states. */
 private enum class OperatorMode(val label: String) {

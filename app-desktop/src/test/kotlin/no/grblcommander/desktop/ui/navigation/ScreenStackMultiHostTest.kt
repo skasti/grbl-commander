@@ -21,9 +21,9 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
-import no.grblcommander.desktop.ui.screens.Editor
-import no.grblcommander.desktop.ui.screens.FileExplorer
-import no.grblcommander.desktop.ui.screens.FileExplorerResult
+import no.grblcommander.desktop.mode.program.Editor
+import no.grblcommander.desktop.mode.program.FileExplorer
+import no.grblcommander.desktop.mode.program.FileExplorerResult
 import no.grblcommander.desktop.mode.manual.ManualDetails
 import no.grblcommander.desktop.mode.manual.ManualMode
 import kotlin.test.Test
