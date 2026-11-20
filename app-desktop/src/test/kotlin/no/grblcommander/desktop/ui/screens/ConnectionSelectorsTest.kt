@@ -84,37 +84,40 @@ class ConnectionSelectorsTest {
     }
 
     @Test fun selectorCaptureStates() = runAtScreenshotSizes { screenshot ->
-        val (stack, root) = hostConnectionDialog()
-        val discovery = CompletableDeferred<List<DiscoveredSerialPort>>()
-        var selected: String? = null
-        runOnIdle { serialPortChoice { discovery.await() }.open(root) { selected = it } }
-        onNodeWithText("Loading…").assertExists()
-        screenshot("connection-port-discovery-loading")
-        runOnIdle { discovery.complete(serialPorts(7)) }
-        onNodeWithText("6️⃣  COM6 — USB serial controller").assertIsDisplayed()
-        screenshot("connection-port-page-one")
-        onNodeWithTag("softkey-F7").performClick()
-        onNodeWithText("1️⃣  COM7 — USB serial controller").assertIsDisplayed()
-        onNodeWithTag("softkey-F2").assertIsNotEnabled()
-        screenshot("connection-port-page-two")
-        onNodeWithTag("softkey-F7").performClick() // wrap without changing the parent draft
-        onNodeWithText("1️⃣  COM1 — USB serial controller").assertExists()
-        onNodeWithTag("softkey-F8").performClick()
-        runOnIdle { assertNull(selected); assertSame(root, stack.top) }
-        runOnIdle { serialPortChoice { serialPorts(6) }.open(root) {} }
-        onNodeWithText("6️⃣  COM6 — USB serial controller").assertIsDisplayed()
-        onNodeWithTag("softkey-F7").assertIsNotEnabled()
-        screenshot("connection-port-single-page")
-        onNodeWithTag("softkey-F8").performClick()
-        runOnIdle { serialPortChoice { emptyList() }.open(root) {} }
-        onNodeWithText("No serial ports found.", substring = true).assertExists()
-        screenshot("connection-port-discovery-empty")
-        onNodeWithTag("softkey-F8").performClick()
-        runOnIdle { serialPortChoice { error("Serial discovery unavailable") }.open(root) {} }
-        onNodeWithText("Discovery unavailable:", substring = true).assertExists()
-        screenshot("connection-port-discovery-failed")
-        onNodeWithTag("softkey-F8").performClick()
-        runOnIdle { assertSame(root, stack.top) }
+        ConnectionSettingsFixture().use { fixture ->
+            val root = openConnectionSettings(fixture)
+            runOnIdle { root.draft = ControllerEndpointDraft() }
+            val discovery = CompletableDeferred<List<DiscoveredSerialPort>>()
+            var selected: String? = null
+            runOnIdle { serialPortChoice { discovery.await() }.open(root) { selected = it } }
+            onNodeWithText("Loading…").assertExists()
+            screenshot("connection-port-discovery-loading")
+            runOnIdle { discovery.complete(serialPorts(7)) }
+            onNodeWithText("6️⃣  COM6 — USB serial controller").assertIsDisplayed()
+            screenshot("connection-port-page-one")
+            onNodeWithTag("softkey-F7").performClick()
+            onNodeWithText("1️⃣  COM7 — USB serial controller").assertIsDisplayed()
+            onNodeWithTag("softkey-F2").assertIsNotEnabled()
+            screenshot("connection-port-page-two")
+            onNodeWithTag("softkey-F7").performClick() // wrap without changing the parent draft
+            onNodeWithText("1️⃣  COM1 — USB serial controller").assertExists()
+            onNodeWithTag("softkey-F8").performClick()
+            runOnIdle { assertNull(selected); assertSame(root, fixture.stack.top) }
+            runOnIdle { serialPortChoice { serialPorts(6) }.open(root) {} }
+            onNodeWithText("6️⃣  COM6 — USB serial controller").assertIsDisplayed()
+            onNodeWithTag("softkey-F7").assertIsNotEnabled()
+            screenshot("connection-port-single-page")
+            onNodeWithTag("softkey-F8").performClick()
+            runOnIdle { serialPortChoice { emptyList() }.open(root) {} }
+            onNodeWithText("No serial ports found.", substring = true).assertExists()
+            screenshot("connection-port-discovery-empty")
+            onNodeWithTag("softkey-F8").performClick()
+            runOnIdle { serialPortChoice { error("Permission denied") }.open(root) {} }
+            onNodeWithText("Discovery unavailable: Permission denied. Use manual entry.").assertIsDisplayed()
+            screenshot("connection-port-discovery-failed")
+            onNodeWithTag("softkey-F8").performClick()
+            runOnIdle { assertSame(root, fixture.stack.top) }
+        }
     }
 
     @Test fun commonBaudSelectorPages() = runAtScreenshotSizes { screenshot ->
