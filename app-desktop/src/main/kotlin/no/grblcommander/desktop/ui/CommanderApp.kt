@@ -24,6 +24,7 @@ import no.grblcommander.core.connection.ControllerConnection
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.description
 import no.grblcommander.machine.session.MachineSnapshot.Connection
+import no.grblcommander.desktop.mode.utils.terminal.Terminal
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.screens.ManualMode
@@ -31,7 +32,6 @@ import no.grblcommander.desktop.ui.screens.MdiMode
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
 import no.grblcommander.desktop.ui.screens.Welcome
-import no.grblcommander.desktop.ui.screens.Terminal
 
 /** Stable UI context identities, separate from GRBL controller execution states. */
 private enum class OperatorMode(val label: String) {

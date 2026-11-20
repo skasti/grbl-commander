@@ -1280,6 +1280,9 @@ screen implementations:
   surface. `ModalDialog<R>` and `OptionSelectDialog<R>` render through
   it and use the shared navigation contracts for typed results. The option
   selector takes caller-supplied options and empty or failure content.
+- `mode.utils.terminal` owns the Util Terminal screen, traffic display and
+  filters, follow state, and command draft and recall. Terminal uses the shared
+  keypad controls and submits user actions through the core connection API.
 - `mode.utils.connection` owns the Util connection form, its inline editors and
   selector adapters, and the Advanced Serial and Post-Connect screens. They use
   the shared controls and dialogs and call the core connection/settings APIs.
@@ -1317,6 +1320,7 @@ Implemented source ownership:
 | `app-desktop/src/main/kotlin/no/grblcommander/desktop/Main.kt` | Application composition and shutdown |
 | `app-desktop/src/main/kotlin/no/grblcommander/desktop/ui/` | Presentation infrastructure and concrete screens |
 | `app-desktop/src/main/kotlin/no/grblcommander/desktop/mode/utils/connection/` | Util connection presentation and form state |
+| `app-desktop/src/main/kotlin/no/grblcommander/desktop/mode/utils/terminal/` | Util Terminal presentation and console state |
 | `core/src/main/kotlin/no/grblcommander/core/connection/` | Application services and connection/configuration models |
 | `core/src/test/` | UI-independent application tests |
 | `core/src/testFixtures/` | Shared simulated transport used by core and UI tests |

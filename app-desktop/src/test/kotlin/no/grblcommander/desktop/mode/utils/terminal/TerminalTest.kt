@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.screens
+package no.grblcommander.desktop.mode.utils.terminal
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
@@ -21,6 +21,7 @@ import no.grblcommander.desktop.ui.runAtScreenshotSizes
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.navigation.*
+import no.grblcommander.desktop.ui.screens.MdiMode
 import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.CommunicationEvent
 import kotlin.test.*

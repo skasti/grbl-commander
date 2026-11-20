@@ -15,6 +15,7 @@ import kotlinx.coroutines.*
 import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.core.connection.ControllerConnection
 import no.grblcommander.core.connection.ControllerSettings
+import no.grblcommander.desktop.mode.utils.terminal.Terminal
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.navigation.*

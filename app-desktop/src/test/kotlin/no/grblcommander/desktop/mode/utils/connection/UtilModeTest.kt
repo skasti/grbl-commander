@@ -14,9 +14,9 @@ import kotlinx.coroutines.runBlocking
 import no.grblcommander.core.connection.ControllerConnection
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.configuration.ControllerEndpointPreferences
+import no.grblcommander.desktop.mode.utils.terminal.Terminal
 import no.grblcommander.desktop.ui.navigation.*
 import no.grblcommander.desktop.ui.screens.ManualMode
-import no.grblcommander.desktop.ui.screens.Terminal
 import kotlin.test.*
 
 @OptIn(ExperimentalTestApi::class)
