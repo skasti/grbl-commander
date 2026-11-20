@@ -329,7 +329,8 @@ with bound callbacks and snapshot-state predicates. The example has no real
 local
 or controller filesystem access and cannot execute G-code.
 
-While the explorer is open, use the header to select **Manual**, open **Manual
+`mode.manual` owns `ManualMode` and `ManualDetails`, including its temporary
+notes. While the explorer is open, use the header to select **Manual**, open **Manual
 details**, and optionally type local notes. Return to **Program**: the same
 explorer, editor instance and draft are available; dismiss or select a file
 to deliver the typed result. The Manual details screen remains open when

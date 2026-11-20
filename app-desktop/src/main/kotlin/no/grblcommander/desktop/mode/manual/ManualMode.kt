@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.screens
+package no.grblcommander.desktop.mode.manual
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

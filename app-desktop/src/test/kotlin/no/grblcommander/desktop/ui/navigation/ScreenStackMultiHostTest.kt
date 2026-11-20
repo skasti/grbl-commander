@@ -24,8 +24,8 @@ import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.ui.screens.Editor
 import no.grblcommander.desktop.ui.screens.FileExplorer
 import no.grblcommander.desktop.ui.screens.FileExplorerResult
-import no.grblcommander.desktop.ui.screens.ManualDetails
-import no.grblcommander.desktop.ui.screens.ManualMode
+import no.grblcommander.desktop.mode.manual.ManualDetails
+import no.grblcommander.desktop.mode.manual.ManualMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
