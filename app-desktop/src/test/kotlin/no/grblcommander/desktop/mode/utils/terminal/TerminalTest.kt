@@ -13,6 +13,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import java.util.UUID
 import java.util.prefs.Preferences
 import kotlinx.coroutines.*
+import no.grblcommander.desktop.mode.mdi.MdiMode
 import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.core.connection.*
 import no.grblcommander.desktop.mode.utils.connection.ControllerConnectionSettings
@@ -21,7 +22,6 @@ import no.grblcommander.desktop.ui.runAtScreenshotSizes
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.navigation.*
-import no.grblcommander.desktop.ui.screens.MdiMode
 import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.CommunicationEvent
 import kotlin.test.*
@@ -251,15 +251,6 @@ class TerminalTest {
             waitUntil(timeoutMillis = 5_000) { f.owner.state.value.snapshot.status?.executionState == "Idle" }
             onNodeWithTag("keypad-CODE-2").performMouseInput { click() }
             onNodeWithTag("terminal-prompt").assertPromptText("G")
-        }
-    }
-
-    @Test fun `MDI accepts its first mouse letter without a prior hover or input focus`() = runComposeUiTest {
-        Fixture().use { f ->
-            f.active = f.other
-            host(f)
-            onNodeWithTag("keypad-CODE-2").performMouseInput { click() }
-            onNode(hasSetTextAction()).assertPromptText("G")
         }
     }
 

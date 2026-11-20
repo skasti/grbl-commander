@@ -12,6 +12,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.*
+import no.grblcommander.desktop.mode.mdi.MdiMode
 import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.core.connection.ControllerConnection
 import no.grblcommander.core.connection.ControllerSettings

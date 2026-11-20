@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.screens
+package no.grblcommander.desktop.mode.mdi
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.OutlinedTextField
