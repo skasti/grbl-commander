@@ -496,12 +496,17 @@ the selected transport, both transport fields and post-connect choices. Without
 a valid saved record it restores blank endpoint fields and normal defaults.
 It never sends a controller reset. R7 Terminal returns to the retained console.
 
-Port selection refreshes discovery each time it opens. Six numbered touch rows
-map to F1–F6. More than six choices enable F7 Next page with wrap; F8 cancels
-without changing the parent draft. Empty or failed discovery explains manual
-entry. Devices are advisory and may disappear before connection. Baud uses the
-same numbered selector with common rates including 115200; its main field also
-permits custom entry. Both banks are replaced while any selector/editor is open.
+Port and baud choices open `OptionSelectDialog<R>`, a typed screen with a
+centered, scrollable `BaseDialog` surface. Up to six numbered touch rows map
+to F1–F6. More than six choices add F7 **Next page**, which wraps after the
+last page. F8 cancels and preserves the parent draft. Both key banks are
+replaced while any selector or editor is open.
+
+Port selection starts discovery each time it opens. While discovery is pending,
+the dialog shows a loading message and allows cancellation. Empty or failed
+discovery points to manual entry. Devices are advisory and may disappear before
+connection. The baud selector offers common rates including 115200, and the
+baud field also permits custom entry.
 
 Advanced serial settings own a separate draft. F1 cycles data bits 5–8, F2 stop
 bits, F3 parity, F4 flow control, F5 DTR and F6 RTS. F7 Save applies to the parent
