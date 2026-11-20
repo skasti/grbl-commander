@@ -20,9 +20,9 @@ import no.grblcommander.desktop.ui.components.controls.*
 internal class ConnectionTextInput(initial: String, numeric: Boolean) {
     var value by mutableStateOf(TextFieldValue(initial, TextRange(0, initial.length)))
     val keypads = if (numeric) {
-        listOf(KeyClusterState(digits))
+        listOf(KeyClusterState(Keymaps.num))
     } else {
-        listOf(KeyClusterState(letters), KeyClusterState(Keymaps.numPlus))
+        listOf(KeyClusterState(Keymaps.qwerty), KeyClusterState(Keymaps.numPlus))
     }
 
     @Composable
@@ -43,40 +43,5 @@ internal class ConnectionTextInput(initial: String, numeric: Boolean) {
 
     fun handle(action: KeypadAction, apply: () -> Unit) {
         editWithKeypad(value, action, { value = it }, apply)
-    }
-
-    private companion object {
-        val digits = KeypadLayout("NUM", gapsBeforeColumns = mapOf(3 to .60f), pages = listOf(
-            page("7", "8", "9", "⌫",
-                "4", "5", "6", "",
-                "1", "2", "3", "",
-                "", "0", "", "↵"),
-        ))
-
-        val letters = KeypadLayout("QWERTY", rows = 3, columns = 10, pages = listOf(
-            letterPage("qwertyuiop", "asdfghjkl", "zxcvbnm"),
-            letterPage("QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"),
-        ))
-
-        fun letterPage(vararg rows: String): Map<Int, KeypadKey> = buildMap {
-            rows.forEachIndexed { row, letters ->
-                letters.forEachIndexed { column, letter ->
-                    val text = letter.toString()
-                    put(row * 10 + column, KeypadKey(text, KeypadAction.Insert(text)))
-                }
-            }
-            put(27, KeypadKey("Space", KeypadAction.Insert(" "), columnSpan = 2))
-        }
-
-        fun page(vararg labels: String): Map<Int, KeypadKey> =
-            labels.mapIndexedNotNull { index, label ->
-                val action = when (label) {
-                    "" -> return@mapIndexedNotNull null
-                    "⌫" -> KeypadAction.Backspace
-                    "↵" -> KeypadAction.Enter
-                    else -> KeypadAction.Insert(label)
-                }
-                index to KeypadKey(label, action)
-            }.toMap()
     }
 }
