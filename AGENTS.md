@@ -210,7 +210,8 @@ Compose screenshot checkpoints for the affected UI as part of the same work.
   add specific combinations only when their interaction changes the visible UI.
 - Minimize checkpoints, not resolution coverage: use the shared
   `runAtScreenshotSizes` and explicit `screenshot("scenario")` checkpoints so
-  every scenario retains the existing six-resolution output and source metadata.
+  every scenario retains both configured capture resolutions (1024×720 and
+  1680×1050) and source metadata.
   Extend existing functional tests and deterministic fixtures wherever possible;
   do not introduce another harness or per-screen workflow configuration.
 - Keep functional assertions for individual controls and their interactions.

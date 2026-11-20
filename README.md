@@ -257,8 +257,8 @@ modal/dialog and relevant visible state; see the
 Use the fewest scenarios that cover those states: independent toggles can share
 an all-off capture and an all-on capture, with additional valid combinations only
 for remaining control values or distinct visual interactions. Functional tests
-still assert individual controls and interactions. Each checkpoint retains all
-six capture resolutions. The following table lists the implemented capture set;
+still assert individual controls and interactions. Each checkpoint retains both
+CI capture resolutions. The following table lists the implemented capture set;
 it does not imply coverage of all application screens.
 
 | Directory | Captured state |
@@ -283,9 +283,9 @@ it does not imply coverage of all application screens.
 | `connection-saving`, `connection-saved` | Save admission/progress and successful persistence feedback |
 | `connection-post-connect-progress`, `connection-post-connect-results`, `connection-post-connect-unsynchronized` | Session-owned query progress, correlated rejection/results and unsafe-correlation skip diagnostics |
 
-The Linux PR and main-push jobs capture each scenario at 1024×720, 1024×768, 1280×720,
-1680×1050, 1920×1080 and 2560×1440. **1024×720 is the minimum supported
-resolution** at 1× scale. Windows runs the functional tests; CI capture and
+The Linux PR and main-push jobs capture each scenario at **1024×720** and
+**1680×1050**. 1024×720 is the minimum supported resolution at 1× scale;
+1680×1050 matches the CNC touchscreen. Windows runs the functional tests; CI capture and
 publishing run on Linux.
 
 Open the workflow run's **Artifacts** section for
