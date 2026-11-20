@@ -236,8 +236,13 @@ Capture Terminal, MDI and connection-settings integration tests locally on JDK 2
 ```bash
 gradle :app-desktop:test -PuiScreenshots \
   --tests '*TerminalTest' \
-  --tests '*ConnectionEditorsTest' \
-  --tests '*ControllerConnectionSettingsTest'
+  --tests '*ConnectionSelectorsTest' \
+  --tests '*AdvancedSerialSettingsTest' \
+  --tests '*PostConnectSettingsTest' \
+  --tests '*ConnectionFormTest' \
+  --tests '*ConnectionInlineEditorsTest' \
+  --tests '*ConnectionLifecycleTest' \
+  --tests '*ConnectionPostConnectTest'
 ```
 
 The opt-in test run writes PNGs to `app-desktop/build/ui-screenshots/<scenario>/<width>x<height>.png`.
@@ -309,10 +314,12 @@ capture-test source is new/modified in the PR diff (**test-modified**), even wit
 identical pixels. `runAtScreenshotSizes` resolves the calling Kotlin test source
 before starting the Compose runner and writes `<scenario>/capture-source.txt`.
 Scenario names use lowercase letters/digits separated by hyphens and belong to
-one test source. Adding a scenario requires only a test checkpoint, with no CI
-scenario list. Screenshots from older captures without ownership metadata still
-participate in pixel comparison. Removed paths are listed without embedding a
-missing image. Differences are informational and never fail the build.
+one test source. Connection captures are grouped by workflow so a change to a
+selector or inline editor test only selects the scenarios owned by that source
+for the `test-modified` reason. Adding a scenario requires only a test checkpoint,
+with no CI scenario list. Screenshots from older captures without ownership
+metadata still participate in pixel comparison. Removed paths are listed without
+embedding a missing image. Differences are informational and never fail the build.
 
 Each selected scenario embeds exactly one expanded image, preferring 1024×720
 (or the first available size), with all other sizes under **Other resolutions**
