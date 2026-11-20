@@ -107,9 +107,15 @@ focused editor field. The header and softkeys stay outside this input boundary.
 
 ### Shared modal dialogs
 
-`ui.dialogs.ModalDialog<R>` is a reusable `Screen<R>` for a title, message and
-labelled bottom-softkey choices carrying typed result values. Open it with an
-explicit parent and handle the result after the parent has been restored:
+`ui.components.dialogs.BaseDialog` is a Compose layout for a centered surface
+inside the workspace. It supplies consistent sizing, padding, and styling,
+and scrolls the title and body together when space is limited. Callers supply
+the title and a composable body slot.
+
+`ui.components.dialogs.ModalDialog<R>` uses `BaseDialog` to display a message
+and provides labelled bottom-softkey choices carrying typed result values.
+Open this `Screen<R>` with an explicit parent and handle the result after the
+parent has been restored:
 
 ```kotlin
 ModalDialog(
@@ -125,11 +131,8 @@ ModalDialog(
 }
 ```
 
-The modal displays a centered, scrollable message surface inside the workspace.
-It has no workspace action buttons and opens no native dialog/window. The
-persistent bottom softkeys supply choices through the existing pointer/keyboard
-activation path. Choice labels, slots and result types are supplied by the caller;
-no separate screen subclass is required for each message or confirmation.
+The persistent bottom softkeys supply choices through the existing pointer and
+keyboard activation path. The caller supplies labels, slots and result values.
 
 Both key banks replace inherited bindings. Unassigned slots, including all right
 keys, are blank, so covered form actions and Util navigation cannot leak through.

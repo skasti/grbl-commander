@@ -733,14 +733,13 @@ state, not merely screen-instance fields. `CommanderApp` creates the stacks
 once per application window and keeps the active UI-mode selection in Compose
 state; there is no mode-specific navigation registry or globally shared host.
 
-Reusable `ui.dialogs.ModalDialog<R>` screens render a message and map supplied
-bottom-softkey choices to typed results. They open above an explicit parent in
-its existing stack, replace both key banks and rely on the host for the scrim,
-input isolation and retained compositions. There is no global dialog navigator,
-native modal window or separate result mechanism. Dialog content has no action
-buttons; the shell renders the choices. Connection interruption uses F1 confirm
-and F8 cancel, with the parent restored before it processes the decision through
-core. Generic dialog presentation has no connection/core dependencies.
+Reusable `ui.components.dialogs.ModalDialog<R>` screens render a message through
+`BaseDialog` and map supplied bottom-softkey choices to typed results. They
+open above an explicit parent in its existing stack, replace both key banks
+and rely on the host for the scrim, input isolation and retained compositions.
+The workspace renders the message and the shell renders the choices. Connection
+interruption uses F1 confirm and F8 cancel. The stack restores the parent before
+it processes the decision through core.
 
 Header and softkey regions remain owned by `AppShell` outside workspace input
 boundaries. Navigation is observable through Compose snapshot state and confined
@@ -1275,8 +1274,9 @@ screen implementations:
   Terminal, MDI and connection settings use these controls with
   `ui.layout.LocalGridUnit` as the default key size. Each screen owns its
   input state and binds editing actions, including Enter, to its own callbacks.
-- `ui.dialogs` contains reusable typed modal message/choice screens. It uses
-  navigation contracts without depending on concrete feature screens or core.
+- `ui.components.dialogs` contains `BaseDialog`, the Compose title and body
+  surface, and `ModalDialog<R>`, the typed message and choice screen.
+  `ModalDialog<R>` uses the shared navigation contracts.
 - `ui.screens` contains concrete screen implementations such as `Welcome`,
   `Editor`, `FileExplorer`, `ManualMode`, `ManualDetails`, and `MdiMode`.
 - The application composition root selects concrete mode roots and supplies
