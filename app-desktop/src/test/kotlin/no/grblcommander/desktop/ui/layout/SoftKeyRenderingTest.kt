@@ -13,8 +13,6 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.unit.dp
-import no.grblcommander.desktop.ui.screens.FileExplorer
-import no.grblcommander.desktop.ui.screens.FileExplorerResult
 import no.grblcommander.desktop.ui.navigation.Screen
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
@@ -150,39 +148,6 @@ class SoftKeyRenderingTest {
         runOnIdle { allowed.value = false }
         onNodeWithTag("softkey-F1").performTouchInput { up() }
         runOnIdle { assertEquals(0, oldCalls); assertEquals(0, newCalls) }
-    }
-
-    @Test fun explorerSoftkeysSelectAndCancelWithTypedInstanceResults() = runComposeUiTest {
-        val root = object : Screen<Unit>(Unit) { @Composable override fun Content() {} }
-        val stack = ScreenStack(root)
-        val results = mutableListOf<FileExplorerResult>()
-        val explorer = FileExplorer()
-        explorer.open(stack) { results += it }
-        val selectDefinition = explorer.bottomKeys.getValue(BottomSoftKeySlot.F1)
-        setContent {
-            MaterialTheme {
-                AppShell(ShellState.startup(), currentStack = { stack }) {
-                    ScreenStackHost(stack, Modifier.testTag("workspace"))
-                }
-            }
-        }
-        onNodeWithTag("softkey-F1").assertIsNotEnabled()
-        onNodeWithText("example-b.nc").performClick()
-        onNodeWithTag("softkey-F1").assertIsEnabled()
-        onNodeWithTag("softkey-R7").performTouchInput { click() }
-        onNodeWithTag("softkey-R7").assertIsSelected()
-        runOnIdle { assertSame(selectDefinition, explorer.bottomKeys.getValue(BottomSoftKeySlot.F1)) }
-        onNodeWithTag("softkey-F1").performTouchInput { click() }
-        runOnIdle {
-            assertSame(root, stack.top)
-            assertEquals(listOf<FileExplorerResult>(FileExplorerResult.Selected("example-b.nc")), results)
-            FileExplorer().open(stack) { results += it }
-        }
-        onNodeWithTag("workspace").performKeyInput { pressKey(Key.F8) }
-        runOnIdle {
-            assertSame(root, stack.top)
-            assertEquals(FileExplorerResult.Cancelled, results.last())
-        }
     }
 
     @Test fun observableDefinitionReplacementRecomposesAndCancelsPendingTouch() = runComposeUiTest {

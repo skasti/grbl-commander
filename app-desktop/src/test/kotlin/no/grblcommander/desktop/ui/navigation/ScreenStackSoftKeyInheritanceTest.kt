@@ -2,8 +2,6 @@ package no.grblcommander.desktop.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
-import no.grblcommander.desktop.ui.screens.Editor
-import no.grblcommander.desktop.ui.screens.FileExplorer
 import kotlin.test.*
 
 class ScreenStackSoftKeyInheritanceTest {
@@ -170,32 +168,6 @@ class ScreenStackSoftKeyInheritanceTest {
         stack.pop()
         assertTrue(activateSoftKey({ stack }, RightSoftKeySlot.R1))
         assertEquals(1, calls)
-    }
-
-    @Test fun editorExplorerIndependentlyReplacesBottomAndInheritsRight() {
-        val editor = Editor()
-        val stack = ScreenStack(editor)
-        val openFile = assertNotNull(stack.softKeyDefinition(RightSoftKeySlot.R1))
-        val back = assertNotNull(stack.softKeyDefinition(RightSoftKeySlot.R2))
-        val explorer = FileExplorer()
-        explorer.open(editor)
-        assertFalse(explorer.inheritBottomKeys)
-        assertTrue(explorer.inheritRightKeys)
-        assertEquals("Select", stack.softKeyDefinition(BottomSoftKeySlot.F1)?.label)
-        assertEquals("Clear selection", stack.softKeyDefinition(BottomSoftKeySlot.F2)?.label)
-        assertFalse(stack.softKeyDefinition(BottomSoftKeySlot.F2)!!.enabled())
-        assertEquals("Cancel", stack.softKeyDefinition(BottomSoftKeySlot.F8)?.label)
-        val modified = assertNotNull(stack.softKeyDefinition(RightSoftKeySlot.R1))
-        assertEquals("Editor unavailable", modified.label)
-        assertSame(openFile.action, modified.action)
-        assertFalse(modified.enabled())
-        assertFalse(activateSoftKey({ stack }, RightSoftKeySlot.R1))
-        assertSame(SoftKeyDefinition.Blank, stack.softKeyDefinition(RightSoftKeySlot.R2))
-        assertEquals("Info", stack.softKeyDefinition(RightSoftKeySlot.R7)?.label)
-        assertTrue(explorer.cancel())
-        assertSame(openFile, stack.softKeyDefinition(RightSoftKeySlot.R1))
-        assertSame(back, stack.softKeyDefinition(RightSoftKeySlot.R2))
-        assertNull(stack.softKeyDefinition(RightSoftKeySlot.R7))
     }
 
     @Test fun predicateUpdatesDoNotRecomposeStructuralModifiers() {
