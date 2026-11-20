@@ -18,8 +18,9 @@ MDI are planned.
 ## Install and launch
 
 Linux and Windows are supported. Use a display with at least 1024 × 720 pixels at
-100% scaling. The installers include a Java runtime. For serial connections,
-you may need a USB-to-serial driver and permission to open the device on Linux.
+100% scaling. The installers include a Java runtime. USB/serial
+connections may require a driver. On Linux, your user needs permission to open
+the serial device.
 
 Download the installer for your system from the
 [latest release](https://github.com/skasti/grbl-commander/releases/latest).
@@ -28,7 +29,7 @@ Download the installer for your system from the
 | --- | --- | --- |
 | Debian or Ubuntu (x86-64) | Run `sudo apt install ./<downloaded-file>.deb` with the actual filename. | Open **grbl-commander** from the application menu or run `/opt/grbl-commander/bin/grbl-commander`. |
 | RPM-based Linux (x86-64) | On systems with DNF, run `sudo dnf install ./<downloaded-file>.rpm` with the actual filename. | Open **grbl-commander** from the application menu or run `/opt/grbl-commander/bin/grbl-commander`. |
-| Windows | Open the `.msi` and follow the installer prompts. Windows may show an unknown-publisher warning because the package is unsigned. | Open **GRBL Commander** in the Start menu. |
+| Windows (x86-64) | Open the `.msi` and follow the installer prompts. Windows may show an unknown-publisher warning because the package is unsigned. | Open **GRBL Commander** in the Start menu. |
 
 To connect, open **⚙ Util → R7 Connection**, choose Serial or TCP, enter the
 controller's connection details, and select **F6 Connect**. **R7 Terminal**
@@ -49,9 +50,12 @@ Check the controller and machine to determine whether motion has finished.
 Use the machine's independent physical emergency stop in an emergency.
 
 GRBL Commander is source-available under the
-[PolyForm Noncommercial License 1.0.0](LICENSE.md). Its terms permit hobby use,
-other noncommercial purposes, and use by the organizations listed in the
-license. Commercial use outside those terms, including internal use in a
+[PolyForm Noncommercial License 1.0.0](LICENSE.md). Its terms permit hobby use, other
+noncommercial purposes, and use by the organizations listed in the license. The
+license also covers modification and redistribution for permitted purposes,
+subject to its notice and distribution terms.
+
+Commercial use outside those terms, including internal use in a
 commercial workshop, requires prior permission from the maintainer. Bundled
 software has its own licenses. See the
 [third-party notices](app-desktop/packaging/common/THIRD_PARTY_NOTICES.txt).
