@@ -1286,8 +1286,7 @@ screen implementations:
 - `mode.utils.connection` owns the Util connection form, its inline editors and
   selector adapters, and the Advanced Serial and Post-Connect screens. They use
   the shared controls and dialogs and call the core connection/settings APIs.
-- `ui.screens` contains concrete screen implementations such as `Welcome`,
-  `Editor`, `FileExplorer`, `ManualMode`, `ManualDetails`, and `MdiMode`.
+- Mode-owned packages contain concrete screens, their local state, and fixtures.
 - The application composition root selects concrete mode roots and supplies
   them to the generic navigation host.
 
@@ -1318,7 +1317,7 @@ Implemented source ownership:
 | Location | Contents |
 | --- | --- |
 | `app-desktop/src/main/kotlin/no/grblcommander/desktop/Main.kt` | Application composition and shutdown |
-| `app-desktop/src/main/kotlin/no/grblcommander/desktop/ui/` | Presentation infrastructure and concrete screens |
+| `app-desktop/src/main/kotlin/no/grblcommander/desktop/ui/` | Shared presentation infrastructure, composition wiring, and screens outside mode packages |
 | `app-desktop/src/main/kotlin/no/grblcommander/desktop/mode/utils/connection/` | Util connection presentation and form state |
 | `app-desktop/src/main/kotlin/no/grblcommander/desktop/mode/utils/terminal/` | Util Terminal presentation and console state |
 | `core/src/main/kotlin/no/grblcommander/core/connection/` | Application services and connection/configuration models |
