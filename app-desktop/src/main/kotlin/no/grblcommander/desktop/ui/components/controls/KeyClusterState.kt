@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.controls
+package no.grblcommander.desktop.ui.components.controls
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf

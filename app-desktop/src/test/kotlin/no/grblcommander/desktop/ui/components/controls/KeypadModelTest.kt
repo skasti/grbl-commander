@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.controls
+package no.grblcommander.desktop.ui.components.controls
 
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue

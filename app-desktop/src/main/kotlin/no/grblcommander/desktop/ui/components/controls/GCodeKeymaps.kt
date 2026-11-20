@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.controls
+package no.grblcommander.desktop.ui.components.controls
 
 object GCodeKeymaps {
     private fun text(label: String, value: String = label) = KeypadKey(label, KeypadAction.Insert(value))

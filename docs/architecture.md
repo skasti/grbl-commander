@@ -876,9 +876,9 @@ Reusable components include:
 - Confirmation and operator-intervention dialogs.
 - Communication terminal.
 
-The implemented touch keyboard lives in `ui.controls`. `GCodeKeyboard` composes
-independent `KeyCluster` grids stacked vertically in a right-hand workspace panel,
-leaving the console/editor its full height. `AppShell` provides
+The touch keyboard lives in `ui.components.controls`. `GCodeKeyboard` stacks
+independent `KeyCluster` grids in a right-hand workspace panel, leaving the
+console/editor its full height. `AppShell` provides
 `ui.layout.LocalGridUnit` for proportional workspace layouts. The layout package
 fits fixed reference dimensions within 65% of the workspace width and 75% of its
 height, yielding a 44–72 dp unit independently of controls and keymaps. Each
@@ -1268,11 +1268,13 @@ screen implementations:
   `ScreenStackHost`, and the shared softkey definitions, overrides, and
   activation path. These APIs do not depend on concrete application screens.
 - `ui.layout` contains the persistent shell, header, softkey banks, and shared
-  softkey tile presentation.
-- `ui.controls` contains reusable data-configured CNC/G-code keyboard controls,
-  independently retained cluster paging and optional caret/selection editing helpers.
-  Controls emit editing intentions; concrete inputs explicitly bind Enter at runtime.
-  They have no screen, navigation, softkey or machine dependencies.
+  softkey tile presentation. It provides `GridUnit` and `LocalGridUnit` for
+  proportional workspace sizing.
+- `ui.components.controls` contains the reusable CNC/G-code keyboard, keypad
+  renderers, keymaps, cluster paging state and caret/selection editing helpers.
+  Terminal, MDI and connection settings use these controls with
+  `ui.layout.LocalGridUnit` as the default key size. Each screen owns its
+  input state and binds editing actions, including Enter, to its own callbacks.
 - `ui.dialogs` contains reusable typed modal message/choice screens. It uses
   navigation contracts without depending on concrete feature screens or core.
 - `ui.screens` contains concrete screen implementations such as `Welcome`,

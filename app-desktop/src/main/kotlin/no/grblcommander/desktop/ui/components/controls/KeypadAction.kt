@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.controls
+package no.grblcommander.desktop.ui.components.controls
 
 /** Editing intentions only. The input owns focus, validation and Enter semantics. */
 sealed interface KeypadAction {
