@@ -237,13 +237,7 @@ Capture Terminal, MDI and connection-settings integration tests locally on JDK 2
 ```bash
 gradle :app-desktop:test -PuiScreenshots \
   --tests '*TerminalTest' \
-  --tests '*ConnectionSelectorsTest' \
-  --tests '*AdvancedSerialSettingsTest' \
-  --tests '*PostConnectSettingsTest' \
-  --tests '*ConnectionFormTest' \
-  --tests '*ConnectionInlineEditorsTest' \
-  --tests '*ConnectionLifecycleTest' \
-  --tests '*ConnectionPostConnectTest'
+  --tests 'no.grblcommander.desktop.mode.utils.connection.*'
 ```
 
 The opt-in test run writes PNGs to `app-desktop/build/ui-screenshots/<scenario>/<width>x<height>.png`.
@@ -254,7 +248,8 @@ window decorations, platform font rendering and scaled displays can differ.
 The tests check keyboard paging, command submission and input focus separately
 from capture. PNGs are for visual inspection. Capture ownership is recorded alongside
 the images so PR review selection can include modified capture tests without
-hardcoding scenarios in CI.
+hardcoding scenarios in CI. The connection capture tests in `mode.utils.connection`
+own their checkpoints by flow.
 
 UI changes require saved capture checkpoints for each affected screen,
 modal/dialog and relevant visible state; see the
