@@ -17,11 +17,9 @@ Program, Manual and MDI are currently interface demos with local sample data or
 input. Program file access and execution, jogging, and sending commands from
 MDI are planned.
 
-| MDI (demo) | Terminal |
-| --- | --- |
-| <a href="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/mdi/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/mdi/1680x1050.png" alt="MDI screen with the G-code keypad" width="240"></a> | <a href="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/terminal-idle-first-letter/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/terminal-idle-first-letter/1680x1050.png" alt="Terminal with controller traffic and the G-code keypad" width="240"></a> |
-
-<a href="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/connection-host-input/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/connection-host-input/1680x1050.png" alt="QWERTY keypad in the TCP hostname editor" width="240"></a>
+| MDI (demo) | Terminal | QWERTY keypad |
+| --- | --- | --- |
+| <a href="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/mdi/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/mdi/1680x1050.png" alt="MDI screen with the G-code keypad" width="240"></a> | <a href="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/terminal-idle-first-letter/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/terminal-idle-first-letter/1680x1050.png" alt="Terminal with controller traffic and the G-code keypad" width="240"></a> | <a href="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/connection-host-input/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/connection-host-input/1680x1050.png" alt="QWERTY keypad in the TCP hostname editor" width="240"></a> |
 
 ## Install and launch
 
