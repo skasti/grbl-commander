@@ -16,6 +16,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+    # Cancel superseded PR builds without interrupting screenshot publication.
+    concurrency:
+      group: desktop-build-${{ github.event.pull_request.number || github.run_id }}-${{ matrix.os }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
     steps:
       - uses: actions/checkout@v7
@@ -125,6 +129,9 @@ jobs:
     name: grblHAL Simulator integration (Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    concurrency:
+      group: simulator-test-${{ github.event.pull_request.number || github.run_id }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
