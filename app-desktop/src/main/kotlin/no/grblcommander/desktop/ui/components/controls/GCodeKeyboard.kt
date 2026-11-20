@@ -22,8 +22,8 @@ internal val keypadPanelMargin = 30.dp
 fun GCodeKeyboard(
     onAction: (KeypadAction) -> Unit,
     modifier: Modifier = Modifier,
-    letters: KeyClusterState = remember { KeyClusterState(GCodeKeymaps.letters) },
-    numbers: KeyClusterState = remember { KeyClusterState(GCodeKeymaps.numbers) },
+    letters: KeyClusterState = remember { KeyClusterState(Keymaps.code) },
+    numbers: KeyClusterState = remember { KeyClusterState(Keymaps.numPlus) },
     keySize: Dp = LocalGridUnit.current,
 ) {
     KeypadPanel(listOf(letters, numbers), onAction, modifier, keySize)
