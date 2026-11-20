@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.screens
+package no.grblcommander.desktop.mode.utils.terminal
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
