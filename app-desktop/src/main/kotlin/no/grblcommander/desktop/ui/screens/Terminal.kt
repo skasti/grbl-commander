@@ -48,7 +48,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.ControllerTraffic
 import no.grblcommander.core.connection.description
-import no.grblcommander.desktop.ui.controls.*
+import no.grblcommander.desktop.ui.components.controls.*
 import no.grblcommander.desktop.ui.dialogs.ModalDialog
 import no.grblcommander.desktop.ui.navigation.*
 import no.grblcommander.desktop.ui.rememberCurrentTime

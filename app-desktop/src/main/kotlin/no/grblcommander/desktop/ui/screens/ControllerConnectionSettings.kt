@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
-import no.grblcommander.desktop.ui.controls.KeypadPanel
-import no.grblcommander.desktop.ui.controls.keypadPanelMargin
+import no.grblcommander.desktop.ui.components.controls.KeypadPanel
+import no.grblcommander.desktop.ui.components.controls.keypadPanelMargin
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding

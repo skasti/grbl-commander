@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.controls
+package no.grblcommander.desktop.ui.components.controls
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicTextField

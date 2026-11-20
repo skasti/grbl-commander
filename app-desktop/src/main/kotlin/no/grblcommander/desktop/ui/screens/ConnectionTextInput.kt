@@ -14,7 +14,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import no.grblcommander.desktop.ui.controls.*
+import no.grblcommander.desktop.ui.components.controls.*
 
 /** One inline edit, owned by the form until Apply, Enter or Cancel. */
 internal class ConnectionTextInput(initial: String, numeric: Boolean) {

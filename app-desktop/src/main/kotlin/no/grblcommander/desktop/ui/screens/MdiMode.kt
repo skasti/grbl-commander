@@ -12,7 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.TextFieldValue
-import no.grblcommander.desktop.ui.controls.*
+import no.grblcommander.desktop.ui.components.controls.*
 import no.grblcommander.desktop.ui.navigation.Screen
 
 class MdiMode : Screen<Unit>(Unit) {
