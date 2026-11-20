@@ -1292,9 +1292,8 @@ screen implementations:
 
 Keep feature-specific behavior out of generic navigation, softkey, and layout
 packages. A reusable component belongs with the shared responsibility it
-implements; it should not be placed in `ui.screens` merely because screens use
-it. Concrete screens may depend on those shared APIs, while the shared APIs must
-not import or name concrete screens.
+implements. Concrete screens may depend on those shared APIs, while the shared
+APIs must not import or name concrete screens.
 
 Concrete screen names describe their user-facing role or mode. Use concise
 feature names such as `Welcome`, `Editor`, or `FileExplorer`, and mode names
@@ -1317,7 +1316,7 @@ Implemented source ownership:
 | Location | Contents |
 | --- | --- |
 | `app-desktop/src/main/kotlin/no/grblcommander/desktop/Main.kt` | Application composition and shutdown |
-| `app-desktop/src/main/kotlin/no/grblcommander/desktop/ui/` | Shared presentation infrastructure, composition wiring, and screens outside mode packages |
+| `app-desktop/src/main/kotlin/no/grblcommander/desktop/ui/` | Shared presentation infrastructure and composition wiring |
 | `app-desktop/src/main/kotlin/no/grblcommander/desktop/mode/utils/connection/` | Util connection presentation and form state |
 | `app-desktop/src/main/kotlin/no/grblcommander/desktop/mode/utils/terminal/` | Util Terminal presentation and console state |
 | `core/src/main/kotlin/no/grblcommander/core/connection/` | Application services and connection/configuration models |

@@ -540,7 +540,8 @@ automatic machine-control commands.
 
 `ui.components.controls.GCodeKeyboard` stacks the letter `KeyCluster` above the
 numeric cluster in a right-hand workspace panel beside the Util Terminal console
-or the local MDI buffer. The console/input occupies the full available height.
+or the local buffer owned by `mode.mdi.MdiMode`. The console/input occupies
+the full available height.
 Each cluster has independent retained
 `KeyClusterState`, a square grid and one page-count/Next control below it, wrapping
 to the first page. Single-page maps omit the page control. Paging preserves focus,

@@ -28,7 +28,7 @@ import no.grblcommander.desktop.mode.utils.terminal.Terminal
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.mode.manual.ManualMode
-import no.grblcommander.desktop.ui.screens.MdiMode
+import no.grblcommander.desktop.mode.mdi.MdiMode
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
 import no.grblcommander.desktop.mode.program.Welcome
