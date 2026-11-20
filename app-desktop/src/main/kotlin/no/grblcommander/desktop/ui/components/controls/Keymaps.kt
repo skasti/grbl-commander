@@ -1,60 +1,60 @@
 package no.grblcommander.desktop.ui.components.controls
 
 object Keymaps {
-    private fun text(label: String, value: String = label) = KeypadKey(label, KeypadAction.Insert(value))
-    private val backspace = KeypadKey("⌫", KeypadAction.Backspace)
-    private val enter = KeypadKey("↵", KeypadAction.Enter)
-    private fun page(vararg keys: KeypadKey?) = keys.mapIndexedNotNull { index, key -> key?.let { index to it } }.toMap()
-    fun letterPage(vararg rows: String): Map<Int, KeypadKey> = buildMap {
-        rows.forEachIndexed { row, letters ->
-            letters.forEachIndexed { column, letter ->
-                val text = letter.toString()
-                put(row * 10 + column, KeypadKey(text, KeypadAction.Insert(text)))
+    /** Builds a row-major page; repeated adjacent keys become one spanning key. */
+    fun newPage(emptyPlaceholder: Char, vararg rows: String): Map<Int, KeypadKey> {
+        val columns = rows.maxOfOrNull(String::length) ?: return emptyMap()
+        return buildMap {
+            rows.forEachIndexed { rowIndex, row ->
+                var column = 0
+                while (column < row.length) {
+                    val key = newKey(row[column], emptyPlaceholder)
+                    if (key == null) {
+                        column++
+                        continue
+                    }
+
+                    var span = 1
+                    while (column + span < row.length && newKey(row[column + span], emptyPlaceholder) == key) {
+                        span++
+                    }
+                    put(rowIndex * columns + column, key.copy(columnSpan = span))
+                    column += span
+                }
             }
         }
-        put(27, KeypadKey("Space", KeypadAction.Insert(" "), columnSpan = 2))
     }
 
-    fun numPage(vararg labels: String): Map<Int, KeypadKey> =
-        labels.mapIndexedNotNull { index, symbol ->
-            val action = when (symbol) {
-                "" -> return@mapIndexedNotNull null
-                "⌫" -> KeypadAction.Backspace
-                "↵" -> KeypadAction.Enter
-                else -> KeypadAction.Insert(symbol)
-            }
-            val label = when (symbol) {
-                " " -> "Space"
-                else -> symbol
-            }
-            index to KeypadKey(label, action)
-        }.toMap()
+    private fun newKey(symbol: Char, emptyPlaceholder: Char): KeypadKey? {
+        val text = symbol.toString()
+        if (symbol == emptyPlaceholder) return null
+        val action = when (text) {
+            "⌫" -> KeypadAction.Backspace
+            "↵" -> KeypadAction.Enter
+            "−" -> KeypadAction.Insert("-")
+            else -> KeypadAction.Insert(text)
+        }
+        val label = if (text == " ") "Space" else text
+        return KeypadKey(label, action)
+    }
+
+    fun newPage(vararg rows: String): Map<Int, KeypadKey> =
+        newPage(emptyPlaceholder = '_', rows = rows)
 
     val code = KeypadLayout("CODE", pages = listOf(
-        page(*"ONGPXYZAIJKRFSTM".map { text(it.toString()) }.toTypedArray()),
-        page(*"BCDEHLQUVW".map { text(it.toString()) }.toTypedArray()),
+        newPage("ONGP", "XYZA", "IJKR", "FSTM"),
+        newPage("BCDE", "HLQU", "VW__"),
     ))
     val numPlus = KeypadLayout("NUM+", gapsBeforeColumns = mapOf(3 to .60f), pages = listOf(
-        page(text("7"), text("8"), text("9"), backspace,
-            text("4"), text("5"), text("6"), text("*"),
-            text("1"), text("2"), text("3"), text("+"),
-            text("−", "-"), text("0"), text("."), enter),
-        page(text("#"), text("/"), text("="), backspace,
-            text("("), text(")"), text("$"), text("*"),
-            text("["), text("]"), text("%"), text("+"),
-            text("−", "-"), text("Space", " "), text(":"), enter),
+        newPage("789⌫", "456*", "123+", "−0.↵"),
+        newPage("#/=⌫", "()$*", "[]%+", "− :↵"),
     ))
     val num = KeypadLayout("NUM", gapsBeforeColumns = mapOf(3 to .60f), pages = listOf(
-        numPage(
-            "7", "8", "9", "⌫",
-            "4", "5", "6", "",
-            "1", "2", "3", "",
-            "", "0", "", "↵"
-        ),
+        newPage("789⌫", "456_", "123_", "_0_↵"),
     ))
 
     val qwerty = KeypadLayout("QWERTY", rows = 3, columns = 10, pages = listOf(
-        letterPage("qwertyuiop", "asdfghjkl", "zxcvbnm"),
-        letterPage("QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"),
+        newPage("qwertyuiop", "asdfghjkl_", "zxcvbnm  "),
+        newPage("QWERTYUIOP", "ASDFGHJKL_", "ZXCVBNM  "),
     ))
 }
