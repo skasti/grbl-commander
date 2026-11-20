@@ -106,8 +106,8 @@ provide the remaining letters and macro/editing symbols. Tapping inserts at the
 caret or replaces the selection without taking input focus. Terminal Enter uses
 the existing guarded submission; MDI Enter inserts a local newline. Input and
 keyboard pages survive mode/settings visits. Keymaps, labels, dimensions and gap
-ratios are data configured through `ui.controls.KeypadLayout`; customization is
-in memory, with no visual map editor or saved user preferences. See the
+ratios are configured through `ui.components.controls.KeypadLayout`. Customization
+is in memory, with no visual map editor or saved user preferences. See the
 [configuration example and input contract](docs/ui-layout.md#cncg-code-touch-keyboard).
 
 The terminal has no workspace action buttons or explicit Status key. Its shared
