@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.dialogs
+package no.grblcommander.desktop.ui.components.dialogs
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme

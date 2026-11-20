@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
 import no.grblcommander.core.connection.ControllerEndpointDraft
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.description
-import no.grblcommander.desktop.ui.dialogs.ModalDialog
+import no.grblcommander.desktop.ui.components.dialogs.ModalDialog
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.desktop.ui.navigation.Screen
