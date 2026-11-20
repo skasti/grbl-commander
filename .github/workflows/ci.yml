@@ -36,7 +36,7 @@ jobs:
           gradle :infrastructure:build :core:build :app-desktop:build
           --no-daemon --stacktrace
           ${{ matrix.os == 'ubuntu-latest' && '-PuiScreenshots' || '' }}
-          ${{ matrix.os == 'windows-latest' && '--profile' || '' }}
+          ${{ matrix.os == 'windows-latest' && '-PparallelDesktopTests --profile' || '' }}
       - name: Upload Windows Gradle profile
         if: ${{ !cancelled() && matrix.os == 'windows-latest' }}
         uses: actions/upload-artifact@v6
