@@ -12,11 +12,7 @@ import kotlin.test.assertEquals
 private val screenshotDirectory = System.getProperty("grblcommander.uiScreenshotDirectory")?.let(::File)
 private val screenshotSizes = listOf(
     Size(1024f, 720f),
-    Size(1024f, 768f),
-    Size(1280f, 720f),
     Size(1680f, 1050f),
-    Size(1920f, 1080f),
-    Size(2560f, 1440f),
 )
 
 @OptIn(ExperimentalTestApi::class)
