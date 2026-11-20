@@ -224,7 +224,7 @@ Compose screenshot checkpoints for the affected UI as part of the same work.
 - Describe the covered screens/states and any remaining gaps in the PR. Compare
   the coverage with the UI changes before considering the work complete.
 
-See [Compose UI screenshots](README.md#compose-ui-screenshots) for capture commands,
+See [Compose UI screenshots](docs/ui-screenshots.md) for capture commands,
 artifact paths, publication and review selection.
 
 ## 8. Keep implementations focused

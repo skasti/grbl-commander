@@ -50,3 +50,10 @@ release notes, and installer assets.
 The publishing job uses the repository Actions secret `RELEASE_TOKEN` (a token authorized to create GitHub Releases) rather than the default `GITHUB_TOKEN`. The built-in token has read-only access for source checkout and CI artifacts; release credentials are limited to the publication step. If `RELEASE_TOKEN` is missing, the publishing job fails with an explicit error. If a build or asset verification fails, publication fails rather than publishing an incomplete release. A failed run that created no version tag does not consume a version number: the next merged PR computes its version from the highest existing semantic release tag, or from the v0.1.0 baseline when no tags exist. The workflow serializes release jobs to reduce concurrent version conflicts.
 
 Packages are currently unsigned. Windows may warn about an unknown publisher. Code signing, additional Linux formats, and platform-specific installation testing are separate concerns. macOS is not a supported release target and no DMG is produced. CI builds are not evidence of successful installation on every machine or physical CNC testing.
+
+The [native package smoke workflow](../.github/workflows/package-smoke.yml) runs
+for PRs that affect packaging. It builds DEB and RPM with
+`gradle :app-desktop:packageDeb :app-desktop:packageRpm` on Linux (with RPM
+packaging tools installed) and MSI with `gradle :app-desktop:packageMsi` on
+Windows. It checks the legal resource files in both Linux packages and the MSI
+Start menu shortcut.
