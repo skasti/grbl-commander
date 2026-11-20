@@ -40,6 +40,8 @@ val uiScreenshotDirectory = layout.buildDirectory.dir("ui-screenshots")
 
 tasks.test {
     useJUnitPlatform()
+    // Run screenshot-heavy test classes in two independent JVMs.
+    maxParallelForks = if (uiScreenshots.get()) 2 else 1
     systemProperty("java.awt.headless", "true")
     systemProperty("skiko.renderApi", "SOFTWARE")
     inputs.property("uiScreenshots", uiScreenshots)
