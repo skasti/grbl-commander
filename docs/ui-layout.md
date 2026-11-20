@@ -20,12 +20,8 @@ workspace and bottom-softkey row. The main workspace and bottom keys share the
 remaining width. The initial default sizes are 78 dp for the header, 94 dp for
 the bottom keys and 142 dp for the right column; they may be adjusted for screen
 sizes and touch targets. The supported layout starts at 1024 × 720 pixels
-at 1× density. See the [Compose UI screenshots](../README.md#compose-ui-screenshots)
-for fixed CI capture resolutions, local verification and published views.
-PR review comments compare captures with the main baseline and also include
-captures from modified tests. Each scenario shows one expanded resolution;
-additional sizes are collapsed. Capture checkpoints remain in tests, without a
-per-screen workflow list or generated documentation gallery.
+at 1× density. See [Compose UI screenshots](ui-screenshots.md) for local
+verification, CI capture resolutions and published views.
 
 `AppShell` owns the persistent regions, accepts a Compose content slot for the
 workspace, and exposes an optional header-controls slot for UI-mode selection.
@@ -491,8 +487,10 @@ competing operations. Disconnect waits for Connect persistence once that phase
 has begun; Save and running Disconnect cannot be cancelled by another Disconnect.
 Save persists without changing the session; Connect persists after successful
 connection. Progress, actual endpoint, failures and stale/unavailable observations
-come from the shared owner. Deliberate disconnect is neutral. Core's existing
-500 ms polling remains independent of the screen.
+come from the shared owner. Deliberate disconnect clears the displayed connection
+error and leaves a neutral observation that machine state is no longer updating.
+Unexpected failures remain visible. Background status polling is independent of
+the selected screen.
 
 F8 confirms replacing dirty edits with the latest saved complete form, including
 the selected transport, both transport fields and post-connect choices. Without

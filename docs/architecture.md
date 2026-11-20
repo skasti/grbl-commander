@@ -484,7 +484,8 @@ per-attempt confirmation at both settings and connection boundaries; startup
 always suppresses reset. Confirmed reset calls the existing session reset once,
 then awaits its banner/status synchronization before queries.
 
-Normal queries use the session's serialized executeLine path and existing response
+Enabled queries run in firmware info, parameters, then parser state order.
+They use the session's serialized executeLine path and existing response
 collection. They are not subject to the terminal's motion-state admission policy:
 the controller may reject them in its actual state. Post-connect work reserves
 normal manual admission and Cycle Start while realtime status remains independent.
@@ -1347,39 +1348,9 @@ The test strategy includes:
   desktop integrations.
 - Platform-native packaging smoke tests.
 
-`gradle :core:build --configure-on-demand` builds and tests application services
-without compiling or testing Compose. Core tests preserve controller lifecycle,
-handshake, cancellation, diagnostics and settings contracts; they also cover
-legacy record compatibility, shared configuration state and simulated restarts.
-Core and desktop tests share one simulated transport through Gradle test fixtures.
-Desktop tests retain navigation, confirmation and concurrent-form coverage.
-Linux/Windows CI runs `:infrastructure:build :core:build :app-desktop:build`.
-Linux uses the shared opt-in Compose capture helper at fixed resolutions on PRs
-and main pushes. Capture checkpoints retain functional assertions and record
-producing test sources. CI publishes complete captures through one retrying Git
-publisher to `pr-assets/<PR>/` or `pr-assets/main/`. A separate publication job
-owns write permissions, selects decoded pixel/dimension differences and captures
-from modified tests, and maintains one informational PR comment. Per-target
-serialization and run/attempt ordering cover both assets and comments; fork PRs
-retain read-only artifacts. This review aid does not approve visual changes or
-alter machine/session behavior. See [screenshot verification and limitations](../README.md#compose-ui-screenshots).
-
-The implemented `:infrastructure:test` suite covers GRBL framing/parsing,
-TCP loopback lifecycle, serial lifecycle via an injected native adapter, native
-serial library loading/enumeration, and in-memory session correlation/failure
-behavior on Linux and Windows. Serial hardware and virtual-PTY integration are
-not verified.
-
-The opt-in Linux `:infrastructure:simulatorTest` task starts the official grblHAL
-Simulator pinned by `scripts/build-grblhal-simulator.sh`, including its recorded
-core/SD-card submodules. It uses an isolated EEPROM/working directory and raw TCP
-`-p <port>`, connects with production `TcpTransport`/`GrblMachineSession` under a
-readiness deadline, verifies `$I`, `?` and `$G`, and tests peer disconnection.
-The process is terminated with bounded graceful/forced cleanup in `finally`,
-including assertion failures. CI runs it separately from the Linux/Windows
-build/test matrix. Setup and commands are in the [README](../README.md).
-Simulator timing is approximate and its implementation experimental; these tests
-neither exercise physical ports nor establish physical-machine safety.
+See [Building and testing](testing.md) for local commands, current coverage and
+simulator setup. [Compose UI screenshots](ui-screenshots.md) documents capture
+checkpoints, CI publication and visual review.
 
 The planned application-level simulated controller should support configurable delays, missing responses,
 errors, alarms, disconnections, and tool-change pauses.
