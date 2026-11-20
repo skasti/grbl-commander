@@ -245,8 +245,8 @@ than introducing workarounds that undermine established boundaries.
 
 - Keep reusable UI infrastructure separate from application-specific screens.
   `ui.navigation` owns screen and stack contracts, `ui.layout` owns the
-  persistent shell and shared layout components, and `ui.screens` owns concrete
-  screens such as `Editor` and `FileExplorer`.
+  persistent shell and shared layout components. Mode packages own their concrete
+  screens, such as `Editor` and `FileExplorer` in `mode.program`.
 - Keep generic navigation, softkey, and layout code independent of concrete
   screens. Generic packages must not refer to `Editor`, `FileExplorer`, or other
   feature-specific implementations. Concrete screens may use the shared
