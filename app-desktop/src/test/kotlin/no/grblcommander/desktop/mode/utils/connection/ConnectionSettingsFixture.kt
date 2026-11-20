@@ -23,6 +23,7 @@ import no.grblcommander.core.connection.ControllerConnection
 import no.grblcommander.core.connection.ControllerEndpointDraft
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.description
+import no.grblcommander.desktop.mode.utils.terminal.Terminal
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
@@ -31,7 +32,6 @@ import no.grblcommander.desktop.ui.navigation.ScreenStackHost
 import no.grblcommander.desktop.ui.navigation.SoftKeySlot
 import no.grblcommander.desktop.ui.navigation.activateSoftKey
 import no.grblcommander.desktop.ui.rememberCurrentTime
-import no.grblcommander.desktop.ui.screens.Terminal
 import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.MachineSession
 import no.grblcommander.machine.session.MachineSnapshot.Connection
