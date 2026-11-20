@@ -500,8 +500,10 @@ endpoint. Save and successful Connect persist it through the same versioned reco
 and configuration lock. The form's F8 restore uses this saved form or normal
 defaults, without controller I/O. Port and baud selectors, advanced serial options and
 post-connect screens return typed draft results on the existing Util stack.
-Ports and baud use six numbered selections per page. The connection form keeps
-field edits inline and uses the same keypad sizing and edit actions as Terminal and MDI.
+Port and baud selection share `OptionSelectDialog<R>`. The connection UI
+supplies device discovery and its messages, along with the common baud rates.
+The connection form keeps field edits inline and uses the same keypad sizing
+and edit actions as Terminal and MDI.
 
 Serial native open seeds requested DTR/RTS levels before opening and checks both
 levels after opening. This never alternates levels to generate a reset pulse.
@@ -1275,8 +1277,9 @@ screen implementations:
   `ui.layout.LocalGridUnit` as the default key size. Each screen owns its
   input state and binds editing actions, including Enter, to its own callbacks.
 - `ui.components.dialogs` contains `BaseDialog`, the Compose title and body
-  surface, and `ModalDialog<R>`, the typed message and choice screen.
-  `ModalDialog<R>` uses the shared navigation contracts.
+  surface. `ModalDialog<R>` and `OptionSelectDialog<R>` render through
+  it and use the shared navigation contracts for typed results. The option
+  selector takes caller-supplied options and empty or failure content.
 - `ui.screens` contains concrete screen implementations such as `Welcome`,
   `Editor`, `FileExplorer`, `ManualMode`, `ManualDetails`, and `MdiMode`.
 - The application composition root selects concrete mode roots and supplies

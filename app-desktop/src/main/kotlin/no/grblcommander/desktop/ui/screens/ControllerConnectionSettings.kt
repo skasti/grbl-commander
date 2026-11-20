@@ -48,6 +48,9 @@ import no.grblcommander.core.connection.ControllerEndpointDraft
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.description
 import no.grblcommander.desktop.ui.components.dialogs.ModalDialog
+import no.grblcommander.desktop.ui.components.dialogs.OptionSelectDialog
+import no.grblcommander.desktop.ui.components.dialogs.OptionSelectDialog.Option
+import no.grblcommander.desktop.ui.components.dialogs.OptionSelectDialog.Options
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.desktop.ui.navigation.Screen
@@ -151,14 +154,14 @@ class ControllerConnectionSettings(private val settings: ControllerSettings) : S
 
     private fun selectPort() {
         if (busy) return
-        ConnectionChoice("Select serial port") {
-            settings.discoverSerialPorts().getOrThrow().map { it.device to it.label }
-        }.open(this) { it?.let { port -> draft = draft.copy(serialPort = port) } }
+        serialPortChoice { settings.discoverSerialPorts().getOrThrow() }
+            .open(this) { it?.let { port -> draft = draft.copy(serialPort = port) } }
     }
     private fun selectBaud() {
         if (busy) return
-        ConnectionChoice("Select baud rate") {
-            listOf(9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600).map { it.toString() to it.toString() }
+        OptionSelectDialog<String?>("Select baud rate", cancellationResult = null) {
+            val rates = listOf(9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600)
+            Options(rates.map { rate -> rate.toString().let { Option(label = it, result = it) } })
         }.open(this) { it?.let { baud -> draft = draft.copy(baudRate = baud) } }
     }
     private fun restore() {

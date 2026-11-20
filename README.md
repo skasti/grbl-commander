@@ -149,8 +149,9 @@ Connection settings use the bottom softkeys: F1 toggles Serial/TCP; F2/F3
 select serial ports/baud or edit TCP host/port; F4 opens advanced serial settings;
 F5 opens shared Post-Connect Actions; F6 connects or disconnects; F7 saves;
 F8 restores the last saved form, with confirmation before discarding edits.
-R7 returns to Terminal. Serial selectors show six numbered touch rows per page;
-F1–F6 select, F7 pages and F8 cancels. Manual device and custom baud entry remain
+R7 returns to Terminal. Port and baud dialogs show up to six numbered touch
+rows per page. F1–F6 select, F7 appears when there is another page, and F8
+cancels. Manual device and custom baud entry remain
 available through touch keypads beside the active field. Keypads share Terminal
 and MDI sizing and spacing. Advanced F1–F6 cycle settings;
 F7 applies to the parent draft and F8 confirms discarding changed values.
