@@ -36,13 +36,12 @@ compose.resources {
 }
 
 val uiScreenshots = providers.gradleProperty("uiScreenshots").map { it.isEmpty() || it.toBoolean() }.orElse(false)
-val parallelDesktopTests = providers.gradleProperty("parallelDesktopTests").isPresent
 val uiScreenshotDirectory = layout.buildDirectory.dir("ui-screenshots")
 
 tasks.test {
     useJUnitPlatform()
-    // Run desktop test classes in two independent JVMs when opted in.
-    maxParallelForks = if (uiScreenshots.get() || parallelDesktopTests) 2 else 1
+    // Run screenshot-heavy test classes in two independent JVMs.
+    maxParallelForks = if (uiScreenshots.get()) 2 else 1
     systemProperty("java.awt.headless", "true")
     systemProperty("skiko.renderApi", "SOFTWARE")
     inputs.property("uiScreenshots", uiScreenshots)
