@@ -55,7 +55,7 @@ class CommanderAppConnectionTest {
         var opened = 0
         val owner = ControllerConnection(scope, { _, _ -> opened++; error("Invalid form must not open transport") })
         try {
-            val settings = ControllerSettings(owner)
+            val settings = ControllerSettings(owner, ControllerEndpointPreferences(ConnectionTestPreferences()))
             setContent { CommanderApp(owner, settings) }
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
             onNodeWithTag("softkey-R7").performClick()
