@@ -356,9 +356,10 @@ selected semantics/color. Connection health stays in the separate display-only
 header indicator, with the current endpoint in the header context. No settings
 screen is pushed onto Program, Manual or MDI stacks.
 
-Util owns one persistent `ScreenStack(Terminal(...))`. Terminal is visible on first
-entry. Its R7 **🔗 Connection** opens `ControllerConnectionSettings` above it with
-an explicit parent. The form replaces this key with R7 **⌨ Terminal**, which
+The application retains one Util `ScreenStack(Terminal(...))` per window.
+Terminal is visible on first entry. Its R7 **🔗 Connection** opens
+`mode.utils.connection.ControllerConnectionSettings` above it with an explicit
+parent. The form replaces this key with R7 **⌨ Terminal**, which
 returns to the same root state. These are navigation actions labelled for their
 destination, not selected-screen or connection-health indicators. Terminal has no
 self-selection key. Switching modes restores an open settings screen. Settings

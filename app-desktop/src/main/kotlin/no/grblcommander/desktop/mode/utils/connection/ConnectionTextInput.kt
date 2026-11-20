@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.screens
+package no.grblcommander.desktop.mode.utils.connection
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn

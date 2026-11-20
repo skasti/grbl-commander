@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.screens
+package no.grblcommander.desktop.mode.utils.connection
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text

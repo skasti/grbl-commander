@@ -48,6 +48,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.ControllerTraffic
 import no.grblcommander.core.connection.description
+import no.grblcommander.desktop.mode.utils.connection.ControllerConnectionSettings
 import no.grblcommander.desktop.ui.components.controls.*
 import no.grblcommander.desktop.ui.components.dialogs.ModalDialog
 import no.grblcommander.desktop.ui.navigation.*

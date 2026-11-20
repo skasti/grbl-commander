@@ -1,4 +1,4 @@
-package no.grblcommander.desktop.ui.screens
+package no.grblcommander.desktop.mode.utils.connection
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -31,6 +31,7 @@ import no.grblcommander.desktop.ui.navigation.ScreenStackHost
 import no.grblcommander.desktop.ui.navigation.SoftKeySlot
 import no.grblcommander.desktop.ui.navigation.activateSoftKey
 import no.grblcommander.desktop.ui.rememberCurrentTime
+import no.grblcommander.desktop.ui.screens.Terminal
 import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.MachineSession
 import no.grblcommander.machine.session.MachineSnapshot.Connection

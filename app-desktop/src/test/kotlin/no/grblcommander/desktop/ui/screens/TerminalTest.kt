@@ -15,6 +15,7 @@ import java.util.prefs.Preferences
 import kotlinx.coroutines.*
 import no.grblcommander.configuration.ControllerEndpointPreferences
 import no.grblcommander.core.connection.*
+import no.grblcommander.desktop.mode.utils.connection.ControllerConnectionSettings
 import no.grblcommander.desktop.ui.CommanderApp
 import no.grblcommander.desktop.ui.runAtScreenshotSizes
 import no.grblcommander.desktop.ui.layout.AppShell
