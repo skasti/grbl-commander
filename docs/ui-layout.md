@@ -613,7 +613,7 @@ with the margin outside that budget.
 
 `KeypadLayout` is a copied configuration snapshot with rows/columns, a list of
 row-major slot maps, labels, typed actions, ordinary spacing and optional total
-gaps before columns. `GCodeKeymaps` supplies defaults. For customization, construct
+gaps before columns. `Keymaps` supplies defaults. For customization, construct
 screen-owned states and pass them to the same renderer; no renderer changes are
 needed. For example:
 

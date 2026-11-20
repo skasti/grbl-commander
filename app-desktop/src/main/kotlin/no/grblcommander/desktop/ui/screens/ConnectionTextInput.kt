@@ -22,7 +22,7 @@ internal class ConnectionTextInput(initial: String, numeric: Boolean) {
     val keypads = if (numeric) {
         listOf(KeyClusterState(digits))
     } else {
-        listOf(KeyClusterState(letters), KeyClusterState(GCodeKeymaps.numbers))
+        listOf(KeyClusterState(letters), KeyClusterState(Keymaps.numPlus))
     }
 
     @Composable

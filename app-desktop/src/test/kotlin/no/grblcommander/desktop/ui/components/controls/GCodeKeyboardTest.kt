@@ -37,8 +37,8 @@ class GCodeKeyboardTest {
         var value by mutableStateOf(TextFieldValue("G0 X12", TextRange(6, 4)))
         var enterCount = 0
         var enter: () -> Unit by mutableStateOf({ enterCount++ })
-        val letters = KeyClusterState(GCodeKeymaps.letters)
-        val numbers = KeyClusterState(GCodeKeymaps.numbers)
+        val letters = KeyClusterState(Keymaps.code)
+        val numbers = KeyClusterState(Keymaps.numPlus)
         setContent {
             MaterialTheme {
                 Column {

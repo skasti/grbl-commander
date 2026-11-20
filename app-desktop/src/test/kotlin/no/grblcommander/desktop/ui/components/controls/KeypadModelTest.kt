@@ -6,12 +6,12 @@ import kotlin.test.*
 
 class KeypadModelTest {
     @Test fun `default grids retain exact mappings and stable edit keys`() {
-        assertEquals("ONGPXYZAIJKRFSTM", GCodeKeymaps.letters.pages[0].values.joinToString("") { it.label })
+        assertEquals("ONGPXYZAIJKRFSTM", Keymaps.code.pages[0].values.joinToString("") { it.label })
         assertEquals(listOf("7", "8", "9", "⌫", "4", "5", "6", "*", "1", "2", "3", "+", "−", "0", ".", "↵"),
-            GCodeKeymaps.numbers.pages[0].values.map { it.label })
-        val letters = GCodeKeymaps.letters.pages.flatMap { it.values }.map { (it.action as KeypadAction.Insert).text }.toSet()
+            Keymaps.numPlus.pages[0].values.map { it.label })
+        val letters = Keymaps.code.pages.flatMap { it.values }.map { (it.action as KeypadAction.Insert).text }.toSet()
         assertTrue(('A'..'Z').all { it.toString() in letters })
-        GCodeKeymaps.numbers.pages.forEach {
+        Keymaps.numPlus.pages.forEach {
             assertEquals(KeypadAction.Backspace, it[3]!!.action)
             assertEquals(KeypadAction.Enter, it[15]!!.action)
             assertEquals(KeypadAction.Insert("*"), it[7]!!.action)
@@ -19,8 +19,8 @@ class KeypadModelTest {
         }
     }
     @Test fun `clusters cycle independently including single page and preserve empty slots`() {
-        val letters = KeyClusterState(GCodeKeymaps.letters)
-        val numbers = KeyClusterState(GCodeKeymaps.numbers)
+        val letters = KeyClusterState(Keymaps.code)
+        val numbers = KeyClusterState(Keymaps.numPlus)
         letters.next()
         assertEquals(1, letters.pageIndex); assertEquals(0, numbers.pageIndex)
         assertNull(letters.keys[15])

@@ -31,7 +31,7 @@ fun main() {
                 onCloseRequest = ::exitApplication,
                 title = "GRBL Commander",
                 icon = painterResource(Res.drawable.grbl_commander_icon),
-                state = rememberWindowState(width = 1280.dp, height = 760.dp),
+                state = rememberWindowState(width = 1680.dp, height = 1050.dp),
             ) {
                 CommanderApp(connection, settings)
             }
