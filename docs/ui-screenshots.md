@@ -2,7 +2,7 @@
 
 ## Local capture
 
-Capture Terminal, MDI and connection-settings integration tests locally with
+Capture the welcome screen, Terminal, MDI and connection settings locally with
 [JDK 21 and Gradle 9.8.2](testing.md#prerequisites):
 
 ```bash
@@ -13,7 +13,7 @@ gradle :app-desktop:test -PuiScreenshots \
 
 The opt-in test task uses up to two parallel test JVMs and writes PNGs to
 `app-desktop/build/ui-screenshots/<scenario>/<width>x<height>.png`.
-It uses the production Compose shell, Terminal/MDI screens, connection forms and
+It uses the production Compose shell, welcome screen, Terminal/MDI screens, connection forms and
 editors, and deterministic in-memory controller/discovery fixtures. The headless Skiko test surface uses software
 rendering at 1× density. It captures the application client area, so native
 window decorations, platform font rendering and scaled displays can differ.
@@ -35,6 +35,7 @@ it does not imply coverage of all application screens.
 
 | Directory | Captured state |
 | --- | --- |
+| `welcome` | Program welcome screen at startup |
 | `terminal` | Util Terminal with the first letter and number pages |
 | `terminal-page-2` | Both second pages with a focused command draft |
 | `terminal-acknowledged` | Command acknowledged while simulated execution is Run |

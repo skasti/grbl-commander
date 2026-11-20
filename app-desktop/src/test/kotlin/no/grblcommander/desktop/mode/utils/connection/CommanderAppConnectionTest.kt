@@ -11,6 +11,7 @@ import kotlinx.coroutines.runBlocking
 import no.grblcommander.core.connection.ControllerConnection
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.desktop.ui.CommanderApp
+import no.grblcommander.desktop.ui.runAtScreenshotSizes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -50,13 +51,15 @@ class CommanderAppConnectionTest {
         }
     }
 
-    @Test fun `gear selects Util and invalid form stays on same stack across modes without opening transport`() = runComposeUiTest {
+    @Test fun `gear selects Util and invalid form stays on same stack across modes without opening transport`() = runAtScreenshotSizes { screenshot ->
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         var opened = 0
         val owner = ControllerConnection(scope, { _, _ -> opened++; error("Invalid form must not open transport") })
         try {
             val settings = ControllerSettings(owner, ControllerEndpointPreferences(ConnectionTestPreferences()))
             setContent { CommanderApp(owner, settings) }
+            onNodeWithContentDescription("GRBL Commander splash screen").assertIsDisplayed()
+            screenshot("welcome")
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
             onNodeWithTag("softkey-R7").performClick()
             waitUntil(timeoutMillis = 5_000) {
