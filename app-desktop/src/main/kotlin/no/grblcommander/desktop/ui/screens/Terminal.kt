@@ -49,7 +49,7 @@ import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.ControllerTraffic
 import no.grblcommander.core.connection.description
 import no.grblcommander.desktop.ui.components.controls.*
-import no.grblcommander.desktop.ui.dialogs.ModalDialog
+import no.grblcommander.desktop.ui.components.dialogs.ModalDialog
 import no.grblcommander.desktop.ui.navigation.*
 import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.machine.protocol.GrblProtocol

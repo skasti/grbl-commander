@@ -6,7 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import no.grblcommander.core.connection.ControllerEndpointDraft
-import no.grblcommander.desktop.ui.dialogs.ModalDialog
+import no.grblcommander.desktop.ui.components.dialogs.ModalDialog
 import no.grblcommander.desktop.ui.navigation.*
 import no.grblcommander.machine.transport.SerialConfiguration
 
