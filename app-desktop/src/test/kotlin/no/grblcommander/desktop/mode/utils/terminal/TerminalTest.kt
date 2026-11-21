@@ -172,7 +172,9 @@ class TerminalTest {
                 val layouts = mutableListOf<TextLayoutResult>()
                 onNodeWithText(label, substring = true, useUnmergedTree = true)
                     .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-                assertFalse(layouts.single().hasVisualOverflow, "$label fits its softkey")
+                val layout = layouts.single()
+                assertTrue((0 until layout.lineCount).none(layout::isLineEllipsized), "$label is not ellipsized")
+                assertEquals(layout.layoutInput.text.length, layout.getLineEnd(layout.lineCount - 1, visibleEnd = true))
             }
             onNodeWithTag("terminal-prompt").performClick().performTextInput("\$I")
             onNodeWithTag("keypad-CODE-next").performClick()
