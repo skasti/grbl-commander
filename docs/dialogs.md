@@ -4,6 +4,8 @@ The desktop `ui.components.dialogs` package provides the following Compose primi
 
 ## BaseDialog and ModalDialog
 
+![Connection interruption confirmation over the dimmed form, with Disconnect on F1 and Cancel on F8](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/connection-interruption-confirmation/1024x720.png)
+
 `ui.components.dialogs.BaseDialog` is a Compose layout for a centered surface
 inside the workspace. It supplies consistent sizing, padding, and styling,
 and scrolls the title and body together when space is limited. Callers supply
@@ -38,6 +40,8 @@ Pending dialogs use the same [retained mode stacks](screen-stack.md#independent-
 as any other screen.
 
 ## OptionSelectDialog
+
+![Serial port selector with six choices, Next page on F7 and Cancel on F8](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/connection-port-page-one/1024x720.png)
 
 `OptionSelectDialog<R>` renders typed options through `BaseDialog`. Each
 option supplies a label, a result value and an optional icon. The caller

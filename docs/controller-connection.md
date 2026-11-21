@@ -236,6 +236,8 @@ replaces both banks and never inherits Terminal filters or realtime actions.
 
 ## Connection form
 
+![Serial connection settings with device, baud rate and bottom softkey actions](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/connection-serial-defaults/1024x720.png)
+
 Connection settings retain a complete serial/TCP draft separate from the active
 endpoint. Selecting a field enables native text editing, selection and paste in
 place, with a touch keypad to its right. The field uses the appropriate [touch keypad](keypads.md#connection-field-keymaps).

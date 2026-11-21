@@ -4,6 +4,8 @@ Shared renderers, keymaps and editing helpers live in desktop `ui.components.con
 
 ## Clusters and default G-code keymaps
 
+![MDI with the CODE letter keypad above NUM+, each with its own page control](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/mdi/1024x720.png)
+
 `ui.components.controls.GCodeKeyboard` stacks the letter `KeyCluster` above the
 numeric cluster in a right-hand workspace panel beside the Util Terminal console
 or the local buffer owned by `mode.mdi.MdiMode`. The console/input occupies
@@ -110,8 +112,12 @@ session/transport or triggers realtime/motion controls.
 
 ## Connection field keymaps
 
+![TCP hostname field with the QWERTY keypad above NUM+](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/connection-host-input/1024x720.png)
+
 Connection settings use single-page NUM for numeric fields, and two-page QWERTY
 (lowercase and uppercase) stacked above NUM+ for host and device fields. Both
 letter pages have a double-width Space beside N and M. NUM+ is also used beside
 the CODE cluster in Terminal and MDI. Switching fields keeps the shared key
 size. Physical entry and paste can supply characters outside the touch maps.
+
+[Example of the single-page NUM keypad in the TCP port field](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/connection-port-input/1024x720.png).
