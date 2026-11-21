@@ -114,9 +114,17 @@ class GrblMachineSession(
         }
     }
 
-    override suspend fun executeLine(command: String): CommandAcknowledgment {
+    override val normalCommandEpoch: Long get() = synchronized(gate) { commandEpoch }
+
+    override suspend fun executeLine(command: String): CommandAcknowledgment =
+        executeLineAtEpoch(command, expectedEpoch = null)
+
+    override suspend fun executeLine(command: String, expectedEpoch: Long): CommandAcknowledgment =
+        executeLineAtEpoch(command, expectedEpoch)
+
+    private suspend fun executeLineAtEpoch(command: String, expectedEpoch: Long?): CommandAcknowledgment {
         val bytes = GrblProtocol.encodeCommand(command)
-        val epoch = synchronized(gate) { checkNormalCommands(); commandEpoch }
+        val epoch = synchronized(gate) { checkNormalCommands(); expectedEpoch ?: commandEpoch }
         // Cancellation while waiting for admission cannot have transmitted anything.
         return normalCommands.withLock {
             val request = Pending()
