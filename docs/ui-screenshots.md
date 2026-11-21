@@ -112,6 +112,16 @@ the PR is still open at the captured head. The stable bot-comment marker is
 `<!-- grbl-commander-ui-screenshots -->`. Repeated publication updates that comment
 rather than creating another. Rerun **all jobs** to retry capture/publication.
 
+## Screenshots in documentation
+
+Use the published `main/` directory on the `pr-assets` branch for images
+embedded in repository documentation. This keeps the links valid when a
+closed PR's screenshot directory is removed.
+
+```markdown
+![Terminal at 1024×720](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/terminal/1024x720.png)
+```
+
 ## PR review selection
 
 Review selection compares decoded RGBA pixels and dimensions against the main
@@ -154,8 +164,8 @@ GITHUB_REPOSITORY=OWNER/REPOSITORY GITHUB_RUN_NUMBER=RUN GITHUB_RUN_ATTEMPT=ATTE
   --commit ASSET_COMMIT_SHA --pr PR_NUMBER --changed-paths changed.json > review.md
 ```
 
-RUN/ATTEMPT must match the selected PR directory's `.workflow-run`. For ad-hoc
-links, use the immutable asset commit and actual PR number:
+RUN/ATTEMPT must match the selected PR directory's `.workflow-run`. For PR
+review links, use the immutable asset commit and actual PR number:
 
 ```markdown
 ![Terminal at 1024×720](https://raw.githubusercontent.com/OWNER/REPOSITORY/ASSET_COMMIT_SHA/PR_NUMBER/terminal/1024x720.png)

@@ -57,6 +57,9 @@ Use Mermaid to explain flows, sequences, package structure, dependencies and
 nesting when the relationships are easier to follow visually. Keep each
 diagram focused and place detailed contracts alongside it.
 
+Use [main-branch screenshot assets](docs/ui-screenshots.md#screenshots-in-documentation)
+for screenshots in committed documentation.
+
 ### When documentation and implementation disagree
 
 Determine whether:

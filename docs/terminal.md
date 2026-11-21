@@ -4,6 +4,8 @@ Terminal is the [Util root](controller-connection.md#util-navigation).
 The console observes traffic and submits explicit operator actions through
 the shared connection.
 
+![Terminal with controller traffic, the command prompt, and the G-code keypad](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/terminal-idle-first-letter/1024x720.png)
+
 ## Console and prompt
 
 The workspace has compact endpoint/controller status, a dark virtualized monospaced
