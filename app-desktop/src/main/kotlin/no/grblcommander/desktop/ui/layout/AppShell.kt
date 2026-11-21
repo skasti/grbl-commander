@@ -54,7 +54,8 @@ fun AppShell(
             val widthForTiles = constraints.maxWidth - 2 * bottomSoftkeyPadding.roundToPx() -
                 2 * rightSoftkeyPadding.roundToPx() - (bottomKeys - 1) * bottomSoftkeyGap.roundToPx()
             val heightForTiles = constraints.maxHeight - headerHeight.roundToPx() -
-                2 * rightSoftkeyPadding.roundToPx() - (rightKeys - 1) * rightSoftkeyGap.roundToPx()
+                rightSoftkeyPadding.roundToPx() - bottomSoftkeyPadding.roundToPx() -
+                (rightKeys - 1) * rightSoftkeyGap.roundToPx()
             // Size in whole pixels so rounding cannot change the ratio or overflow either bank.
             val unit = minOf(
                 widthForTiles / ((bottomKeys + 1) * softkeyWidthUnits),

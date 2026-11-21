@@ -79,6 +79,8 @@ class CommanderAppConnectionTest {
                 assertTrue(tile.left >= 0.dp && tile.right <= viewport.right, "$slot fits horizontally")
                 assertTrue(tile.top >= 0.dp && tile.bottom <= viewport.bottom, "$slot fits vertically")
             }
+            val lastRightKey = onNodeWithTag("softkey-R7").getUnclippedBoundsInRoot()
+            assertEquals(firstKey.bottom, lastRightKey.bottom, "R7 aligns with the bottom softkeys")
             screenshot("welcome")
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
             onNodeWithText("R1").assertDoesNotExist()

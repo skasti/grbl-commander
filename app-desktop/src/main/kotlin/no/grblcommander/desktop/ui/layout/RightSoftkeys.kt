@@ -24,8 +24,13 @@ internal fun RightSoftkeys(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.background(ShellColors.right).padding(rightSoftkeyPadding),
-        verticalArrangement = Arrangement.spacedBy(rightSoftkeyGap, Alignment.CenterVertically),
+        modifier = modifier.background(ShellColors.right).padding(
+            start = rightSoftkeyPadding,
+            top = rightSoftkeyPadding,
+            end = rightSoftkeyPadding,
+            bottom = bottomSoftkeyPadding,
+        ),
+        verticalArrangement = Arrangement.spacedBy(rightSoftkeyGap, Alignment.Bottom),
     ) {
         RightSoftKeySlot.entries.forEach { slot ->
             SoftkeyTile(slot, stack, currentStack, Modifier.size(tileSize))

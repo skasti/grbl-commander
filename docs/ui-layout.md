@@ -16,7 +16,8 @@ The header spans the window. The right bank spans the workspace and bottom bank.
 The workspace and bottom bank share the remaining width. The header is 78 dp high.
 Both banks use the same tile size at a 4:3 width-to-height ratio. Tiles grow to
 the largest whole-pixel size that fits both banks, including their gaps and padding.
-Each bank centers its tiles along its main axis. The remaining area is the workspace.
+The bottom bank centers its tiles horizontally. The right bank aligns R7 with
+the bottom edge of the F1–F8 tiles. The remaining area is the workspace.
 
 The native window reserves a minimum client area of 1024 × 720 logical pixels.
 The outer minimum also includes the platform's title bar and borders.
