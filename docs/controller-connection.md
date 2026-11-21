@@ -181,6 +181,21 @@ per-attempt confirmation at both settings and connection boundaries. Startup
 always suppresses reset. Confirmed reset calls the existing session reset once,
 then awaits its banner/status synchronization before queries.
 
+After a successful handshake, the settings save and session-owned work proceed
+independently. Startup follows the query path without issuing a reset.
+
+```mermaid
+flowchart TD
+    handshake["Transport and status handshake succeeds"]
+    handshake --> settings["Manual Connect persists the draft"]
+    handshake --> reset{"Manual reset requested and confirmed?"}
+    reset -- "Yes" --> synchronize["Reset and synchronize"]
+    reset -- "No" --> queries["Run enabled queries in order"]
+    synchronize -- "Success" --> queries
+    synchronize -- "Failure" --> stop["Record failure and skip queries"]
+    queries -- "Interrupted or uncertain" --> endSequence["End sequence without retry"]
+```
+
 Enabled queries run in firmware info, parameters, then parser state order.
 They use the session's serialized executeLine path and existing response
 collection. They are not subject to the terminal's motion-state admission policy:

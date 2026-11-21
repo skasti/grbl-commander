@@ -103,6 +103,33 @@ another reset. A known unsent local reset rejection preserves existing work.
 Unexpected initialization also preserves transport/control but requires explicit
 session recovery before admitting normal work.
 
+The session polls during reset and requires an initialization banner followed
+by a status report. The diagram shows a reset attempt on a usable transport.
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Session as GRBL session
+    participant Controller as GRBL controller
+    App->>Session: Request explicit reset
+    Session->>Controller: Send one reset byte
+    Note over Session: Invalidate pending normal work
+    loop Until synchronized or deadline
+        opt Status poll is due
+            Session->>Controller: Request status
+        end
+        opt Initialization banner arrives
+            Controller-->>Session: Startup banner
+        end
+        Controller-->>Session: Status if reported
+    end
+    alt Banner followed by a status report
+        Session-->>App: Reset handshake complete
+    else Deadline on usable transport
+        Session-->>App: Reset failed, normal work remains blocked
+    end
+```
+
 A critical alarm code may remain reported after reset has exited the blocking
 loop. Therefore alarm criticality is not equivalent to `resetRequired`. A
 retained, known pre-reset code after a confirmed reset boundary does not itself

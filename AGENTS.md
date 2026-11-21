@@ -48,6 +48,10 @@ work.
 Do not postpone necessary documentation changes to a separate task or pull
 request.
 
+Use Mermaid to explain flows, sequences, package structure, dependencies and
+nesting when the relationships are easier to follow visually. Keep each
+diagram focused and place detailed contracts alongside it.
+
 ### When documentation and implementation disagree
 
 Determine whether:

@@ -131,6 +131,21 @@ controller state, normal admission, status parsing, priorities or alarm handling
 
 ## Core stream and retained history
 
+Core retains a history for seeding the console and publishes a live stream.
+Terminal merges these inputs by cursor before applying its display filters.
+
+```mermaid
+flowchart TD
+    events["Session TX and RX events"] --> core["Core assigns traffic cursor"]
+    core --> live["Live traffic stream"]
+    core --> history["Bounded diagnostic history"]
+    live --> merge["Terminal merges by cursor"]
+    history -- "Snapshot on subscription" --> merge
+    merge --> recall["Command recall"]
+    merge --> filters["Display filters"]
+    filters --> rows["Visible scrollback ring"]
+```
+
 Core subscribes before connecting, capturing handshake traffic. `traffic` is a
 read-only `SharedFlow<ControllerTraffic>` backed by `MutableSharedFlow` with 1,024
 extra slots, `DROP_OLDEST` and `tryEmit`. Publication never suspends machine I/O.

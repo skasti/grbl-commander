@@ -76,6 +76,21 @@ compositions and ordinary non-saveable Compose `remember` state survive mode
 changes. Popping an overlay disposes only that overlay. Closing the window
 disposes its stacks and compositions. State is not persisted across restarts.
 
+The diagram shows one window with Program selected and two overlays stacked
+above its root. Manual retains its open screen while Program receives input.
+
+```mermaid
+flowchart TD
+    host["ScreenStackHost"]
+    host --> program["Program stack · active"]
+    host --> manual["Manual stack · inactive"]
+    program --> welcome["Welcome · retained root"]
+    welcome --> editor["Editor · covered"]
+    editor --> explorer["FileExplorer · visible and interactive"]
+    manual --> manualRoot["ManualMode · retained root"]
+    manualRoot --> details["ManualDetails · retained without input"]
+```
+
 Visual overlay/input behavior does not determine softkey inheritance. The active
 stack resolves each softkey bank from its retained screen instances. Shell
 shortcuts and pointer input operate only on that active stack. Inactive stacks

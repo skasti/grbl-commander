@@ -62,6 +62,17 @@ inherited action with a blank, non-actionable key. Undefined slots are also
 blank. A screen may inherit only one bank. A fullscreen screen and an overlay
 follow the same rules.
 
+The stack performs this traversal separately for the bottom and right banks.
+
+```mermaid
+flowchart TD
+    top["Start at the top screen"] --> boundary{"Root or inheritance disabled?"}
+    boundary -- "No" --> lower["Move down one screen"]
+    lower --> boundary
+    boundary -- "Yes" --> overrides["Apply overrides from boundary to top"]
+    overrides --> effective["Effective bank for rendering and activation"]
+```
+
 `ScreenStack.softKeyDefinition(slot)` reads the current effective binding when
 an action is activated. `AppShell` renders from `effectiveBottomKeys` and
 `effectiveRightKeys`, which are read-only `derivedStateOf` maps for each bank.
