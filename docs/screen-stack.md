@@ -96,6 +96,8 @@ are independent. The active stack provides the shell's bindings.
 
 ## Softkey placement
 
+![Welcome screen showing F1–F8 across the bottom and R1–R7 down the right](https://raw.githubusercontent.com/skasti/grbl-commander/827a6f87e394348e4baeb7d6991514619fdd404b/69/welcome/1024x720.png)
+
 Use the shell's [bottom and right softkey banks](ui-layout.md#persistent-shell)
 for most screen actions so operators can find them in consistent positions.
 
@@ -107,11 +109,6 @@ for most screen actions so operators can find them in consistent positions.
 Keep common actions in the same slot across pages. Use workspace controls for
 direct interaction with content, such as editing text or selecting a row.
 A touch target in the workspace can also invoke the same action as a softkey.
-
-The welcome screen labels all eight bottom positions **F1–F8** and all seven
-right positions **R1–R7**.
-
-![Welcome screen showing F1–F8 across the bottom and R1–R7 down the right](https://raw.githubusercontent.com/skasti/grbl-commander/827a6f87e394348e4baeb7d6991514619fdd404b/69/welcome/1024x720.png)
 
 ## Screen-owned softkey contract
 
