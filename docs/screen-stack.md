@@ -108,6 +108,11 @@ Keep common actions in the same slot across pages. Use workspace controls for
 direct interaction with content, such as editing text or selecting a row.
 A touch target in the workspace can also invoke the same action as a softkey.
 
+The welcome screen shows **F1 Open editor** at the left end of the bottom
+bank and **R7 Util** at the bottom of the right bank.
+
+![Welcome screen with F1 Open editor at bottom left and R7 Util at bottom right](https://raw.githubusercontent.com/skasti/grbl-commander/2a21e766abe8e8234b94b051b244a303a5989b7f/69/welcome/1024x720.png)
+
 ## Screen-owned softkey contract
 
 `Screen<R>` owns stable `bottomKeys` and `rightKeys` maps keyed by
