@@ -12,7 +12,7 @@ and native window decorations. The unit falls back to the 44 dp minimum when
 the reference does not fit. Resizing the window updates the unit. Switching
 screens, fields or pages keeps it stable.
 
-The fixed reference dimensions are calibrated to QWERTY stacked above NUM+:
+The fixed reference dimensions are calibrated to the [QWERTY and NUM+ panel](keypads.md#connection-field-keymaps):
 
 - **Width** is 12.7 units before rounding. QWERTY has ten columns and nine
   gaps of 0.3 units. Its spanning Space key occupies two columns and the
@@ -121,12 +121,8 @@ this option. The shell remembers physical keys across navigation, preventing hel
 keys from activating a replacement binding. Owners also guard in-flight requests.
 Hardware-panel integration is planned and should use the same slot activation function.
 
-Inherited definitions remain reactive: Compose observes `enabled` and `active`
-predicates during tile composition and reads observable screen key maps when
-resolving slots. Changing an inherited observable override or navigating
-changes the effective definition. Changes to predicate results do not require
-rebuilding definitions. An inactive mode's stack can be inspected but cannot
-receive events through the shell's current-stack activation path.
+Inherited definitions follow the same reactive rules. An inactive stack
+can be inspected. Shell activation always targets the active stack.
 
 ## Softkey pages
 

@@ -103,8 +103,8 @@ for insertion/selection replacement and Backspace at the caret, including a
 supplementary Unicode code point. An explicit edit finalizes IME composition.
 Enter always invokes the supplied binding rather than inserting text implicitly.
 Physical keyboard, mouse selection, paste and touch remain Compose input behavior.
-Terminal binds Enter to the same guarded `submit()` as physical/IME Enter and
-keeps all validation and shared core admission. MDI binds Enter to local newline
+[Terminal submission](terminal.md#console-and-prompt) is an example of a
+screen-owned Enter binding. MDI binds Enter to local newline
 insertion. It cannot execute the buffer. No keyboard control communicates with a
 session/transport or triggers realtime/motion controls.
 

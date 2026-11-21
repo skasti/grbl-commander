@@ -72,32 +72,34 @@ when it forms part of the same contract and has no independent use.
 
 - **One communication path.** Coordinate all writes through the shared session.
   Realtime commands must stay responsive independently of ordinary line
-  acknowledgments. UI-mode changes preserve drafts and navigation without
-  affecting controller execution.
+  acknowledgments. Keep UI code independent of machine transports. See the
+  [session contract](grbl-session.md#handshake-and-command-acknowledgment).
 - **The controller is authoritative.** Check confirmed state before an
   operation. Treat loss of communication as unknown machine state and show
-  stale values explicitly. An acknowledgment confirms acceptance or rejection.
-  Determine physical completion from controller observations.
+  stale values explicitly. Determine physical completion from controller
+  observations. See [what an acknowledgment represents](grbl-session.md#handshake-and-command-acknowledgment).
 - **Machine safety.** Prevent conflicting motion or program operations.
   Require explicit confirmation where appropriate. Distinguish warnings,
   alarms, holds and emergency-stop conditions. Reconnect must never replay
-  uncertain commands or resume interrupted motion. Physical emergency-stop
-  circuits and machine-level interlocks operate independently.
+  uncertain commands or resume interrupted motion. Resumption of interrupted
+  operations always requires explicit action. Physical emergency-stop circuits
+  and machine-level interlocks operate independently. Use established grblHAL
+  protocol semantics.
 - **Separate analysis, visualization and execution.** Report unresolved G-code
   and uncertain progress. A preview cannot prove safe execution. Preserve
-  program and macro source and use controller-defined macro interfaces.
-  Discover or explicitly configure optional firmware capabilities.
+  program and macro source and use controller-defined macro interfaces. See
+  [controller compatibility requirements](grbl-session.md#controller-compatibility-requirements)
+  for optional capabilities.
 - **Linux and Windows share the JVM codebase.** Prioritize Linux touchscreen,
   serial/USB and kiosk operation, including scaling, X11/Wayland and device
-  permissions. Isolate platform integrations and document Windows alternatives
-  or limitations. Optional native integrations should degrade gracefully. JVM
-  modules are shared across platforms. Introduce platform-specific source sets
+  permissions. Isolate platform integrations and document intentional platform
+  differences, including Windows alternatives or limitations. Keep Linux-only
+  dependencies out of shared code. Optional native integrations should degrade
+  gracefully. JVM modules are shared across platforms. Introduce platform-specific source sets
   only when concrete behavior requires them. macOS is outside the supported
   release matrix.
-- **Test without physical hardware where possible.** Validate machine-independent
-  behavior with recorded traffic, simulations and deterministic UI fixtures.
-  Verify shared behavior on Linux and Windows and validate physical motion
-  behavior on appropriate controller hardware before making safety claims.
+- **Verification.** Follow the [testing strategy](testing.md#verification-strategy)
+  for machine-independent tests, cross-platform coverage and hardware checks.
 
 ## System guides
 
@@ -106,8 +108,8 @@ when it forms part of the same contract and has no independent use.
 | [Desktop UI layout](ui-layout.md) | Persistent shell, operator modes and supported interaction model |
 | [Screen navigation](screen-stack.md) · [Dialogs](dialogs.md) | Retained stacks, input isolation, typed results and modal/choice primitives |
 | [Workspace sizing and softkeys](layout-grid-unit.md) · [Touch keypads](keypads.md) | Grid sizing, binding and activation, keymaps and editing |
-| [Controller connection and settings](controller-connection.md) | Core lifecycle, startup, persistence, polling, admission and the Util form |
-| [GRBL session](grbl-session.md) · [grblHAL alarms](grbl-alarms.md) | Transports, protocol, correlation, recovery and firmware alarm details |
-| [Terminal and traffic diagnostics](terminal.md) | Operator console, command recall and bounded passive observation |
+| [Controller connection and settings](controller-connection.md) | Core lifecycle, startup, persistence, polling, admission, traffic aggregation and the Util form |
+| [GRBL session](grbl-session.md) · [grblHAL alarms](grbl-alarms.md) | Transports, protocol, correlation, recovery, session events and firmware alarm details |
+| [Terminal and traffic diagnostics](terminal.md) | Operator console, traffic presentation and command recall |
 | [Planned machine operations](machine-operations.md) · [Planned programs, macros and tools](programs-macros-tools.md) | Future coordination, jogging/DRO, execution, analysis, controller macros and tools |
 | [Building and testing](testing.md) · [UI screenshots](ui-screenshots.md) · [Release process](releases.md) | Verification commands and coverage, visual review and native packaging |

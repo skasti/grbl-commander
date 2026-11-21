@@ -36,8 +36,8 @@ Only one operation that owns machine motion or program execution may be active
 at a time. Monitoring and permitted real-time controls remain available
 independently.
 
-An operation must not be considered complete solely because its final G-code
-block received an `ok` response.
+Determine operation completion from controller observations. An acknowledged
+final block follows the [session acknowledgment contract](grbl-session.md#handshake-and-command-acknowledgment).
 
 Program streaming, controller-hosted execution, and macro execution may require
 different completion and progress strategies.

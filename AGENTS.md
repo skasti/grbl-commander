@@ -48,6 +48,11 @@ work.
 Do not postpone necessary documentation changes to a separate task or pull
 request.
 
+Document each contract in the guide belonging to its owner. Other documents
+should reference that guide instead of duplicating the contract. Brief
+contextual summaries are acceptable, but avoid multiple authoritative
+descriptions of the same behavior.
+
 Use Mermaid to explain flows, sequences, package structure, dependencies and
 nesting when the relationships are easier to follow visually. Keep each
 diagram focused and place detailed contracts alongside it.
@@ -88,9 +93,8 @@ way from the beginning.
 
 ### Distinguish architecture, implemented features, and plans
 
-The architecture overview defines cross-cutting boundaries. Keep detailed
-contracts in the relevant system guide and link to that guide from other docs.
-System guides may also describe requirements for future functionality.
+The architecture overview defines cross-cutting boundaries. System guides may
+also describe requirements for future functionality.
 
 Clearly distinguish between:
 
@@ -110,22 +114,8 @@ accurate description of actual functionality.
 
 ## 4. Respect architectural boundaries
 
-Follow the separation of concerns described in `docs/architecture.md`.
-
-In particular:
-
-- UI components must not communicate directly with machine transports.
-- Machine communication must be coordinated through the designated machine
-  session and protocol components.
-- Controller state is authoritative; locally predicted state must not masquerade
-  as confirmed state.
-- G-code analysis and visualization must remain separate from execution.
-- Application modes must share machine-control infrastructure rather than
-  implementing independent communication paths.
-- Controller-side macros should remain executable independently of GRBL
-  Commander.
-- Optional grblHAL capabilities must not be assumed to exist on every
-  controller.
+Follow the [architecture overview](docs/architecture.md#design-constraints)
+and the relevant [system guides](docs/architecture.md#system-guides).
 
 Avoid introducing parallel implementations of functionality that already has an
 established owner.
@@ -137,101 +127,24 @@ tested.
 
 ## 5. Cross-platform requirements
 
-GRBL Commander is a cross-platform desktop application with verified Linux and
-Windows support. macOS is not a supported or regularly tested target.
-
-Linux is the primary development and deployment focus; cross-platform
-compatibility between Linux and Windows is an architectural requirement.
-
-- Keep core application logic platform-independent.
-- Isolate operating-system-specific behavior behind appropriate boundaries.
-- Avoid introducing Linux-only dependencies into shared application
-  functionality.
-- Consider Windows compatibility when choosing libraries and APIs; macOS
-  compatibility is not a release requirement.
-- Document intentional platform-specific functionality and limitations.
-- Preserve Linux touchscreen, serial communication, and kiosk-style operation
-  requirements.
-
-Do not assume that a feature is portable merely because it compiles on one
-operating system.
+Apply the [platform requirements](docs/architecture.md#design-constraints)
+and verify behavior using the [testing guide](docs/testing.md#verification-strategy).
 
 ## 6. Machine control and safety
 
-GRBL Commander interacts with physical machinery. Incorrect behavior may cause
-unintended motion, equipment damage, or injury.
-
-When implementing machine-control functionality:
-
-- Prefer established grblHAL protocols and semantics.
-- Distinguish command acknowledgment from completed execution.
-- Validate operation preconditions against confirmed controller state.
-- Prevent conflicting motion and program-execution operations.
-- Preserve responsiveness of real-time commands.
-- Treat lost communication as an unknown machine state.
-- Never automatically replay uncertain motion commands after reconnection.
-- Never silently resume interrupted machine operations.
-- Do not treat toolpath previews or static analysis as proof of safe execution.
-
-Physical emergency-stop systems remain independent of the application.
-
-Changes affecting motion, probing, tool changes, offsets, or program execution
-require particular care and appropriate testing.
+Apply the [machine safety constraints](docs/architecture.md#design-constraints)
+and the relevant [session protocol contracts](docs/grbl-session.md). Changes
+affecting motion, probing, tool changes, offsets or program execution require
+the [hardware verification guidance](docs/testing.md#verification-strategy).
 
 ## 7. Testing and verification
 
-Changes should include tests appropriate to their behavior and architectural
-responsibilities.
-
-Prefer testing machine-independent functionality without physical CNC hardware.
-
-Use simulated controllers, recorded protocol messages, and representative G-code
-or macro programs where practical.
-
-Tests should cover relevant failure modes, not only successful execution.
-
-For changes affecting shared functionality, consider all supported desktop
-platforms.
-
-Never claim that physical-machine behavior has been verified unless it has
-actually been tested on hardware.
-
-If testing is incomplete or a behavior cannot be verified, document the
-limitation explicitly.
+Follow the [verification strategy](docs/testing.md#verification-strategy).
+Report incomplete testing and unverified behavior explicitly.
 
 ### Screenshot coverage for UI changes
 
-Every PR adding or changing visible UI functionality must add or update saved
-Compose screenshot checkpoints for the affected UI as part of the same work.
-
-- Cover each added or affected screen, modal/dialog and visually distinct state,
-  including relevant toggle/selection values, expanded content, validation and
-  confirmation states. Include alternative layouts or interactions when they
-  materially change what the reviewer needs to inspect.
-- Minimize the number of capture scenarios while covering those states. For
-  independent toggles on one screen/dialog, prefer one capture with all toggles
-  off and one with all toggles on, rather than a separate before/after pair for
-  each toggle. For controls with more than two values, group remaining values
-  into as few additional captures as possible. Use valid, reachable combinations;
-  add specific combinations only when their interaction changes the visible UI.
-- Minimize checkpoints, not resolution coverage: use the shared
-  `runAtScreenshotSizes` and explicit `screenshot("scenario")` checkpoints so
-  every scenario retains both configured capture resolutions (1024×720 and
-  1680×1050) and source metadata.
-  Extend existing functional tests and deterministic fixtures wherever possible;
-  do not introduce another harness or per-screen workflow configuration.
-- Keep functional assertions for individual controls and their interactions.
-  Grouping controls into fewer screenshots does not reduce behavioral test
-  coverage, and screenshots do not replace assertions.
-- Run affected capture tests with `-PuiScreenshots`, verify that the intended
-  PNGs are saved and inspect representative output for legibility and clipping.
-  Review the available CI artifacts/comment. Report capture or inspection that
-  could not be completed instead of claiming it was verified.
-- Describe the covered screens/states and any remaining gaps in the PR. Compare
-  the coverage with the UI changes before considering the work complete.
-
-See [Compose UI screenshots](docs/ui-screenshots.md) for capture commands,
-artifact paths, publication and review selection.
+For visible UI changes, follow the [Compose screenshot coverage requirements](docs/ui-screenshots.md#screenshot-coverage-for-ui-changes).
 
 ## 8. Keep implementations focused
 
@@ -262,10 +175,7 @@ the system guide that owns a changed contract in the same pull request.
 - Do not suppress a deprecation warning just to retain an old API. If a
   replacement cannot meet the requirement, keep the suppression as narrow as
   possible and add a comment explaining why it is necessary.
-- For bundled UI images, use Compose Resources under
-  `src/main/composeResources/drawable` and the generated `Res.drawable` accessors
-  with `org.jetbrains.compose.resources.painterResource`. Do not use the
-  deprecated `androidx.compose.ui.res.painterResource(String)` classpath API.
+- For bundled UI images, use [the Compose resource API](docs/ui-layout.md#persistent-shell).
 
 ## 9. Pull requests and completion criteria
 

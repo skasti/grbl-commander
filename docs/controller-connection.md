@@ -9,18 +9,16 @@ The [Terminal](terminal.md) submits manual commands through this same owner.
 `core.connection.ControllerConnection` is the UI-independent application
 boundary in `:core`. `Main` in `:app-desktop` creates one connection owner and
 one `ControllerSettings` instance above the window/mode stacks, passes them into
-presentation, and explicitly closes and awaits the connection when the
-application exits. `CommanderApp` supplies the same owner to every retained
-mode through `LocalControllerConnection`, and displays its connection health in
-the header. Screens never construct sessions or transports.
+presentation, and owns [application shutdown](#settings-startup-and-shutdown).
+`CommanderApp` supplies the same connection owner to every retained mode
+through `LocalControllerConnection`.
 
 `ControllerEndpoint.Tcp(host, port)` and `ControllerEndpoint.Serial(configuration)`
 select `TcpTransport` and `SerialTransport` through a small factory. Serial uses
 `SerialConfiguration` unchanged, including its 115200/8N1/no-flow-control
 defaults (DTR on, RTS off). Native serial-port lookup occurs at connect rather than endpoint
 selection. `ControllerEndpointDraft` validates editable fields without DNS lookup
-or I/O. TCP uses an explicitly entered port (1–65535). Serial retains the existing
-defaults and permits manual Windows port names and Linux device paths, including
+or I/O. TCP uses an explicitly entered port (1–65535). Serial permits manual Windows port names and Linux device paths, including
 devices absent from discovery.
 
 ## Settings, startup and shutdown
@@ -29,25 +27,23 @@ devices absent from discovery.
 from the active session endpoint and a screen's unsaved draft. Its load/save
 workflows serialize configuration access, validate loaded/edited values and
 publish configuration after a successful read/write. Loading occurs through the
-core operation at application startup and when the form opens. Main owns connection
-and settings above screen lifetimes, launches `initialize()` and cancels/joins its
+core operation at application startup and when the form opens. Main launches `initialize()` and cancels/joins its
 application scope at shutdown. The desktop entry point uses
 `application(exitProcessOnExit = false)`: window close returns through Main's
 `finally` block instead of terminating the JVM before cleanup. Main cancels the
 application scope, calls `connection.close()`, awaits `connection.awaitClosed()`
 and joins the application job. This disposes TCP/serial resources, stops polling
 and cancels pending handshake/command work before normal process completion.
-Uncertain commands are never replayed. No machine reset, hold or unlock is sent
+No machine reset, hold or unlock is sent
 as part of exit. `CommanderApp` signals `onUiReady()` after composition.
 Core initialization loads configuration and asynchronously attempts a valid saved
 endpoint at most once. Missing/invalid data skips connection. Manual actions cancel
 pending initialization. Direct connection lifecycle intentions also prevent delayed
 automatic replacement. Automatic/manual attempts share the connection lifecycle lock.
-There is no retry, unlock or automatic navigation. Startup always suppresses a saved
-post-connect reset preference. Passive queries may run after handshake. Startup failure updates
+Startup never retries, unlocks or navigates automatically. See the
+[post-connect policy](#post-connect-policy-and-connection-drafts) for startup queries. Startup failure updates
 core connection state and the header only. Settings can inspect its details.
-Connect validates and awaits handshake before persisting its endpoint inside
-core. Presentation invokes user intentions and never performs this internal save.
+Presentation delegates explicit requests to the [settings actions](#explicit-connection-actions).
 
 `ControllerEndpointRecord` in core maps typed endpoints to/from the versioned
 Properties text. Missing, incomplete, invalid or unsupported records leave the
@@ -61,7 +57,7 @@ only for v1. Incomplete/invalid v2 records restore defaults. The endpoint field 
 validate endpoint models. This small string boundary keeps infrastructure
 independent of core without duplicating models or introducing a repository
 framework. Storage/flush failures propagate through core. Core dispatches storage
-I/O and saving never reconfigures or connects a session.
+I/O.
 
 `SerialPortDiscovery` in `:infrastructure` enumerates jSerialComm ports on the I/O
 dispatcher, returning device paths/names and descriptive labels without opening
@@ -75,8 +71,8 @@ and enumeration remain in infrastructure.
 
 `ControllerSettings` validates and orchestrates explicit load/save/connect/disconnect
 requests through the existing owner. Replacing or disconnecting a connected or
-connecting session requires explicit interruption confirmation. Save cannot
-reconfigure an active session. Connect saves only after successful handshake.
+connecting session requires explicit interruption confirmation. Save only
+persists configuration. It neither opens nor reconfigures a session. Connect saves only after successful handshake.
 A subsequent storage failure leaves connected health visible. Cancellation during
 handshake closes the unfinished attempt. Disconnect remains available during it.
 The settings screen tracks its one active job as Save, Connect or Disconnect.
@@ -86,10 +82,7 @@ only Connect, awaiting cancellation/cleanup of an unfinished
 handshake, or awaiting its settings save if handshake has completed. Save and a
 running Disconnect cannot be cancelled by another Disconnect action. Workspace
 buttons and softkeys share the same enabled predicate, and callbacks also guard
-against repeated activation. Interruption still requires explicit confirmation.
-Connection attempts and machine commands are never automatically retried or
-replayed. A configured post-connect reset requires explicit per-attempt consent
-for manual connection.
+against repeated activation.
 
 ## Manual command admission
 
@@ -109,8 +102,7 @@ completed Feed Hold even after the line's acknowledgment or for externally initi
 work. It sends one realtime `~`, without resubmitting a command or predicting
 execution state. Run, Hold:1 (deceleration), Jog, Door, Alarm, missing/unrecognized
 status and stale/disconnected reports are rejected. No diagnostic handoff or
-pending-line ownership is required for this operator action. Program execution
-and broader operation coordination remain planned. Status, Feed Hold and Reset
+pending-line ownership is required for this operator action. See [planned machine operations](machine-operations.md) for broader coordination. Status, Feed Hold and Reset
 remain independent of normal-command admission.
 
 ## Freshness and background polling
@@ -148,8 +140,8 @@ requires an explicit request. Disposal completes under cancellation protection,
 including clearing the active reference and publishing disconnected health with
 `closing = false` (or closed health during application shutdown). A cancelled
 replacement/reconfiguration cannot leave an inactive owner stuck closing. The
-selected endpoint remains available for a subsequent explicit action. There is no implicit reconnect, reset, unlock,
-homing, command replay or resumption. The owner forwards admitted `executeLine` and `sendRealtime` requests,
+selected endpoint remains available for a subsequent explicit action. Core never reconnects, resets, unlocks, homes, replays commands or resumes
+operations as an implicit lifecycle action. The owner forwards admitted `executeLine` and `sendRealtime` requests,
 `reset` and `queryStatus` to its single session. The session retains
 responsibility for priority, correlation and uncertain results. Pending lines fail on
 disposal and their controller outcome must not be assumed known.
@@ -173,8 +165,8 @@ parameters/$G parser state default On. The shared ControllerConnection runs them
 after its existing transport/status handshake. This work belongs to the active session;
 Connect returns after handshake and starts persistence independently of query completion.
 Returning to Terminal keeps that established session and its post-connect work alive.
-Session shutdown cancels and joins post-connect, including after unexpected transport
-loss. A replacement session starts only after the old session has finished closing.
+Session shutdown cancels and joins post-connect work, including after unexpected
+transport loss. This work is covered by [session disposal](#session-replacement-and-disposal).
 An operator reset on an established connection joins any interrupted post-connect
 work before transmitting reset. A manual reset preference requires
 per-attempt confirmation at both settings and connection boundaries. Startup
@@ -210,15 +202,28 @@ traffic. No competing metadata/capabilities cache is introduced.
 
 ControllerSettings exposes the complete savedDraft alongside its configured
 endpoint. Save and successful Connect persist it through the same versioned record
-and configuration lock. The form's F8 restore uses this saved form or normal
-defaults, without controller I/O.
+and configuration lock.
+
+## Traffic aggregation and retention
+
+Core subscribes to [session communication events](grbl-session.md#communication-events)
+before connecting so it captures handshake traffic. `traffic` is a
+read-only `SharedFlow<ControllerTraffic>` backed by `MutableSharedFlow` with 1,024
+extra slots, `DROP_OLDEST` and `tryEmit`. Publication never suspends machine I/O.
+Successful `tryEmit` does not imply every subscriber received every event.
+A separate 5,000-event deque retains all observed traffic regardless of UI filters.
+`diagnosticSnapshot()` copies it consistently only on explicit request. Entries
+carry endpoint, session identity, source sequence, timestamp and global cursor.
+The cursor advances by source sequence distance across sessions, so a consumer's
+cursor gaps count the union of upstream and core-stream loss once. Multicast-wide
+drop counters describe other subscribers too and must not be added to these gaps.
+Normal diagnostic retention is not loss. Disconnect and awaited shutdown collect
+the remaining session replay tail without duplicate session/sequence identities.
 
 ## Util navigation
 
-Util is selected by an icon-only ⚙ header button with accessible name "Util" and
-selected semantics/color. Connection health stays in the separate display-only
-header indicator, with the current endpoint in the header context. No settings
-screen is pushed onto Program, Manual or MDI stacks.
+The [desktop header](ui-layout.md#operator-interaction-and-modes) selects
+Util. Connection screens stay on its stack.
 
 `CommanderApp` retains one Util stack rooted at `mode.utils.terminal.Terminal`
 per window. Terminal is visible on first entry to Util. Its R7 **🔗 Connection** opens
@@ -253,16 +258,19 @@ Switching transport retains unsaved field values. The form owns its draft,
 validation and error display. F6 reflects the shared lifecycle and can cancel
 a pending handshake. The form shows progress, actual endpoint, failures and
 stale or unavailable observations. It uses
-[typed interruption confirmation](dialogs.md#connection-dialogs). Closing it
-cancels unfinished form work. An established session outlives the screen.
+a [typed interruption confirmation](dialogs.md#basedialog-and-modaldialog).
+The form assigns F1 **Disconnect** or **Disconnect and connect** and F8
+**Cancel**. F2 and F3 are blank while it is open. Cancellation preserves the
+parent form and draft. The parent applies a confirmed result through core.
+Closing the form cancels unfinished form work. An established session outlives the screen.
 
 F8 confirms replacing dirty edits with the latest saved complete form, including
 the selected transport, both transport fields and post-connect choices. Without
 a valid saved record it restores blank endpoint fields and normal defaults.
-It never sends a controller reset. R7 Terminal returns to the retained console.
+This restore action has no controller I/O, including reset.
 
 Port and baud choices use the shared [option selector](dialogs.md#optionselectdialog).
-Selectors and inline editors replace both key banks.
+Inline editors replace both key banks.
 
 Port selection starts discovery each time it opens. While discovery is pending,
 the dialog shows a loading message and allows cancellation. Empty or failed
@@ -273,12 +281,12 @@ baud field also permits custom entry.
 Advanced serial settings own a separate draft. F1 cycles data bits 5–8, F2 stop
 bits, F3 parity, F4 flow control, F5 DTR and F6 RTS. F7 Save applies to the parent
 draft with green positive emphasis. It does not persist. F8 cancels unchanged
-values immediately or asks before discarding changed values. Normal defaults
-are 115200, 8N1, no flow control, DTR on and RTS off.
+values immediately or asks before discarding changed values. Initial values use
+the [serial defaults](#application-connection-ownership).
 
 The shared Post-Connect Actions screen uses F1 reset Off/On, F2 firmware info
 Off → $I → $I+ → Off, F3 parameters $#, F4 parser state $G, F7 Save & return
-and F8 Cancel. Defaults are reset Off, firmware $I, parameters/parser On.
+and F8 Cancel. Initial values follow the [post-connect defaults](#post-connect-policy-and-connection-drafts).
 Saving returns choices to the parent draft. Cancellation discards local edits.
 The screen shows the reset consequences. Manual connection with reset selected
 requires a separate Ctrl+X confirmation.

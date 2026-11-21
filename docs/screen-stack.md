@@ -91,10 +91,8 @@ flowchart TD
     manualRoot --> details["ManualDetails · retained without input"]
 ```
 
-Visual overlay/input behavior does not determine softkey inheritance. The active
-stack resolves each softkey bank from its retained screen instances. Shell
-shortcuts and pointer input operate only on that active stack. Inactive stacks
-retain their own keys and screen state without receiving actions.
+Overlay input isolation and [softkey inheritance](layout-grid-unit.md#screen-owned-softkey-contract)
+are independent. The active stack provides the shell's bindings.
 
 ## Screen-owned typed results
 

@@ -41,7 +41,8 @@ The planned analyzer should provide the following.
 The parser must accommodate grblHAL-specific features, including expressions,
 variables, flow-control constructs, and extensions where supported.
 
-**Static analysis is not a substitute for controller-side G-code execution.**
+Follow the [separation of analysis and execution](architecture.md#design-constraints)
+when using analyzer results.
 
 Dynamic expressions, controller variables, macro calls, and conditional
 execution may prevent complete static interpretation. The analyzer must

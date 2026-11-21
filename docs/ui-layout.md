@@ -19,31 +19,32 @@ minimum supported viewport is 1024 × 720 pixels at 1× density. Verify legibili
 and clipping at both configured [screenshot sizes](ui-screenshots.md).
 
 `AppShell` accepts workspace content and optional header controls. `ShellState`
-carries display-only header information, including the shared connection's
-health. The shell renders the active stack's softkeys outside the workspace
+carries display-only header information, including [connection health and freshness](controller-connection.md#freshness-and-background-polling).
+The header context includes the selected endpoint. The shell renders the active stack's softkeys outside the workspace
 input boundary.
 
-The workspace, icon and header use bundled Compose Resources.
+The workspace, icon and header use bundled Compose Resources from
+`src/main/composeResources/drawable`.
 `grbl_commander_icon.png` (384 × 256) preserves transparent corners and
 `grbl_commander_splash.jpg` (1024 × 768) supplies the splash. Use the typed
 `Res.drawable` accessors with `org.jetbrains.compose.resources.painterResource`.
-Images retain their proportions with `ContentScale.Fit`. The window manager
+The deprecated classpath `androidx.compose.ui.res.painterResource(String)`
+API is unsupported for these assets. Images retain their proportions with `ContentScale.Fit`. The window manager
 determines how it displays the application icon.
 
 ## Operator interaction and modes
 
 The shell supports touch, keyboard and mouse. The header selects Program,
-Manual, MDI or icon-only ⚙ Util. Each window retains a stack per mode.
-Switching context preserves open screens and unsent drafts, with no effect
-on controller execution.
+Manual, MDI or icon-only ⚙ Util. The Util control has accessible name
+"Util" and indicates selection through semantics and color. Mode switches
+use [retained stacks](screen-stack.md#independent-mode-stacks) and leave
+controller execution unchanged.
 
 Util provides the live Terminal and controller connection settings. Program
 provides the welcome screen and an in-memory editor/file explorer, Manual
 provides a details screen with local notes, and MDI provides a local text
-buffer. Program execution, jogging, MDI execution, DRO and probing remain planned.
-
-Modes own their workspace content and contextual actions. Shared controls
-render and dispatch typed actions. Core and the session govern machine access.
+buffer. See the guides for [planned machine operations](machine-operations.md)
+and [program handling](programs-macros-tools.md).
 
 ## System guides
 

@@ -5,6 +5,8 @@ The protocol reference is grblHAL Core
 also recorded by the pinned official Simulator. Alarm categories are protocol
 metadata, not machine-operation preconditions or evidence of position/homing.
 
+## Alarm categories
+
 | Codes | Category | Recovery considerations for Application/operator |
 |---|---|---|
 | 1, 10, 17, 20 | Critical stop: limit, E-stop, motor, I/O expander | Address the cause and explicitly reset before ordinary operation |
@@ -18,15 +20,10 @@ metadata, not machine-operation preconditions or evidence of position/homing.
 | 16, 21, 22 | Self-test/NVS/buffer failure | Dedicated diagnosis; ordinary unlocking is not assumed sufficient |
 | Others | Unknown/extension | Preserve the numeric code and any controller-provided description; conservative handling |
 
-`ControllerAlarm` classifies known codes and supplies concise fallback guidance.
-Only 1, 2, 10, 17 and 20 are critical under `alarm_is_critical()`; unknown codes
-have unknown criticality, rather than being labelled critical. `ControllerStatus`
-extracts optional codes from `Alarm:n` without interpreting Hold/Run substates as
-alarms. `GrblProtocol` recognizes optional `[ALARMCODE:n||description]` metadata.
-The session exposes `alarmCode`, the computed `alarm` descriptor and optional
-controller-provided `alarmDescription`. Alarm presentation is independent of
-`connection`, `normalCommandsSynchronized`, `resetRequired` and `resetInProgress`.
-The session-specific recovery contract is described in [GRBL session](grbl-session.md#alarms-and-command-correlation).
+`ControllerAlarm` supplies fallback descriptions and uses the firmware's
+exact criticality predicate. Unknown codes have unknown criticality. See
+[session alarm handling](grbl-session.md#alarms-and-command-correlation)
+for the exposed state and command correlation rules.
 
 ## Source findings
 
@@ -40,39 +37,22 @@ The session-specific recovery contract is described in [GRBL session](grbl-sessi
 - [grbllib.c](https://github.com/grblHAL/core/blob/23bf87570365a8daa33a735a98d42808a3266dbb/grbllib.c): reset clears the receive buffer and parser before emitting the initialization banner.
 - [System command reference](https://github.com/grblHAL/grblhal_docs/blob/main/content/markdown/04-Reference/01-system-commands-reference.md): reset, `$H`, `$X`, status and `$EA` commands.
 
-Ordinary acknowledgments have no request IDs. A status report, delay, empty line
-or diagnostic command does not provide a generic proof that an older response
-cannot still arrive. A known outstanding non-critical response can be consumed
-without assigning it to another command; if it never arrives, reset is the
-explicit synchronization boundary. Critical alarms must not rely on receiving
-that response at all. Reset does not establish a safe position, successful
-homing, cleared inputs or completed operation. No protocol action is a substitute
-for physical-machine verification.
-
 ## Explicit reset boundary
 
-`reset()` sends 0x18 exactly once on the same transport. Pending/queued normal
-work is invalidated, not replayed. Normal admission stays closed until an
-initialization banner and a fresh subsequent report establish the new parser
-boundary. Reset waits under a deadline; E-stop/motor-fault inputs may prevent it
-from taking effect. Failure/cancellation preserves a usable connection for
-status and another operator-requested reset; it never clears uncertainty by
-waiting an arbitrary duration or by sending a new diagnostic line.
+The firmware clears its receive buffer and parser before emitting the
+initialization banner. Its all-fields `FW:grblHAL` report includes `$C:1`
+while `sys.blocking_event` is active. Absence in a partial report leaves
+blocking status unknown. Firmware can retain an alarm code after leaving
+the blocking loop.
 
-Core can retain a critical alarm code after reset while leaving the blocking
-loop. `report.c` emits `$C:1` in its all-fields `FW:grblHAL` report while
-`sys.blocking_event` is active. This flag is distinct from the alarm code, and
-absence in an ordinary partial report does not prove it is false. A retained
-known pre-reset code after a witnessed reset does not itself require repeated
-resets. This retained-code history survives a bare post-banner Alarm report, but
-ends on a non-Alarm report, a changed alarm code or an explicit `ALARM:n` event.
-Alarm transitions after that point follow the ordinary correlation and reset
-rules, including recurrence of the same code. An unseen code is not classified
-as retained merely because an all-fields report has no `$C:1`. A reported active
-blocking flag requires reset even if the alarm code is unchanged.
-Unlock or homing remains a separate, explicit Application/operator action subject
-to `system.c` checks. Reset during motion can also produce an interrupted-cycle/
-homing alarm and lose position.
+Blocking inputs, including E-stop or motor-fault signals, can prevent reset
+from taking effect. Reset during motion can produce an interrupted-cycle or
+homing alarm and lose position. Reset alone establishes neither safe position
+nor successful homing, cleared inputs or completed motion. Unlock and homing
+are separate operator requests subject to firmware checks.
+
+See the [session reset contract](grbl-session.md#reset-and-recovery) for the
+application handshake, retained-code handling and normal command admission.
 
 ## Verification coverage
 
