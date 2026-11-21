@@ -28,29 +28,6 @@ unchanged line after acknowledgment, without claiming motion completion. Up/Down
 and F3/F4 on the first bottom-softkey page browse up to 100 recent transport handoffs
 and restore the unsent draft. See [command recall ingestion](#terminal-subscription-and-recall).
 
-## Traffic filters
-
-F7 **Filters**, with a funnel icon, replaces the current bottom bank with a
-contextual filter menu. F7 **↩ Back** restores the previously selected bottom
-page. Paging is unavailable while filtering. Util navigation remains available.
-Input, scrollback and filter values are unchanged. There is no Show all action
-and no filter buttons in the workspace.
-
-| Bottom slot in Filters | Filter/action | Initially visible |
-| --- | --- | --- |
-| F1 | Status RX | No |
-| F2 | Poll TX | No |
-| F3 | OK | Yes |
-| F4 | Info and startup | Yes |
-| F5 | Errors and alarms | Yes |
-| F6 | Time | Yes |
-| F7 | Back | Restores the selected ordinary page |
-| F8 | Unassigned | No paging behind the menu |
-
-Active filters mean visible. Normal/realtime commands always remain visible.
-The display filter applies on receipt and leaves session processing and shared
-alarm and connection indicators untouched.
-
 ## Realtime controls and softkey pages
 
 ### Bottom softkeys
@@ -88,6 +65,29 @@ softkey and [modal bindings](dialogs.md#basedialog-and-modaldialog) for dialogs.
 
 Switching modes or visiting settings retains the page, filter menu, list and
 prompt.
+
+## Traffic filters
+
+F7 **Filters**, with a funnel icon, replaces the current bottom bank with a
+contextual filter menu. F7 **↩ Back** restores the previously selected bottom
+page. Paging is unavailable while filtering. Util navigation remains available.
+Input, scrollback and filter values are unchanged. There is no Show all action
+and no filter buttons in the workspace.
+
+| Bottom slot in Filters | Filter/action | Initially visible |
+| --- | --- | --- |
+| F1 | Status RX | No |
+| F2 | Poll TX | No |
+| F3 | OK | Yes |
+| F4 | Info and startup | Yes |
+| F5 | Errors and alarms | Yes |
+| F6 | Time | Yes |
+| F7 | Back | Restores the selected ordinary page |
+| F8 | Unassigned | No paging behind the menu |
+
+Active filters mean visible. Normal/realtime commands always remain visible.
+The display filter applies on receipt and leaves session processing and shared
+alarm and connection indicators untouched.
 
 ## Terminal subscription and recall
 
