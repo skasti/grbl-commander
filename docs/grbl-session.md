@@ -56,7 +56,11 @@ acceptance or an error code, plus information lines observed during that request
 These lines may include unsolicited controller notifications. It is not an
 operation-completion result. Real-time writes bypass normal admission and its
 acknowledgment wait. Writes are serialized per bounded line/real-time byte,
-without holding the write lock during the acknowledgment wait.
+without holding the write lock during the acknowledgment wait. A caller
+dispatching a batch can capture the session's normal-command epoch and supply
+it with every line. A reset, alarm or uncertain response invalidates that
+epoch. The session checks it at normal-line admission, including after waiting
+for an earlier line. A late acknowledgment cannot make an old epoch valid again.
 
 
 ## Alarms and command correlation

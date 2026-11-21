@@ -23,6 +23,13 @@ interface MachineSession : Closeable {
      * Neither blocks status access. Interrupted queued lines are never replayed.
      */
     suspend fun executeLine(command: String): CommandAcknowledgment
+    /** A session-local fence invalidated by a reset, alarm or uncertain response. */
+    val normalCommandEpoch: Long get() = 0L
+    /** Submit a line only if the batch's original correlation fence still holds. */
+    suspend fun executeLine(command: String, expectedEpoch: Long): CommandAcknowledgment {
+        if (expectedEpoch != normalCommandEpoch) throw CommandCorrelationException("Normal command batch interrupted")
+        return executeLine(command)
+    }
     /**
      * Bypasses normal-command admission and acknowledgment waits, including during
      * alarm/uncertain normal-command outcomes. Exceptions propagate without replay;
