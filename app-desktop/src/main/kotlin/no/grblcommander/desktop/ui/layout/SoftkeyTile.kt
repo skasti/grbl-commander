@@ -68,9 +68,11 @@ internal fun SoftkeyTile(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            // Undefined and explicit Blank slots have no text or icon, including hints.
-            if (definition.label.isNotEmpty() || definition.icon != null) {
+            val hasContent = definition.label.isNotEmpty() || definition.icon != null
+            if (hasContent || stack.top.showUnassignedSoftkeyLabels) {
                 Text(slot.shortcut, color = ShellColors.muted, fontSize = 10.sp, lineHeight = 12.sp)
+            }
+            if (hasContent) {
                 Spacer(Modifier.height(7.dp))
                 definition.icon?.let {
                     Icon(

@@ -43,16 +43,16 @@ fun CommanderApp(connection: ControllerConnection, settings: ControllerSettings)
     LaunchedEffect(settings) { settings.onUiReady() }
     val connectionState by connection.state.collectAsState()
     val now = rememberCurrentTime()
-    var activeMode by remember { mutableStateOf(OperatorMode.Program) }
     // Each application window owns one persistent ScreenStack for each UI mode.
     val stacks = remember(connection) {
         mapOf(
-            OperatorMode.Program to ScreenStack(Welcome { activeMode = OperatorMode.Util }),
+            OperatorMode.Program to ScreenStack(Welcome()),
             OperatorMode.Manual to ScreenStack(ManualMode()),
             OperatorMode.Mdi to ScreenStack(MdiMode()),
             OperatorMode.Util to ScreenStack(Terminal(settings)),
         )
     }
+    var activeMode by remember { mutableStateOf(OperatorMode.Program) }
 
     CompositionLocalProvider(LocalControllerConnection provides connection) {
         MaterialTheme(colorScheme = darkColorScheme()) {
