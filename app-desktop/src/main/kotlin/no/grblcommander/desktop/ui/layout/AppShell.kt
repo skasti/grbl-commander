@@ -17,6 +17,7 @@ import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.handleSoftKeyEvent
+import kotlin.math.roundToInt
 
 internal object ShellColors {
     val frame = Color(0xFF0D1420)
@@ -47,21 +48,26 @@ fun AppShell(
     val pressedKeys = remember { mutableSetOf<androidx.compose.ui.input.key.Key>() }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
-        val softkeySize = with(density) {
+        val (softkeySize, softkeyGap) = with(density) {
             val bottomKeys = BottomSoftKeySlot.entries.size
             val rightKeys = RightSoftKeySlot.entries.size
-            // The bottom row and the right column both need to fit, including padding and gaps.
-            val widthForTiles = constraints.maxWidth - 2 * bottomSoftkeyPadding.roundToPx() -
-                2 * rightSoftkeyPadding.roundToPx() - (bottomKeys - 1) * bottomSoftkeyGap.roundToPx()
-            val heightForTiles = constraints.maxHeight - headerHeight.roundToPx() -
-                rightSoftkeyPadding.roundToPx() - bottomSoftkeyPadding.roundToPx() -
-                (rightKeys - 1) * rightSoftkeyGap.roundToPx()
-            // Size in whole pixels so rounding cannot change the ratio or overflow either bank.
-            val unit = minOf(
-                widthForTiles / ((bottomKeys + 1) * softkeyWidthUnits),
-                heightForTiles / (rightKeys * softkeyHeightUnits),
-            ).coerceAtLeast(0)
-            DpSize((softkeyWidthUnits * unit).toDp(), (softkeyHeightUnits * unit).toDp())
+            val availableWidth = constraints.maxWidth - 2 * bottomSoftkeyPadding.roundToPx() -
+                2 * rightSoftkeyPadding.roundToPx()
+            val availableHeight = constraints.maxHeight - headerHeight.roundToPx() -
+                rightSoftkeyPadding.roundToPx() - bottomSoftkeyPadding.roundToPx()
+            val widthUnits = (bottomKeys + 1) * softkeyWidthUnits
+            val heightUnits = rightKeys * softkeyHeightUnits
+            fun gapInPixels(unit: Int) = (unit * softkeyHeightUnits * standardKeyGapRatio).roundToInt()
+
+            // Keep the exact 4:3 ratio and budget for each rounded gap.
+            val maximumUnit = minOf(availableWidth / widthUnits, availableHeight / heightUnits)
+            val unit = (maximumUnit downTo 1).firstOrNull { candidate ->
+                val gap = gapInPixels(candidate)
+                widthUnits * candidate + (bottomKeys - 1) * gap <= availableWidth &&
+                    heightUnits * candidate + (rightKeys - 1) * gap <= availableHeight
+            } ?: 0
+            val size = DpSize((softkeyWidthUnits * unit).toDp(), (softkeyHeightUnits * unit).toDp())
+            size to gapInPixels(unit).toDp()
         }
         val bottomBankHeight = with(density) {
             (softkeySize.height.roundToPx() + 2 * bottomSoftkeyPadding.roundToPx()).toDp()
@@ -89,12 +95,12 @@ fun AppShell(
                             content()
                         }
                         BottomSoftkeys(
-                            stack, { liveStack.value() }, softkeySize,
+                            stack, { liveStack.value() }, softkeySize, softkeyGap,
                             Modifier.fillMaxWidth().height(bottomBankHeight),
                         )
                     }
                     RightSoftkeys(
-                        stack, { liveStack.value() }, softkeySize,
+                        stack, { liveStack.value() }, softkeySize, softkeyGap,
                         Modifier.width(rightBankWidth).fillMaxHeight(),
                     )
                 }

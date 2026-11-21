@@ -8,24 +8,25 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 
 internal val bottomSoftkeyPadding = 8.dp
-internal val bottomSoftkeyGap = 7.dp
 
 @Composable
 internal fun BottomSoftkeys(
     stack: ScreenStack,
     currentStack: () -> ScreenStack,
     tileSize: DpSize,
+    gap: Dp,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier.background(ShellColors.bottom).padding(bottomSoftkeyPadding),
-        horizontalArrangement = Arrangement.spacedBy(bottomSoftkeyGap, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
     ) {
         BottomSoftKeySlot.entries.forEach { slot ->
             SoftkeyTile(slot, stack, currentStack, Modifier.size(tileSize))

@@ -13,6 +13,7 @@ import no.grblcommander.core.connection.ControllerConnection
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.desktop.ui.CommanderApp
 import no.grblcommander.desktop.ui.runAtScreenshotSizes
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -81,6 +82,12 @@ class CommanderAppConnectionTest {
             }
             val lastRightKey = onNodeWithTag("softkey-R7").getUnclippedBoundsInRoot()
             assertEquals(firstKey.bottom, lastRightKey.bottom, "R7 aligns with the bottom softkeys")
+            val expectedGap = (keyHeight.value * .30f).roundToInt().dp
+            val secondBottomKey = onNodeWithTag("softkey-F2").getUnclippedBoundsInRoot()
+            val firstRightKey = onNodeWithTag("softkey-R1").getUnclippedBoundsInRoot()
+            val secondRightKey = onNodeWithTag("softkey-R2").getUnclippedBoundsInRoot()
+            assertEquals(expectedGap, secondBottomKey.left - firstKey.right, "Bottom softkey gap")
+            assertEquals(expectedGap, secondRightKey.top - firstRightKey.bottom, "Right softkey gap")
             screenshot("welcome")
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
             onNodeWithText("R1").assertDoesNotExist()

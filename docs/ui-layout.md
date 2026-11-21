@@ -16,6 +16,8 @@ The header spans the window. The right bank spans the workspace and bottom bank.
 The workspace and bottom bank share the remaining width. The header is 78 dp high.
 Both banks use the same tile size at a 4:3 width-to-height ratio. Tiles grow to
 the largest whole-pixel size that fits both banks, including their gaps and padding.
+Both banks use a gap of 30% of the tile height, rounded to a whole pixel, matching
+the ordinary spacing ratio of the [touch keypads](keypads.md#sizing-and-spacing).
 The bottom bank centers its tiles horizontally. The right bank aligns R7 with
 the bottom edge of the F1–F8 tiles. The remaining area is the workspace.
 

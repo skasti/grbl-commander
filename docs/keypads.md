@@ -61,9 +61,9 @@ aligns to the bottom right of the panel when it fits. The panel scrolls on
 each axis where the grids and page controls exceed the available space at the
 shared size.
 
-At the minimum supported **1024×720 viewport**, Terminal and MDI have 532 dp
+At the minimum supported **1024×720 viewport**, Terminal and MDI have 541 dp
 of height for the panel. At 1× scale, their two 44 dp grids and page controls
-need 518 dp, leaving 7 dp for each vertical margin. Terminal and MDI allow up
+need 518 dp, leaving 11 dp for each vertical margin. Terminal and MDI allow up
 to 40% of workspace width, capped at 400 dp, for the keys and page controls,
 with the margin outside that budget.
 

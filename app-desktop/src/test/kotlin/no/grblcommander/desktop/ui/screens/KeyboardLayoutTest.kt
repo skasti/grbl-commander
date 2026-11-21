@@ -31,8 +31,8 @@ class KeyboardLayoutTest {
     @Test fun `terminal and MDI keyboard stay inside workspace at 1024 by 768`() = verifyLayout(1024f, 768f)
     @Test fun `terminal and MDI keyboard stay inside workspace at 1024 by 720`() = verifyLayout(1024f, 720f)
     @Test fun `terminal and MDI keyboard stay inside workspace at 1280 by 720`() = verifyLayout(1280f, 720f)
-    @Test fun `terminal and MDI keyboard stay inside workspace at 1680 by 1050`() = verifyLayout(1680f, 1050f, keyDp = 58)
-    @Test fun `terminal and MDI keyboard stay inside workspace at 1920 by 1080`() = verifyLayout(1920f, 1080f, keyDp = 61)
+    @Test fun `terminal and MDI keyboard stay inside workspace at 1680 by 1050`() = verifyLayout(1680f, 1050f, keyDp = 60)
+    @Test fun `terminal and MDI keyboard stay inside workspace at 1920 by 1080`() = verifyLayout(1920f, 1080f, keyDp = 63)
     @Test fun `terminal and MDI keyboard stay inside workspace at 2560 by 1440`() = verifyLayout(2560f, 1440f, keyDp = 72)
 
     @Test fun `72 dp fits both the calculation budget and actual layouts at 1660 by 1220`() =
@@ -65,7 +65,7 @@ class KeyboardLayoutTest {
         runOnIdle { viewport = Size(1660f, 1220f) }
         checkKeys(72)
         runOnIdle { viewport = Size(1660f, 1100f) }
-        checkKeys(63)
+        checkKeys(64)
         runOnIdle { viewport = Size(1024f, 720f) }
         checkKeys(44)
     }
