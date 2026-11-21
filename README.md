@@ -70,7 +70,7 @@ Required Notice: Copyright 2026 Stig-Rune Skansgård.
 
 ## Further documentation
 
-- [UI layout, Terminal and connection settings](docs/ui-layout.md)
-- [Architecture and machine communication](docs/architecture.md) · [grblHAL alarms](docs/grbl-alarms.md)
+- [Desktop UI guide](docs/ui-layout.md)
+- [Architecture overview](docs/architecture.md) · [grblHAL alarms](docs/grbl-alarms.md)
 - [Building and testing, including the simulator](docs/testing.md) · [UI screenshots](docs/ui-screenshots.md) · [Release process](docs/releases.md)
 - [Repository instructions](AGENTS.md)
