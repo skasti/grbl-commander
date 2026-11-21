@@ -23,15 +23,9 @@ the images so PR review selection can include modified capture tests without
 hardcoding scenarios in CI. The connection capture tests in `mode.utils.connection`
 own their checkpoints by flow.
 
-UI changes require saved capture checkpoints for each affected screen,
-modal/dialog and relevant visible state; see the
-[agent coverage requirements](../AGENTS.md#screenshot-coverage-for-ui-changes).
-Use the fewest scenarios that cover those states: independent toggles can share
-an all-off capture and an all-on capture, with additional valid combinations only
-for remaining control values or distinct visual interactions. Functional tests
-still assert individual controls and interactions. Each checkpoint retains both
-CI capture resolutions. The following table lists the implemented capture set;
-it does not imply coverage of all application screens.
+The following table lists the implemented capture set. See
+[screenshot coverage requirements](#screenshot-coverage-for-ui-changes)
+when changing visible UI.
 
 | Directory | Captured state |
 | --- | --- |
@@ -56,12 +50,43 @@ it does not imply coverage of all application screens.
 | `connection-saving`, `connection-saved` | Save admission/progress and successful persistence feedback |
 | `connection-post-connect-progress`, `connection-post-connect-results`, `connection-post-connect-unsynchronized` | Session-owned query progress, correlated rejection/results and unsafe-correlation skip diagnostics |
 
+## Screenshot coverage for UI changes
+
+Every PR adding or changing visible UI functionality must add or update saved
+Compose screenshot checkpoints for the affected UI as part of the same work.
+
+- Cover each added or affected screen, modal/dialog and visually distinct state,
+  including relevant toggle/selection values, expanded content, validation and
+  confirmation states. Include alternative layouts or interactions when they
+  materially change what the reviewer needs to inspect.
+- Minimize the number of capture scenarios while covering those states. For
+  independent toggles on one screen/dialog, prefer one capture with all toggles
+  off and one with all toggles on, rather than a separate before/after pair for
+  each toggle. For controls with more than two values, group remaining values
+  into as few additional captures as possible. Use valid, reachable combinations;
+  add specific combinations only when their interaction changes the visible UI.
+- Minimize checkpoints, not resolution coverage: use the shared
+  `runAtScreenshotSizes` and explicit `screenshot("scenario")` checkpoints so
+  every scenario retains both [configured capture resolutions](#ci-capture-and-publication)
+  and source metadata.
+  Extend existing functional tests and deterministic fixtures wherever possible;
+  do not introduce another harness or per-screen workflow configuration.
+- Keep functional assertions for individual controls and their interactions.
+  Grouping controls into fewer screenshots does not reduce behavioral test
+  coverage, and screenshots do not replace assertions.
+- Run affected capture tests with `-PuiScreenshots`, verify that the intended
+  PNGs are saved and inspect representative output for legibility and clipping.
+  Review the available CI artifacts/comment. Report capture or inspection that
+  could not be completed instead of claiming it was verified.
+- Describe the covered screens/states and any remaining gaps in the PR. Compare
+  the coverage with the UI changes before considering the work complete.
+
 ## CI capture and publication
 
 The Linux PR and main-push jobs capture each scenario at **1024×720** and
-**1680×1050**. 1024×720 is the minimum supported resolution at 1× scale;
-1680×1050 matches the CNC touchscreen. Windows runs the functional tests; CI capture and
-publishing run on Linux.
+**1680×1050**, covering the [minimum viewport](ui-layout.md#persistent-shell)
+and the CNC touchscreen. Windows runs the functional tests. CI capture and
+publication run on Linux.
 
 Open the workflow run's **Artifacts** section for
 `compose-ui-screenshots-<attempt>` or, if Linux tests failed after saving
@@ -86,6 +111,16 @@ separate group for main); the comment also checks run/attempt ordering and that
 the PR is still open at the captured head. The stable bot-comment marker is
 `<!-- grbl-commander-ui-screenshots -->`. Repeated publication updates that comment
 rather than creating another. Rerun **all jobs** to retry capture/publication.
+
+## Screenshots in documentation
+
+Use the published `main/` directory on the `pr-assets` branch for images
+embedded in repository documentation. This keeps the links valid when a
+closed PR's screenshot directory is removed.
+
+```markdown
+![Terminal at 1024×720](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/terminal/1024x720.png)
+```
 
 ## PR review selection
 
@@ -129,8 +164,8 @@ GITHUB_REPOSITORY=OWNER/REPOSITORY GITHUB_RUN_NUMBER=RUN GITHUB_RUN_ATTEMPT=ATTE
   --commit ASSET_COMMIT_SHA --pr PR_NUMBER --changed-paths changed.json > review.md
 ```
 
-RUN/ATTEMPT must match the selected PR directory's `.workflow-run`. For ad-hoc
-links, use the immutable asset commit and actual PR number:
+RUN/ATTEMPT must match the selected PR directory's `.workflow-run`. For PR
+review links, use the immutable asset commit and actual PR number:
 
 ```markdown
 ![Terminal at 1024×720](https://raw.githubusercontent.com/OWNER/REPOSITORY/ASSET_COMMIT_SHA/PR_NUMBER/terminal/1024x720.png)

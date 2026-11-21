@@ -26,6 +26,8 @@ import org.jetbrains.compose.resources.painterResource
 class Welcome : Screen<Unit>(Unit) {
     private fun openEditor() { Editor().open(this) }
 
+    override val showUnassignedSoftkeyLabels = true
+
     override val bottomKeys = mapOf(
         BottomSoftKeySlot.F1 to
             SoftKeyDefinition("Open editor", action = ::openEditor),

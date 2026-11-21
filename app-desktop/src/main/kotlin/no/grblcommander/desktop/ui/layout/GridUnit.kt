@@ -26,7 +26,7 @@ private data class GridExtent(val units: Int, val gapCount: Int, val gapInUnits:
 
 private val gridBudget = LayoutBudget(widthFraction = 0.65f, heightFraction = 0.75f)
 
-// Calibration from the standard QWERTY + NUM+ footprint, documented in docs/ui-layout.md.
+// Calibration from the standard QWERTY + NUM+ footprint, documented in docs/layout-grid-unit.md.
 private val referenceWidth = GridExtent(units = 10, gapCount = 9, gapInUnits = 0.30f)
 private val referenceHeight = GridExtent(units = 7, gapCount = 5, gapInUnits = 0.30f)
 

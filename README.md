@@ -4,7 +4,7 @@ GRBL Commander is a desktop operator interface for CNC machines with
 GRBL-compatible controllers, focused on grblHAL. Its touchscreen layout uses
 on-screen softkeys and a G-code keypad inspired by industrial CNC controls.
 
-![GRBL Commander welcome screen](https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/welcome/1680x1050.png)
+![GRBL Commander welcome screen](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/welcome/1680x1050.png)
 
 ## What you can do
 
@@ -19,7 +19,7 @@ MDI are planned.
 
 | MDI (demo) | Terminal | QWERTY keypad |
 | --- | --- | --- |
-| <a href="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/mdi/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/mdi/1680x1050.png" alt="MDI screen with the G-code keypad" width="240"></a> | <a href="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/terminal-idle-first-letter/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/terminal-idle-first-letter/1680x1050.png" alt="Terminal with controller traffic and the G-code keypad" width="240"></a> | <a href="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/connection-host-input/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/4d4534c6544c17dd9b05b8e243ad965ccf0da7b7/68/connection-host-input/1680x1050.png" alt="QWERTY keypad in the TCP hostname editor" width="240"></a> |
+| <a href="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/mdi/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/mdi/1680x1050.png" alt="MDI screen with the G-code keypad" width="240"></a> | <a href="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/terminal-idle-first-letter/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/terminal-idle-first-letter/1680x1050.png" alt="Terminal with controller traffic and the G-code keypad" width="240"></a> | <a href="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/connection-host-input/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/connection-host-input/1680x1050.png" alt="QWERTY keypad in the TCP hostname editor" width="240"></a> |
 
 ## Install and launch
 
@@ -38,12 +38,14 @@ Download the installer for your system from the
 | Windows (x86-64) | Open the `.msi` and follow the installer prompts. Windows may show an unknown-publisher warning because the package is unsigned. | Open **GRBL Commander** in the Start menu. |
 
 To connect, open **⚙ Util → R7 Connection**, choose Serial or TCP, enter the
-controller's connection details, and select **F6 Connect**. **R7 Terminal**
-returns to the console.
+controller's connection details, and select **F6 Connect**. See the
+[connection form guide](docs/controller-connection.md#connection-form) for
+settings and navigation.
 
 ### Run from source
 
-Install JDK 21 and Gradle 9.8.2, then run this command from the repository root.
+Install the [build prerequisites](docs/testing.md#prerequisites), then run this
+command from the repository root.
 
 ```sh
 gradle :app-desktop:run
@@ -53,7 +55,8 @@ gradle :app-desktop:run
 
 Commands can move the machine. An `ok` response acknowledges a command.
 Check the controller and machine to determine whether motion has finished.
-Use the machine's independent physical emergency stop in an emergency.
+Use the machine's independent physical emergency stop in an emergency. See
+the [machine safety constraints](docs/architecture.md#design-constraints).
 
 GRBL Commander is source-available under the
 [PolyForm Noncommercial License 1.0.0](LICENSE.md). Its terms permit hobby use, other
@@ -70,7 +73,7 @@ Required Notice: Copyright 2026 Stig-Rune Skansgård.
 
 ## Further documentation
 
-- [UI layout, Terminal and connection settings](docs/ui-layout.md)
-- [Architecture and machine communication](docs/architecture.md) · [grblHAL alarms](docs/grbl-alarms.md)
+- [Desktop UI layout](docs/ui-layout.md) · [Controller connection and settings](docs/controller-connection.md) · [Terminal](docs/terminal.md)
+- [Architecture and system guides](docs/architecture.md) · [grblHAL alarms](docs/grbl-alarms.md)
 - [Building and testing, including the simulator](docs/testing.md) · [UI screenshots](docs/ui-screenshots.md) · [Release process](docs/releases.md)
 - [Repository instructions](AGENTS.md)

@@ -59,8 +59,14 @@ class CommanderAppConnectionTest {
             val settings = ControllerSettings(owner, ControllerEndpointPreferences(ConnectionTestPreferences()))
             setContent { CommanderApp(owner, settings) }
             onNodeWithContentDescription("GRBL Commander splash screen").assertIsDisplayed()
+            onNodeWithTag("softkey-F1").assertTextContains("F1")
+                .assertTextContains("Open editor").assertIsEnabled()
+            for (slot in (2..8).map { "F$it" } + (1..7).map { "R$it" }) {
+                onNodeWithTag("softkey-$slot").assertTextContains(slot).assertIsNotEnabled()
+            }
             screenshot("welcome")
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
+            onNodeWithText("R1").assertDoesNotExist()
             onNodeWithTag("softkey-R7").performClick()
             waitUntil(timeoutMillis = 5_000) {
                 runCatching { onNodeWithTag("softkey-F7").assertIsEnabled() }.isSuccess

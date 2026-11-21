@@ -24,6 +24,9 @@ abstract class Screen<R>(private val cancellationResult: R) : NavigationParent {
     open val bottomKeys: Map<BottomSoftKeySlot, SoftKeyOverride> = emptyMap()
     open val rightKeys: Map<RightSoftKeySlot, SoftKeyOverride> = emptyMap()
 
+    /** Show the slot identifier on unassigned softkeys in this screen. */
+    open val showUnassignedSoftkeyLabels: Boolean = false
+
     private var owningStack: ScreenStack? = null
     private var onResult: ((R) -> Unit)? = null
 
