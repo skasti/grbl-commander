@@ -68,3 +68,24 @@ separate job. Physical serial ports, virtual-PTY simulator
 integration and controller hardware are outside the automated coverage.
 The upstream simulator is experimental with approximately real-time timing;
 passing these tests is not evidence of physical-machine safety.
+
+## Verification strategy
+
+Machine-independent behavior must be testable without CNC hardware. Prefer
+recorded reports for framing and parsing, in-memory transports and the upstream
+simulator for state transitions and failure handling, and deterministic
+machine-state fixtures for the UI. Linux and Windows CI cover shared behavior
+and relevant platform integrations. Native packaging is checked on the target OS.
+
+As the planned workflows gain implementations, cover streaming flow control,
+execution interruption and failure, conflicting operation requests and
+cancellation. Use representative G-code and grblHAL macro repositories for
+analysis, invocation, parsing and Program Setup regressions. Simulated scenarios
+should include delays, missing responses, errors, alarms, disconnects and tool
+change pauses as applicable.
+
+Linux is the primary environment for physical CNC integration. Verify relevant
+shared behavior on both supported operating systems before claiming general
+support. Automated tests and simulated controller responses cannot establish
+physical-machine safety. State exactly which controller and hardware behavior
+was exercised before relying on a motion-related feature.

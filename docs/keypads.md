@@ -34,7 +34,7 @@ Default numeric/operator pages:
 | 3 | `1 2 3 +` | `[ ] % +` |
 | 4 | `− 0 . ↵` | `− Space : ↵` |
 
-Minus inserts ASCII `-`; Space inserts one space. Backspace and Enter stay at
+Minus inserts ASCII `-`. Space inserts one space. Backspace and Enter stay at
 slots 3 and 15 on both numeric pages. Backspace has a red background and Enter
 has a green background, both with white symbols. Colors follow the typed action
 rather than the label or position, including custom keymaps. `*` and `+` stay at
@@ -70,7 +70,7 @@ with the margin outside that budget.
 `KeypadLayout` is a copied configuration snapshot with rows/columns, a list of
 row-major slot maps, labels, typed actions, ordinary spacing and optional total
 gaps before columns. `Keymaps` supplies defaults. For customization, construct
-screen-owned states and pass them to the same renderer; no renderer changes are
+screen-owned states and pass them to the same renderer. No renderer changes are
 needed. For example:
 
 ```kotlin
@@ -83,29 +83,29 @@ val customLetters = KeyClusterState(KeypadLayout(
 GCodeKeyboard(onAction = ::handleInput, letters = customLetters)
 ```
 
-`KeyClusterState` belongs to one cluster/owner. Keep supplied instances stable;
-construct a replacement to install another layout. Default states are remembered
-inside the retained composition. Maps and page choices are in memory only; there
+`KeyClusterState` belongs to one cluster/owner. Keep supplied instances stable.
+Construct a replacement to install another layout. Default states are remembered
+inside the retained composition. Maps and page choices are in memory only. There
 is no visual keymap editor or persistent UI-preferences schema. Controller endpoint
 settings and their persistence do not own keyboard preferences.
 
 ## Editing and input
 
 The renderer reports `Insert`, `Backspace`, or `Enter` intentions through a required
-runtime callback. Every owner explicitly binds Enter to its input's semantics;
-there is no synthesized OS key event or global input dispatcher. Keys/page controls
+runtime callback. Every owner explicitly binds Enter to its input's semantics.
+There is no synthesized OS key event or global input dispatcher. Keys/page controls
 cannot acquire text-input focus. Each key/page retains its interaction source.
-A click remains valid when the pointer moves slightly inside the pressed key;
-leaving the key, cancelling the gesture or covering the screen cancels it.
+A click remains valid when the pointer moves slightly inside the pressed key.
+Leaving the key, cancelling the gesture or covering the screen cancels it.
 First input is supported without a prior hover, including after command
 acknowledgment or movement completion. `editWithKeypad` is an optional input-side helper
 for insertion/selection replacement and Backspace at the caret, including a
-supplementary Unicode code point; an explicit edit finalizes IME composition.
+supplementary Unicode code point. An explicit edit finalizes IME composition.
 Enter always invokes the supplied binding rather than inserting text implicitly.
 Physical keyboard, mouse selection, paste and touch remain Compose input behavior.
 Terminal binds Enter to the same guarded `submit()` as physical/IME Enter and
 keeps all validation and shared core admission. MDI binds Enter to local newline
-insertion; it cannot execute the buffer. No keyboard control communicates with a
+insertion. It cannot execute the buffer. No keyboard control communicates with a
 session/transport or triggers realtime/motion controls.
 
 ## Connection field keymaps

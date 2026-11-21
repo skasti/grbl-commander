@@ -48,8 +48,8 @@ or reconstructing their maps. When a definition/override genuinely changes,
 use a `mutableStateMapOf` for individual slot updates or return a map from a
 `mutableStateOf(mapOf(...))`-backed property. Ordinary mutable maps or non-state
 property changes do not schedule Compose recomposition and must not be used to
-change softkeys; otherwise the displayed definition can remain stale. Modifiers
-should also be stable screen-owned instances; replace an observable override
+change softkeys. Otherwise the displayed definition can remain stale. Modifiers
+should also be stable screen-owned instances. Replace an observable override
 when their composition changes.
 `Screen<R>` independently declares `inheritBottomKeys` and
 `inheritRightKeys`, both false by default. The `definitions()`, `applyOverrides()` and `applyAllOverrides()` map
@@ -59,14 +59,14 @@ From that boundary, definitions replace bindings and modifiers transform
 existing definitions in root-to-top order. A modifier with no existing
 definition is a no-op. An explicit `SoftKeyDefinition.Blank` replaces an
 inherited action with a blank, non-actionable key. Undefined slots are also
-blank. A screen may inherit only one bank; a fullscreen screen and an overlay
+blank. A screen may inherit only one bank. A fullscreen screen and an overlay
 follow the same rules.
 
 `ScreenStack.softKeyDefinition(slot)` reads the current effective binding when
 an action is activated. `AppShell` renders from `effectiveBottomKeys` and
 `effectiveRightKeys`, which are read-only `derivedStateOf` maps for each bank.
 These memoize structural composition until navigation or observable overrides
-change; predicate updates alone leave the composed definitions intact. Since
+change. Predicate updates alone leave the composed definitions intact. Since
 rendering and activation use the same effective binding, structural softkey
 updates must be observable to Compose. Neither the stack nor shell keeps a
 separate mutable copy.
@@ -78,7 +78,7 @@ saving/restoring any callback state.
 bottom
 and seven right positions and their dimensions. Blank tiles contain no text or
 icon, including shortcut hints. Disabled labelled tiles retain label, icon and
-hint; active tiles use an accent outline/background and selected semantics.
+hint. Active tiles use an accent outline/background and selected semantics.
 Compose evaluates enabled/active predicates during composition, observing state
 reads even when a modifier has retained the predicates from another definition.
 
@@ -99,13 +99,13 @@ gesture key. Predicate-result changes only update the rendered presentation.
 No independent softkey lifecycle or identity model is kept. All navigation
 and activation run on the UI thread.
 
-F1–F8 activate the bottom bank. Shift+F1–F7 activate R1–R7; Shift+F8 and
+F1–F8 activate the bottom bank. Shift+F1–F7 activate R1–R7. Shift+F8 and
 shortcuts
 with Ctrl, Alt or Meta are unmapped. The shell handles mapped key-down events
 and
 consumes their key-up events, even for blank/disabled slots, before workspace
 children can process them. Definitions default to repeatable key-down activation. `repeatable = false`
-consumes repeated key-downs until physical release; Terminal realtime actions use
+consumes repeated key-downs until physical release. Terminal realtime actions use
 this option. The shell remembers physical keys across navigation, preventing held
 keys from activating a replacement binding. Owners also guard in-flight requests.
 Hardware-panel integration is planned and should use the same slot activation function.
@@ -113,19 +113,19 @@ Hardware-panel integration is planned and should use the same slot activation fu
 Inherited definitions remain reactive: Compose observes `enabled` and `active`
 predicates during tile composition and reads observable screen key maps when
 resolving slots. Changing an inherited observable override or navigating
-changes the effective definition; changes to predicate results do not require
+changes the effective definition. Changes to predicate results do not require
 rebuilding definitions. An inactive mode's stack can be inspected but cannot
 receive events through the shell's current-stack activation path.
 
 ## Softkey pages
 
 `SoftKeyPages<S>` holds the selected page for one screen-owned bank. Screens expose
-its observable `keys` through their existing `bottomKeys` or `rightKeys` getter;
-stack resolution, inheritance and guarded activation remain unchanged. Common keys
+its observable `keys` through their existing `bottomKeys` or `rightKeys` getter.
+Stack resolution, inheritance and guarded activation remain unchanged. Common keys
 keep their slots and reactive definitions on every page. The reserved Next page
 slot (F8 for the bottom bank, R7 for the right bank) shows the current page count
 and wraps from the last page to the first. A single page has no paging button.
 Next page ignores keyboard repeat. Each screen and bank retains independent page
-state; covered or inactive screens never contribute actions without inheritance.
+state. Covered or inactive screens never contribute actions without inheritance.
 
 See [CNC and text touch keypads](keypads.md#sizing-and-spacing) for keypad-specific spacing, panel sizing and overrides.

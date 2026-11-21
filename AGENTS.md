@@ -7,8 +7,9 @@ These instructions apply to all agents working in the GRBL Commander repository.
 Before making changes, read:
 
 - `README.md`
-- `docs/architecture.md`
-- Any other documents in `docs/` relevant to the task.
+- [Architecture overview](docs/architecture.md) for module and package ownership.
+- The [system guides](docs/architecture.md#system-guides) for the contracts affected
+  by the task. For desktop changes, start with the [UI layout](docs/ui-layout.md).
 
 The documentation defines the intended architecture, responsibilities,
 interfaces, and design constraints of GRBL Commander.
@@ -83,8 +84,9 @@ way from the beginning.
 
 ### Distinguish architecture, implemented features, and plans
 
-Some documentation, particularly `docs/architecture.md`, may describe intended
-architecture or functionality that has not yet been implemented.
+The architecture overview defines cross-cutting boundaries. Keep detailed
+contracts in the relevant system guide and link to that guide from other docs.
+System guides may also describe requirements for future functionality.
 
 Clearly distinguish between:
 
@@ -244,27 +246,9 @@ than introducing workarounds that undermine established boundaries.
 
 ### UI packages, screen names, and source files
 
-- Keep reusable UI infrastructure separate from application-specific screens.
-  `ui.navigation` owns screen and stack contracts, `ui.layout` owns the
-  persistent shell and shared layout components. Mode packages own their concrete
-  screens, such as `Editor` and `FileExplorer` in `mode.program`.
-- Keep generic navigation, softkey, and layout code independent of concrete
-  screens. Generic packages must not refer to `Editor`, `FileExplorer`, or other
-  feature-specific implementations. Concrete screens may use the shared
-  navigation and softkey contracts; the application composition root wires
-  concrete screens into mode stacks.
-- Name concrete screens for their user-facing role or mode. Use concise feature
-  names such as `Welcome`, `Editor`, and `FileExplorer`, and mode names such as
-  `ManualMode` and `MdiMode`. Do not add a `Screen` suffix just because the type
-  extends `Screen<R>`; use one only when needed to distinguish the type from a
-  same-named model or service. Avoid generic names such as `Screen1` or
-  `BaseScreen` for concrete screens.
-- Put each primary top-level type in a source file with the same name, for
-  example `Editor.kt` for `Editor`. Keep supporting types in their own files by
-  default. They may share a file with their owning screen when they form a
-  small, cohesive part of that screen's contract or implementation and are not
-  independently useful; typed results and screen-local fixtures are examples. Do
-  not group unrelated types merely to reduce the file count.
+Follow the [desktop package ownership rules](docs/architecture.md#desktop-package-ownership)
+for screen placement, shared UI dependencies, names and source files. Update
+the system guide that owns a changed contract in the same pull request.
 
 ### Deprecated APIs
 

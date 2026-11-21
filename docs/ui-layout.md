@@ -53,3 +53,6 @@ render and dispatch typed actions. Core and the session govern machine access.
 - [CNC and text touch keypads](keypads.md)
 - [Controller connection and settings](controller-connection.md)
 - [Util Terminal and traffic diagnostics](terminal.md)
+
+See [Compose Multiplatform](https://www.jetbrains.com/compose-multiplatform/)
+for the desktop UI framework.

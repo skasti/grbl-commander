@@ -35,7 +35,7 @@ Both key banks replace inherited bindings. Unassigned slots, including all right
 keys, are blank, so covered form actions and Util navigation cannot leak through.
 `ScreenStackHost` supplies the scrim, focus/input isolation and retained parent
 composition. `Screen`/`ScreenStack` enforce topmost-only completion and at-most-once
-result delivery; pop/dismiss returns the supplied cancellation result. Mode
+result delivery. Pop/dismiss returns the supplied cancellation result. Mode
 switching retains a pending modal on its original stack without confirming it.
 
 ## OptionSelectDialog

@@ -70,7 +70,7 @@ Required Notice: Copyright 2026 Stig-Rune Skansgård.
 
 ## Further documentation
 
-- [Desktop UI guide](docs/ui-layout.md)
-- [Architecture overview](docs/architecture.md) · [grblHAL alarms](docs/grbl-alarms.md)
+- [Desktop UI layout](docs/ui-layout.md) · [Controller connection and settings](docs/controller-connection.md) · [Terminal](docs/terminal.md)
+- [Architecture and system guides](docs/architecture.md) · [grblHAL alarms](docs/grbl-alarms.md)
 - [Building and testing, including the simulator](docs/testing.md) · [UI screenshots](docs/ui-screenshots.md) · [Release process](docs/releases.md)
 - [Repository instructions](AGENTS.md)

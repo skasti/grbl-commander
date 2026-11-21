@@ -19,7 +19,7 @@ select `TcpTransport` and `SerialTransport` through a small factory. Serial uses
 `SerialConfiguration` unchanged, including its 115200/8N1/no-flow-control
 defaults (DTR on, RTS off). Native serial-port lookup occurs at connect rather than endpoint
 selection. `ControllerEndpointDraft` validates editable fields without DNS lookup
-or I/O. TCP uses an explicitly entered port (1–65535); serial retains the existing
+or I/O. TCP uses an explicitly entered port (1–65535). Serial retains the existing
 defaults and permits manual Windows port names and Linux device paths, including
 devices absent from discovery.
 
@@ -36,18 +36,18 @@ application scope at shutdown. The desktop entry point uses
 `finally` block instead of terminating the JVM before cleanup. Main cancels the
 application scope, calls `connection.close()`, awaits `connection.awaitClosed()`
 and joins the application job. This disposes TCP/serial resources, stops polling
-and cancels pending handshake/command work before normal process completion;
-uncertain commands are never replayed. No machine reset, hold or unlock is sent
+and cancels pending handshake/command work before normal process completion.
+Uncertain commands are never replayed. No machine reset, hold or unlock is sent
 as part of exit. `CommanderApp` signals `onUiReady()` after composition.
 Core initialization loads configuration and asynchronously attempts a valid saved
 endpoint at most once. Missing/invalid data skips connection. Manual actions cancel
-pending initialization; direct connection lifecycle intentions also prevent delayed
+pending initialization. Direct connection lifecycle intentions also prevent delayed
 automatic replacement. Automatic/manual attempts share the connection lifecycle lock.
 There is no retry, unlock or automatic navigation. Startup always suppresses a saved
-post-connect reset preference; passive queries may run after handshake. Startup failure updates
-core connection state and the header only; settings can inspect its details.
+post-connect reset preference. Passive queries may run after handshake. Startup failure updates
+core connection state and the header only. Settings can inspect its details.
 Connect validates and awaits handshake before persisting its endpoint inside
-core; presentation invokes user intentions and never performs this internal save.
+core. Presentation invokes user intentions and never performs this internal save.
 
 `ControllerEndpointRecord` in core maps typed endpoints to/from the versioned
 Properties text. Missing, incomplete, invalid or unsupported records leave the
@@ -57,18 +57,18 @@ JVM per-user preferences, at node `no/grblcommander/controller`, key `endpoint`.
 The v2 record retains v1 endpoint fields and adds post-connect choices and the complete
 saved form, including unselected transport fields. Valid v1 records remain readable
 with explicit DTR/RTS preserved. Missing post-connect fields use normal defaults
-only for v1; incomplete/invalid v2 records restore defaults. The endpoint field names and representation are stable; storage does not interpret or
+only for v1. Incomplete/invalid v2 records restore defaults. The endpoint field names and representation are stable. Storage does not interpret or
 validate endpoint models. This small string boundary keeps infrastructure
 independent of core without duplicating models or introducing a repository
-framework. Storage/flush failures propagate through core; core dispatches storage
+framework. Storage/flush failures propagate through core. Core dispatches storage
 I/O and saving never reconfigures or connects a session.
 
 `SerialPortDiscovery` in `:infrastructure` enumerates jSerialComm ports on the I/O
 dispatcher, returning device paths/names and descriptive labels without opening
 ports or changing control lines. Empty discovery and native/permission failures
-are distinct results; cancellation propagates. Discovery is advisory, so manual
+are distinct results. Cancellation propagates. Discovery is advisory, so manual
 device entry remains valid independently of its result. Presentation requests
-discovery through `ControllerSettings.discoverSerialPorts()`; the native adapter
+discovery through `ControllerSettings.discoverSerialPorts()`. The native adapter
 and enumeration remain in infrastructure.
 
 ## Explicit connection actions
@@ -76,9 +76,9 @@ and enumeration remain in infrastructure.
 `ControllerSettings` validates and orchestrates explicit load/save/connect/disconnect
 requests through the existing owner. Replacing or disconnecting a connected or
 connecting session requires explicit interruption confirmation. Save cannot
-reconfigure an active session. Connect saves only after successful handshake;
-a subsequent storage failure leaves connected health visible. Cancellation during
-handshake closes the unfinished attempt; disconnect remains available during it.
+reconfigure an active session. Connect saves only after successful handshake.
+A subsequent storage failure leaves connected health visible. Cancellation during
+handshake closes the unfinished attempt. Disconnect remains available during it.
 The settings screen tracks its one active job as Save, Connect or Disconnect.
 The application reports handshake completion before persistence begins, so this
 phase does not depend on later connection-health changes. Disconnect can replace
@@ -94,14 +94,16 @@ for manual connection.
 ## Manual command admission
 
 `ControllerConnection.executeLine` validates with the existing protocol encoder
-and reserves a single manual command slot before dispatch. Admission requires a
-fresh, connected, synchronized `Idle`, `Alarm` or `Check` report, no reset
-boundary and no other pending manual command or post-connect work; the session remains the final protocol/alarm gate.
+and reserves a single manual command slot before dispatch. Admission requires an
+open, connected session with a fresh, synchronized `Idle`, `Alarm` or
+`Check` report. A reset boundary, pending manual command or post-connect
+work blocks admission. The session applies the final protocol and alarm checks.
 This prevents normal terminal commands during externally running work. The slot
 ends on acknowledgment or failure, never represents completed physical motion and
 is not transferred across sessions. `sendRealtime(CYCLE_START)` independently
 rechecks a fresh synchronized `Idle` or `Hold:0` report, with no alarm, closing
-connection or reset boundary. The same predicate drives the terminal softkey.
+connection, post-connect work or reset boundary. The same predicate drives
+the Terminal softkey.
 Acknowledgment is not motion completion: explicit Cycle Start can resume a
 completed Feed Hold even after the line's acknowledgment or for externally initiated
 work. It sends one realtime `~`, without resubmitting a command or predicting
@@ -114,26 +116,26 @@ remain independent of normal-command admission.
 ## Freshness and background polling
 
 Both header and form read the same authoritative owner state. A presentation clock
-marks retained reports stale after three seconds, even without a new state emission;
-disconnected/unknown reports are not live.
+marks retained reports stale after three seconds, even without a new state emission.
+Disconnected/unknown reports are not live.
 
 Each active connection owns one core background polling coroutine, independent
 of UI composition and mode selection. After successful handshake it waits 500 ms
 and sends `RealtimeCommand.STATUS_QUERY` through the existing session realtime
-writer. It does not await a response or hold the explicit `queryStatus()` mutex;
-the single session reader handles every report. Normal-command acknowledgment
+writer. It does not await a response or hold the explicit `queryStatus()` mutex.
+The single session reader handles every report. Normal-command acknowledgment
 slots and traffic categorization are unchanged. Polling waits 500 ms after each
 write completes, so slow writes cannot overlap or create catch-up bursts.
 
 Polling pauses while `resetInProgress` because reset owns its status handshake.
 Alarms, `resetRequired` and uncertain normal-command correlation do not block
 status requests. Recoverable write failures/timeouts retain the session's existing
-diagnostics and permit the next scheduled poll; cancellation propagates. Actual
+diagnostics and permit the next scheduled poll. Cancellation propagates. Actual
 connection failure stops polling, and disconnect/reconfiguration/replacement or
 application/parent shutdown cancels and awaits the old connection's polling work.
 A reconnect creates one fresh loop only after disposing the old session. No
-normal command, reset, reconnect or status-derived success is synthesized;
-missing responses remain visibly stale.
+normal command, reset, reconnect or status-derived success is synthesized.
+Missing responses remain visibly stale.
 
 ## Session replacement and disposal
 
@@ -141,11 +143,11 @@ The owner starts disconnected. `connect(endpoint)` is an explicit operator
 request: it closes, cancels and awaits any old session/handshake before creating
 a fresh one-shot session. `disconnect()` can interrupt a pending connection.
 `reconfigure(endpoint)` disposes the existing connection and selects the endpoint
-without opening it. Failed/cancelled handshakes clean up; another connection
+without opening it. Failed/cancelled handshakes clean up. Another connection
 requires an explicit request. Disposal completes under cancellation protection,
 including clearing the active reference and publishing disconnected health with
 `closing = false` (or closed health during application shutdown). A cancelled
-replacement/reconfiguration cannot leave an inactive owner stuck closing; the
+replacement/reconfiguration cannot leave an inactive owner stuck closing. The
 selected endpoint remains available for a subsequent explicit action. There is no implicit reconnect, reset, unlock,
 homing, command replay or resumption. The owner forwards admitted `executeLine` and `sendRealtime` requests,
 `reset` and `queryStatus` to its single session. The session retains
@@ -156,12 +158,12 @@ disposal and their controller outcome must not be assumed known.
 `MachineSnapshot` and a closing flag. Transport health, controller execution
 state, command synchronization and report freshness remain separate. A retained
 snapshot after disconnect is an observation, not live machine state. Explicit
-disconnect/reconfiguration/shutdown clears the application-level failure field;
-the session's technical close reason is not a connection error. State observers
+disconnect/reconfiguration/shutdown clears the application-level failure field.
+The session's technical close reason is not a connection error. State observers
 do not publish session-close diagnostics while the application owner is closing.
 Unexpected failures remain visible until an explicit lifecycle action acknowledges
-them; navigation alone never clears errors. The owner
-and session are explicitly disposable; `awaitClosed()` joins owned work.
+them. Navigation alone never clears errors. The owner
+and session are explicitly disposable. `awaitClosed()` joins owned work.
 
 ## Post-connect policy and connection drafts
 
@@ -175,7 +177,7 @@ Session shutdown cancels and joins post-connect, including after unexpected tran
 loss. A replacement session starts only after the old session has finished closing.
 An operator reset on an established connection joins any interrupted post-connect
 work before transmitting reset. A manual reset preference requires
-per-attempt confirmation at both settings and connection boundaries; startup
+per-attempt confirmation at both settings and connection boundaries. Startup
 always suppresses reset. Confirmed reset calls the existing session reset once,
 then awaits its banner/status synchronization before queries.
 
@@ -188,7 +190,7 @@ Unsupported commands retain correlated errors and permit later queries when safe
 Timeout, alarm or reset failure remains diagnostic. An interrupted or uncertain
 query ends the sequence even if a late response restores normal correlation. No uncertain command is retried, and a live connection
 is not marked disconnected merely because a query fails. Core exposes bounded
-per-attempt result messages; ordinary responses are retained in existing terminal
+per-attempt result messages. Ordinary responses are retained in existing terminal
 traffic. No competing metadata/capabilities cache is introduced.
 
 ControllerSettings exposes the complete savedDraft alongside its configured
@@ -255,13 +257,13 @@ baud field also permits custom entry.
 
 Advanced serial settings own a separate draft. F1 cycles data bits 5–8, F2 stop
 bits, F3 parity, F4 flow control, F5 DTR and F6 RTS. F7 Save applies to the parent
-draft with green positive emphasis; it does not persist. F8 cancels unchanged
+draft with green positive emphasis. It does not persist. F8 cancels unchanged
 values immediately or asks before discarding changed values. Normal defaults
 are 115200, 8N1, no flow control, DTR on and RTS off.
 
 The shared Post-Connect Actions screen uses F1 reset Off/On, F2 firmware info
 Off → $I → $I+ → Off, F3 parameters $#, F4 parser state $G, F7 Save & return
 and F8 Cancel. Defaults are reset Off, firmware $I, parameters/parser On.
-Saving returns choices to the parent draft; cancellation discards local edits.
+Saving returns choices to the parent draft. Cancellation discards local edits.
 The screen shows the reset consequences. Manual connection with reset selected
 requires a separate Ctrl+X confirmation.
