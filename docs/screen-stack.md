@@ -1,4 +1,4 @@
-# Screen navigation and retained mode stacks
+# Screen navigation and softkeys
 
 The desktop `ui.navigation` package owns these contracts. The [desktop shell](ui-layout.md) supplies the workspace and selects the active stack.
 
@@ -91,8 +91,131 @@ flowchart TD
     manualRoot --> details["ManualDetails · retained without input"]
 ```
 
-Overlay input isolation and [softkey inheritance](layout-grid-unit.md#screen-owned-softkey-contract)
+Overlay input isolation and [softkey inheritance](#screen-owned-softkey-contract)
 are independent. The active stack provides the shell's bindings.
+
+## Softkey placement
+
+Use the shell's [bottom and right softkey banks](ui-layout.md#persistent-shell)
+for most screen actions so operators can find them in consistent positions.
+
+| Bank | Prefer for |
+| --- | --- |
+| Bottom (F1–F8) | Actions for the current task, such as selecting an option, confirming a dialog, or operating the Terminal. |
+| Right (R1–R7) | Navigation between related screens and controls that should stay available across bottom pages. |
+
+Keep common actions in the same slot across pages. Use workspace controls for
+direct interaction with content, such as editing text or selecting a row.
+A touch target in the workspace can also invoke the same action as a softkey.
+
+## Screen-owned softkey contract
+
+`Screen<R>` owns stable `bottomKeys` and `rightKeys` maps keyed by
+`BottomSoftKeySlot` (F1–F8) and `RightSoftKeySlot` (R1–R7). Values implement
+`SoftKeyOverride`: immutable `SoftKeyDefinition` values hold a label, optional
+Compose `ImageVector`, nullable bound action, and enabled/active predicates
+(default true/false). `SoftKeyDefinition.Blank` has no label, icon or action
+and is disabled. There is no visibility flag. Disabled labelled definitions
+retain their content. `SoftKeyModifier` transforms a definition, typically with
+`copy`, preserving callbacks and predicates unless explicitly replaced.
+Screens should create definitions once and let predicates read instance state.
+Ordinary predicate changes recompose the tiles without replacing their bindings
+or reconstructing their maps. When a definition/override genuinely changes,
+use a `mutableStateMapOf` for individual slot updates or return a map from a
+`mutableStateOf(mapOf(...))`-backed property. Ordinary mutable maps or non-state
+property changes do not schedule Compose recomposition and must not be used to
+change softkeys. Otherwise the displayed definition can remain stale. Modifiers
+should also be stable screen-owned instances. Replace an observable override
+when their composition changes.
+`Screen<R>` independently declares `inheritBottomKeys` and
+`inheritRightKeys`, both false by default. The `definitions()`, `applyOverrides()` and `applyAllOverrides()` map
+extensions compose screen-owned maps. Each bank walks from the top
+down to the first screen that does not inherit that bank, or to the root.
+From that boundary, definitions replace bindings and modifiers transform
+existing definitions in root-to-top order. A modifier with no existing
+definition is a no-op. An explicit `SoftKeyDefinition.Blank` replaces an
+inherited action with a blank, non-actionable key. Undefined slots are also
+blank. A screen may inherit only one bank. A fullscreen screen and an overlay
+follow the same rules.
+
+The stack performs this traversal separately for the bottom and right banks.
+
+```mermaid
+flowchart TD
+    top["Start at the top screen"] --> boundary{"Root or inheritance disabled?"}
+    boundary -- "No" --> lower["Move down one screen"]
+    lower --> boundary
+    boundary -- "Yes" --> overrides["Apply overrides from boundary to top"]
+    overrides --> effective["Effective bank for rendering and activation"]
+```
+
+`ScreenStack.softKeyDefinition(slot)` reads the current effective binding when
+an action is activated. `AppShell` renders from `effectiveBottomKeys` and
+`effectiveRightKeys`, which are read-only `derivedStateOf` maps for each bank.
+These memoize structural composition until navigation or observable overrides
+change. Predicate updates alone leave the composed definitions intact. Since
+rendering and activation use the same effective binding, structural softkey
+updates must be observable to Compose. Neither the stack nor shell keeps a
+separate mutable copy.
+Screen-owned callbacks and predicate closures remain attached to their
+original screen unless a modifier explicitly replaces them. Pushing,
+popping and mode selection select the current effective bindings without
+saving/restoring any callback state.
+`AppShell` uses the same `SoftkeyTile` for both banks, preserving all eight
+bottom
+and seven right positions and their dimensions. Blank tiles contain no text or
+icon, including shortcut hints. Disabled labelled tiles retain label, icon and
+hint. Active tiles use an accent outline/background and selected semantics.
+Compose evaluates enabled/active predicates during composition, observing state
+reads even when a modifier has retained the predicates from another definition.
+
+Pointer and keyboard input both call `activateSoftKey(currentStack, slot)`.
+It resolves the currently active stack's effective definition at activation
+time, then checks its action and latest `enabled` state. It never stores a
+callback or compares a captured binding identity, and a callback is free to
+navigate during its own execution. `active` does not authorize an action.
+For pointer gestures `SoftkeyTile` uses Compose's
+`key(stack, entry, definition)`:
+the selected stack, existing top navigation entry and effective definition
+determine the clickable composition's lifetime. On a visible navigation,
+mode or definition change Compose disposes the old gesture so releasing it
+does not click the new action. Reopening the same screen produces a fresh
+navigation entry. The effective definition uses its ordinary data-class
+equality, so a modifier-produced equivalent `copy()` does not churn the
+gesture key. Predicate-result changes only update the rendered presentation.
+No independent softkey lifecycle or identity model is kept. All navigation
+and activation run on the UI thread.
+
+F1–F8 activate the bottom bank. Shift+F1–F7 activate R1–R7. Shift+F8 and
+shortcuts
+with Ctrl, Alt or Meta are unmapped. The shell handles mapped key-down events
+and
+consumes their key-up events, even for blank/disabled slots, before workspace
+children can process them. Definitions default to repeatable key-down activation. `repeatable = false`
+consumes repeated key-downs until physical release. Terminal realtime actions use
+this option. The shell remembers physical keys across navigation, preventing held
+keys from activating a replacement binding. Owners also guard in-flight requests.
+Hardware-panel integration is planned and should use the same slot activation function.
+
+Inherited definitions follow the same reactive rules. An inactive stack
+can be inspected. Shell activation always targets the active stack.
+
+## Softkey pages
+
+When a bank needs several sets of contextual actions, group related actions
+into pages. Use **F8** to page the bottom bank and **R7** to page the right
+bank when that bank is paginated. The **Next page** softkey shows the current
+page and total, such as **1/2**, and wraps from the last page to the first.
+A single page has no paging button. Common actions keep their slots on
+every page.
+
+`SoftKeyPages<S>` owns page state for one screen and one bank. Pass the
+reserved slot as `nextSlot`, supply fixed bindings as `commonKeys`, and
+expose its observable `keys` through `bottomKeys` or `rightKeys`. Page
+bindings cannot reuse the paging slot or replace common bindings. Paging
+uses the usual stack resolution, inheritance and guarded activation rules.
+The paging action ignores keyboard repeat. Each screen and bank retains its
+own page state.
 
 ## Screen-owned typed results
 
@@ -161,4 +284,4 @@ switching back. **MDI** contains an unsent, local text buffer. The examples are
 deliberately disconnected from any controller. They neither simulate jogs nor
 expose motion operations.
 
-See [Dialogs](dialogs.md) for typed modal choices and [Workspace sizing and softkeys](layout-grid-unit.md#screen-owned-softkey-contract) for the rules that select actions from a stack.
+See [Dialogs](dialogs.md) for typed modal choices.

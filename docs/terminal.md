@@ -42,13 +42,10 @@ navigation, and log actions.
 | F3 | ⬆️ Prev Cmd. Recall the previous command. | 🧹 Clear view. Clear the displayed log. |
 | F4 | ⬇️ Next Cmd. Move forward through command history. | |
 | F7 | Open [Filters](#traffic-filters). | Open [Filters](#traffic-filters). |
-| F8 | Switch to page 2. | Switch back to page 1. |
-
-Terminal groups these actions into two pages. Use the **F8 Next page** softkey
-to switch between them. It shows the current page as **1/2** or **2/2**.
+| F8 | [Next page](screen-stack.md#softkey-pages) | [Next page](screen-stack.md#softkey-pages) |
 
 History and copy actions are enabled when there is a command to recall or text
-to copy, respectively. Realtime and paging actions suppress keyboard repeat.
+to copy, respectively. Realtime actions suppress keyboard repeat.
 Realtime requests reserve separate in-flight slots. Soft Reset confirmation
 warns that reset interrupts work and invalidates pending commands.
 

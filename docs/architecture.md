@@ -106,8 +106,8 @@ when it forms part of the same contract and has no independent use.
 | Guide | Scope |
 | --- | --- |
 | [Desktop UI layout](ui-layout.md) | Persistent shell, operator modes and supported interaction model |
-| [Screen navigation](screen-stack.md) · [Dialogs](dialogs.md) | Retained stacks, input isolation, typed results and modal/choice primitives |
-| [Workspace sizing and softkeys](layout-grid-unit.md) · [Touch keypads](keypads.md) | Grid sizing, binding and activation, keymaps and editing |
+| [Screen navigation and softkeys](screen-stack.md) · [Dialogs](dialogs.md) | Retained stacks, input isolation, typed results, softkey placement, binding and paging, and dialog primitives |
+| [Workspace grid sizing](layout-grid-unit.md) · [Touch keypads](keypads.md) | Grid sizing, keymaps and editing |
 | [Controller connection and settings](controller-connection.md) | Core lifecycle, startup, persistence, polling, admission, traffic aggregation and the Util form |
 | [GRBL session](grbl-session.md) · [grblHAL alarms](grbl-alarms.md) | Transports, protocol, correlation, recovery, session events and firmware alarm details |
 | [Terminal and traffic diagnostics](terminal.md) | Operator console, traffic presentation and command recall |

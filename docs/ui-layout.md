@@ -48,9 +48,9 @@ and [program handling](programs-macros-tools.md).
 
 ## System guides
 
-- [Screen navigation, mode stacks and typed results](screen-stack.md)
+- [Screen navigation, mode stacks and softkeys](screen-stack.md)
 - [Shared workspace dialogs](dialogs.md)
-- [Workspace sizing and softkeys](layout-grid-unit.md)
+- [Workspace grid sizing](layout-grid-unit.md)
 - [CNC and text touch keypads](keypads.md)
 - [Controller connection and settings](controller-connection.md)
 - [Util Terminal and traffic diagnostics](terminal.md)
