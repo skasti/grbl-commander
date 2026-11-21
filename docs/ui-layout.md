@@ -18,6 +18,8 @@ Both banks use the same tile size at a 4:3 width-to-height ratio. Tiles grow to
 the largest whole-pixel size that fits both banks, including their gaps and padding.
 Each bank centers its tiles along its main axis. The remaining area is the workspace.
 
+The native window reserves a minimum client area of 1024 × 720 logical pixels.
+The outer minimum also includes the platform's title bar and borders.
 Verify legibility and clipping at both configured [screenshot sizes](ui-screenshots.md).
 
 `AppShell` accepts workspace content and optional header controls. `ShellState`
