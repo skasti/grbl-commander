@@ -85,8 +85,8 @@ internal fun SoftkeyTile(
                 Text(
                     definition.label,
                     color = foreground,
-                    fontSize = 12.sp,
-                    lineHeight = 14.sp,
+                    fontSize = 11.sp,
+                    lineHeight = 12.sp,
                     textAlign = TextAlign.Center,
                     maxLines = if (definition.icon == null) 3 else 2,
                     overflow = TextOverflow.Ellipsis,

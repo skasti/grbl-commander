@@ -167,13 +167,13 @@ class TerminalTest {
             f.connect(); hostApplication(f)
             onNodeWithText("CODE 1/2 ▸").assertExists()
             onNodeWithText("NUM+ 1/2 ▸").assertExists()
+            screenshot("terminal")
             for (label in listOf("Cycle Start (~)", "Feed Hold (!)")) {
                 val layouts = mutableListOf<TextLayoutResult>()
                 onNodeWithText(label, substring = true, useUnmergedTree = true)
                     .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
                 assertFalse(layouts.single().hasVisualOverflow, "$label fits its softkey")
             }
-            screenshot("terminal")
             onNodeWithTag("terminal-prompt").performClick().performTextInput("\$I")
             onNodeWithTag("keypad-CODE-next").performClick()
             onNodeWithTag("keypad-NUM+-next").assertIsDisplayed().performClick()
