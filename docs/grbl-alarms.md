@@ -26,7 +26,7 @@ alarms. `GrblProtocol` recognizes optional `[ALARMCODE:n||description]` metadata
 The session exposes `alarmCode`, the computed `alarm` descriptor and optional
 controller-provided `alarmDescription`. Alarm presentation is independent of
 `connection`, `normalCommandsSynchronized`, `resetRequired` and `resetInProgress`.
-The session-specific recovery contract is described in [architecture.md](architecture.md).
+The session-specific recovery contract is described in [GRBL session](grbl-session.md#alarms-and-command-correlation).
 
 ## Source findings
 
