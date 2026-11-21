@@ -108,10 +108,10 @@ Keep common actions in the same slot across pages. Use workspace controls for
 direct interaction with content, such as editing text or selecting a row.
 A touch target in the workspace can also invoke the same action as a softkey.
 
-The welcome screen shows **F1 Open editor** at the left end of the bottom
-bank and **R7 Util** at the bottom of the right bank.
+The welcome screen labels all eight bottom positions **F1–F8** and all seven
+right positions **R1–R7**.
 
-![Welcome screen with F1 Open editor at bottom left and R7 Util at bottom right](https://raw.githubusercontent.com/skasti/grbl-commander/2a21e766abe8e8234b94b051b244a303a5989b7f/69/welcome/1024x720.png)
+![Welcome screen showing F1–F8 across the bottom and R1–R7 down the right](https://raw.githubusercontent.com/skasti/grbl-commander/827a6f87e394348e4baeb7d6991514619fdd404b/69/welcome/1024x720.png)
 
 ## Screen-owned softkey contract
 
@@ -168,8 +168,8 @@ popping and mode selection select the current effective bindings without
 saving/restoring any callback state.
 `AppShell` uses the same `SoftkeyTile` for both banks, preserving all eight
 bottom
-and seven right positions and their dimensions. Blank tiles contain no text or
-icon, including shortcut hints. Disabled labelled tiles retain label, icon and
+and seven right positions and their dimensions. Blank tiles normally hide their slot identifiers. The welcome screen uses
+`showUnassignedSoftkeyLabels` to display these identifiers on inactive tiles. Disabled labelled tiles retain label, icon and
 hint. Active tiles use an accent outline/background and selected semantics.
 Compose evaluates enabled/active predicates during composition, observing state
 reads even when a modifier has retained the predicates from another definition.
