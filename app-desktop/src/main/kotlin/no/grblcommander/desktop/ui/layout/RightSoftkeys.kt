@@ -3,22 +3,32 @@ package no.grblcommander.desktop.ui.layout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 
+internal val rightSoftkeyPadding = 9.dp
+internal val rightSoftkeyGap = 8.dp
+
 @Composable
-internal fun RightSoftkeys(stack: ScreenStack, currentStack: () -> ScreenStack, modifier: Modifier = Modifier.Companion) {
+internal fun RightSoftkeys(
+    stack: ScreenStack,
+    currentStack: () -> ScreenStack,
+    tileSize: DpSize,
+    modifier: Modifier = Modifier,
+) {
     Column(
-        modifier = modifier.background(ShellColors.right).padding(9.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.background(ShellColors.right).padding(rightSoftkeyPadding),
+        verticalArrangement = Arrangement.spacedBy(rightSoftkeyGap, Alignment.CenterVertically),
     ) {
         RightSoftKeySlot.entries.forEach { slot ->
-            SoftkeyTile(slot, stack, currentStack, Modifier.weight(1f).fillMaxWidth())
+            SoftkeyTile(slot, stack, currentStack, Modifier.size(tileSize))
         }
     }
 }

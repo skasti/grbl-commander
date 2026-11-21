@@ -13,10 +13,12 @@ Compose Multiplatform Desktop.
 | Right softkeys | Seven fixed positions, R1–R7 |
 
 The header spans the window. The right bank spans the workspace and bottom bank.
-The workspace and bottom bank share the remaining width. The default header,
-bottom bank and right bank measure 78 dp, 94 dp and 142 dp respectively. The
-minimum supported viewport is 1024 × 720 pixels at 1× density. Verify legibility
-and clipping at both configured [screenshot sizes](ui-screenshots.md).
+The workspace and bottom bank share the remaining width. The header is 78 dp high.
+Both banks use the same tile size at a 4:3 width-to-height ratio. Tiles grow to
+the largest whole-pixel size that fits both banks, including their gaps and padding.
+Each bank centers its tiles along its main axis. The remaining area is the workspace.
+
+Verify legibility and clipping at both configured [screenshot sizes](ui-screenshots.md).
 
 `AppShell` accepts workspace content and optional header controls. `ShellState`
 carries display-only header information, including [connection health and freshness](controller-connection.md#freshness-and-background-polling).

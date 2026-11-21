@@ -2,6 +2,7 @@ package no.grblcommander.desktop.mode.utils.connection
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.*
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,6 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import java.util.UUID
 import java.util.prefs.Preferences
 import no.grblcommander.configuration.ControllerEndpointPreferences
@@ -61,8 +63,19 @@ class CommanderAppConnectionTest {
             onNodeWithContentDescription("GRBL Commander splash screen").assertIsDisplayed()
             onNodeWithTag("softkey-F1").assertTextContains("F1")
                 .assertTextContains("Open editor").assertIsEnabled()
-            for (slot in (2..8).map { "F$it" } + (1..7).map { "R$it" }) {
+            val unassignedSlots = (2..8).map { "F$it" } + (1..7).map { "R$it" }
+            for (slot in unassignedSlots) {
                 onNodeWithTag("softkey-$slot").assertTextContains(slot).assertIsNotEnabled()
+            }
+            val viewport = onRoot().getUnclippedBoundsInRoot()
+            val firstKey = onNodeWithTag("softkey-F1").getUnclippedBoundsInRoot()
+            assertEquals(firstKey.width * 3, firstKey.height * 4, "Softkey aspect ratio")
+            for (slot in listOf("F1") + unassignedSlots) {
+                val tile = onNodeWithTag("softkey-$slot").assertIsDisplayed().getUnclippedBoundsInRoot()
+                assertEquals(firstKey.width, tile.width, "$slot width")
+                assertEquals(firstKey.height, tile.height, "$slot height")
+                assertTrue(tile.left >= 0.dp && tile.right <= viewport.right, "$slot fits horizontally")
+                assertTrue(tile.top >= 0.dp && tile.bottom <= viewport.bottom, "$slot fits vertically")
             }
             screenshot("welcome")
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
