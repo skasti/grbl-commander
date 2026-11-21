@@ -83,10 +83,13 @@ class CommanderAppConnectionTest {
             val lastRightKey = onNodeWithTag("softkey-R7").getUnclippedBoundsInRoot()
             assertEquals(firstKey.bottom, lastRightKey.bottom, "R7 aligns with the bottom softkeys")
             val expectedGap = (keyHeight.value * .30f).roundToInt().dp
-            val secondBottomKey = onNodeWithTag("softkey-F2").getUnclippedBoundsInRoot()
+            val bottomRow = (1..8).map { onNodeWithTag("softkey-F$it").getUnclippedBoundsInRoot() } + lastRightKey
+            for ((left, right) in bottomRow.zipWithNext()) {
+                assertEquals(expectedGap, right.left - left.right, "Bottom row gap")
+            }
+            assertEquals(firstKey.left - viewport.left, viewport.right - lastRightKey.right, "Bottom row margins")
             val firstRightKey = onNodeWithTag("softkey-R1").getUnclippedBoundsInRoot()
             val secondRightKey = onNodeWithTag("softkey-R2").getUnclippedBoundsInRoot()
-            assertEquals(expectedGap, secondBottomKey.left - firstKey.right, "Bottom softkey gap")
             assertEquals(expectedGap, secondRightKey.top - firstRightKey.bottom, "Right softkey gap")
             screenshot("welcome")
             onNodeWithContentDescription("Util").performClick().assertIsSelected()

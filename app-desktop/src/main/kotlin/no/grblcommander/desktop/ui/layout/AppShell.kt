@@ -48,13 +48,12 @@ fun AppShell(
     val pressedKeys = remember { mutableSetOf<androidx.compose.ui.input.key.Key>() }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val density = LocalDensity.current
+        val bottomKeys = BottomSoftKeySlot.entries.size
         val (softkeySize, softkeyGap) = with(density) {
-            val bottomKeys = BottomSoftKeySlot.entries.size
             val rightKeys = RightSoftKeySlot.entries.size
-            val availableWidth = constraints.maxWidth - 2 * bottomSoftkeyPadding.roundToPx() -
-                2 * rightSoftkeyPadding.roundToPx()
+            val availableWidth = constraints.maxWidth - 2 * bottomSoftkeyPadding.roundToPx()
             val availableHeight = constraints.maxHeight - headerHeight.roundToPx() -
-                rightSoftkeyPadding.roundToPx() - bottomSoftkeyPadding.roundToPx()
+                rightSoftkeyTopPadding.roundToPx() - bottomSoftkeyPadding.roundToPx()
             val widthUnits = (bottomKeys + 1) * softkeyWidthUnits
             val heightUnits = rightKeys * softkeyHeightUnits
             fun gapInPixels(unit: Int) = (unit * softkeyHeightUnits * standardKeyGapRatio).roundToInt()
@@ -63,7 +62,7 @@ fun AppShell(
             val maximumUnit = minOf(availableWidth / widthUnits, availableHeight / heightUnits)
             val unit = (maximumUnit downTo 1).firstOrNull { candidate ->
                 val gap = gapInPixels(candidate)
-                widthUnits * candidate + (bottomKeys - 1) * gap <= availableWidth &&
+                widthUnits * candidate + bottomKeys * gap <= availableWidth &&
                     heightUnits * candidate + (rightKeys - 1) * gap <= availableHeight
             } ?: 0
             val size = DpSize((softkeyWidthUnits * unit).toDp(), (softkeyHeightUnits * unit).toDp())
@@ -72,8 +71,24 @@ fun AppShell(
         val bottomBankHeight = with(density) {
             (softkeySize.height.roundToPx() + 2 * bottomSoftkeyPadding.roundToPx()).toDp()
         }
-        val rightBankWidth = with(density) {
-            (softkeySize.width.roundToPx() + 2 * rightSoftkeyPadding.roundToPx()).toDp()
+        val (bottomPadding, rightPadding, rightBankWidth) = with(density) {
+            val gap = softkeyGap.roundToPx()
+            val bottomRowWidth = (bottomKeys + 1) * softkeySize.width.roundToPx() + bottomKeys * gap
+            val outerSpace = (constraints.maxWidth - bottomRowWidth).coerceAtLeast(0)
+            val leftMargin = outerSpace / 2
+            val rightMargin = outerSpace - leftMargin
+            // Split the F8–R7 gap across the boundary of the two banks.
+            val rightBankStart = gap / 2
+            val bottomPadding = PaddingValues(
+                start = leftMargin.toDp(), end = (gap - rightBankStart).toDp(),
+                top = bottomSoftkeyPadding, bottom = bottomSoftkeyPadding,
+            )
+            val rightPadding = PaddingValues(
+                start = rightBankStart.toDp(), end = rightMargin.toDp(),
+                top = rightSoftkeyTopPadding, bottom = bottomSoftkeyPadding,
+            )
+            val rightWidth = (softkeySize.width.roundToPx() + rightBankStart + rightMargin).toDp()
+            Triple(bottomPadding, rightPadding, rightWidth)
         }
         val gridUnit = with(density) {
             val workspaceWidth = (constraints.maxWidth - rightBankWidth.roundToPx()).coerceAtLeast(0)
@@ -95,12 +110,12 @@ fun AppShell(
                             content()
                         }
                         BottomSoftkeys(
-                            stack, { liveStack.value() }, softkeySize, softkeyGap,
+                            stack, { liveStack.value() }, softkeySize, softkeyGap, bottomPadding,
                             Modifier.fillMaxWidth().height(bottomBankHeight),
                         )
                     }
                     RightSoftkeys(
-                        stack, { liveStack.value() }, softkeySize, softkeyGap,
+                        stack, { liveStack.value() }, softkeySize, softkeyGap, rightPadding,
                         Modifier.width(rightBankWidth).fillMaxHeight(),
                     )
                 }

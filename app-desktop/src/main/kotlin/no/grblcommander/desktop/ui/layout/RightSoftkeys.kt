@@ -2,6 +2,7 @@ package no.grblcommander.desktop.ui.layout
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -14,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 
-internal val rightSoftkeyPadding = 9.dp
+internal val rightSoftkeyTopPadding = 9.dp
 
 @Composable
 internal fun RightSoftkeys(
@@ -22,15 +23,11 @@ internal fun RightSoftkeys(
     currentStack: () -> ScreenStack,
     tileSize: DpSize,
     gap: Dp,
+    padding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.background(ShellColors.right).padding(
-            start = rightSoftkeyPadding,
-            top = rightSoftkeyPadding,
-            end = rightSoftkeyPadding,
-            bottom = bottomSoftkeyPadding,
-        ),
+        modifier = modifier.background(ShellColors.right).padding(padding),
         verticalArrangement = Arrangement.spacedBy(gap, Alignment.Bottom),
     ) {
         RightSoftKeySlot.entries.forEach { slot ->

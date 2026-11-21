@@ -18,8 +18,9 @@ Both banks use the same tile size at a 4:3 width-to-height ratio. Tiles grow to
 the largest whole-pixel size that fits both banks, including their gaps and padding.
 Both banks use a gap of 30% of the tile height, rounded to a whole pixel, matching
 the ordinary spacing ratio of the [touch keypads](keypads.md#sizing-and-spacing).
-The bottom bank centers its tiles horizontally. The right bank aligns R7 with
-the bottom edge of the F1–F8 tiles. The remaining area is the workspace.
+F1–F8 and R7 form a centered bottom row. The F8–R7 gap is the same as
+the other gaps, and the outer margins are equal to within one pixel for
+odd viewport widths. The remaining area is the workspace.
 
 The native window reserves a minimum client area of 1024 × 720 logical pixels.
 The outer minimum also includes the platform's title bar and borders.
