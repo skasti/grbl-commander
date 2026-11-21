@@ -78,6 +78,45 @@ its protocol-specific behavior.
 
 Execution progress must distinguish source position, submitted blocks,
 acknowledged blocks, and reported controller execution position where available.
+An `ok` acknowledgment confirms controller acceptance, not physical completion.
+The final acknowledgment alone must not mark a program as finished; completion
+requires appropriate controller observations after buffered motion has drained.
+
+#### Host-streamed line tracking
+
+For controllers supporting line-number reporting, the application should track
+the actual executing program block through `Ln:<n>` in realtime status reports,
+separately from the most recently submitted and acknowledged blocks. On grblHAL,
+this requires an `N` word in transmitted G-code and the line-number reporting
+option in `$10` (bit 2, value 4). Do not silently replace other `$10` options.
+
+- Preserve the original program source. Maintain an explicit mapping between
+  source line/block identity, any original `N` word, and the `N` value sent to
+  the controller. Where safe, assign unique numbers during host streaming for
+  reliable source correlation. Never insert a duplicate `N` word or blindly
+  renumber existing `N` words that might be referenced by flow control or
+  other controller-side constructs. Account for the transmitted line-length limit.
+- Treat `Ln:` as a sampled observation of controller execution, not an event
+  emitted for every started or completed source line. Brief motions may pass
+  between status reports. Non-motion blocks, macros, and controller-hosted
+  execution may not have a one-to-one mapping to source lines. Report an
+  unavailable or ambiguous position explicitly rather than inventing one.
+- Support large programs (at least 100,000 lines) without imposing a file-size
+  limit based on the controller's command or planner buffers. Current grblHAL
+  accepts `N` numbers through 10,000,000, which is a line-number limit, **not**
+  a program-length limit. Other firmware may impose lower limits. Loading,
+  indexing, editing, and rendering large programs should remain responsive.
+- Keep ordinary command submission and `ok`/`error` correlation in the
+  existing session/command-buffer contracts; consume controller status through
+  the same session. Correlate reported execution position with the program at
+  the program-execution layer, not within the transport or status parser.
+- Handle reset, disconnect, alarm, unexpected status, and lost `Ln:` reports as
+  potentially uncertain execution progress. A reported line number alone must
+  not authorize an automatic restart or resumption from that source line.
+
+See the [grblHAL realtime report](https://github.com/grblHAL/grblhal_docs/blob/main/content/markdown/04-Reference/01-system-commands-reference.md#realtime-report)
+and [grblHAL parser limit](https://github.com/grblHAL/core/blob/master/gcode.c)
+for the controller-specific behavior.
 
 ## Macro System
 
