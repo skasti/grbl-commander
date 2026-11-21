@@ -87,7 +87,8 @@ against repeated activation.
 ## Manual command admission
 
 `ControllerConnection.executeLine` validates with the existing protocol encoder
-and reserves a single manual command slot before dispatch. Admission requires an
+and reserves a single manual command slot before dispatch through the session's
+command buffer. Admission requires an
 open, connected session with a fresh, synchronized `Idle`, `Alarm` or
 `Check` report. A reset boundary, pending manual command or post-connect
 work blocks admission. The session applies the final protocol and alarm checks.
@@ -141,10 +142,12 @@ including clearing the active reference and publishing disconnected health with
 `closing = false` (or closed health during application shutdown). A cancelled
 replacement/reconfiguration cannot leave an inactive owner stuck closing. The
 selected endpoint remains available for a subsequent explicit action. Core never reconnects, resets, unlocks, homes, replays commands or resumes
-operations as an implicit lifecycle action. The owner forwards admitted `executeLine` and `sendRealtime` requests,
-`reset` and `queryStatus` to its single session. The session retains
-responsibility for priority, correlation and uncertain results. Pending lines fail on
-disposal and their controller outcome must not be assumed known.
+operations as an implicit lifecycle action. Each active session has one core
+`CommandBuffer` and a replacement starts with an empty buffer. The buffer
+dispatches normal lines through `MachineSession.executeLine`. The session owns
+serialization, correlation and uncertain results. Realtime requests and status
+queries go directly to the session. Pending lines fail on disposal and their
+controller outcome must not be assumed known.
 
 `ControllerConnectionState` exposes the selected endpoint, the authoritative
 `MachineSnapshot` and a closing flag. Transport health, controller execution
@@ -162,13 +165,13 @@ and session are explicitly disposable. `awaitClosed()` joins owned work.
 PostConnectActions belongs to core and is shared by serial/TCP endpoints and
 ControllerEndpointDraft. Reset defaults Off, firmware info defaults $I, and $#
 parameters/$G parser state default On. The shared ControllerConnection runs them
-after its existing transport/status handshake. This work belongs to the active session;
+through the active session's command buffer after its transport/status handshake.
 Connect returns after handshake and starts persistence independently of query completion.
-Returning to Terminal keeps that established session and its post-connect work alive.
-Session shutdown cancels and joins post-connect work, including after unexpected
+Returning to Terminal keeps that established session and its command buffer alive.
+Session shutdown cancels and joins the batch, including after unexpected
 transport loss. This work is covered by [session disposal](#session-replacement-and-disposal).
-An operator reset on an established connection joins any interrupted post-connect
-work before transmitting reset. A manual reset preference requires
+An operator reset on an established connection cancels and joins the batch before
+transmitting reset. Normal admission remains blocked while reset is pending. A manual reset preference requires
 per-attempt confirmation at both settings and connection boundaries. Startup
 always suppresses reset. Confirmed reset calls the existing session reset once,
 then awaits its banner/status synchronization before queries.
@@ -188,16 +191,16 @@ flowchart TD
     queries -- "Interrupted or uncertain" --> endSequence["End sequence without retry"]
 ```
 
-Enabled queries run in firmware info, parameters, then parser state order.
-They use the session's serialized executeLine path and existing response
-collection. They are not subject to the terminal's motion-state admission policy:
-the controller may reject them in its actual state. Post-connect work reserves
-normal manual admission and Cycle Start while realtime status remains independent.
-Unsupported commands retain correlated errors and permit later queries when safe.
-Timeout, alarm or reset failure remains diagnostic. An interrupted or uncertain
-query ends the sequence even if a late response restores normal correlation. No uncertain command is retried, and a live connection
-is not marked disconnected merely because a query fails. Core exposes bounded
-per-attempt result messages. Ordinary responses are retained in existing terminal
+The buffer dispatches queries in firmware info, parameters, then parser state
+order, waiting for a correlated response before each next line. The controller
+may reject a query in its current state. Post-connect work reserves normal
+dispatch and blocks Cycle Start. Status and Feed Hold remain available
+independently, and Reset can interrupt the batch.
+A correlated `error:n` rejects its own query and allows the sequence to continue.
+Timeout, an alarm or another loss of correlation discards the remaining queries.
+Even a late response or a fresh status report cannot resume an invalidated
+batch. Reset failure skips the batch. A query failure alone does not imply
+transport loss. Core exposes bounded per-attempt result messages. Ordinary responses are retained in existing terminal
 traffic. No competing metadata/capabilities cache is introduced.
 
 ControllerSettings exposes the complete savedDraft alongside its configured

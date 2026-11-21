@@ -65,7 +65,7 @@ class GrblMachineSession(
     private val statusQueries = Mutex()
     private val writes = Mutex()
     private var pending: Pending? = null
-    private var commandEpoch = 0L
+    @Volatile private var commandEpoch = 0L
     private var blockingAlarmLatched = false
     private var resetClearedAlarmCode: Int? = null
     private var resetBoundaryEstablished = false
@@ -114,7 +114,7 @@ class GrblMachineSession(
         }
     }
 
-    override val normalCommandEpoch: Long get() = synchronized(gate) { commandEpoch }
+    override val normalCommandEpoch: Long get() = commandEpoch
 
     override suspend fun executeLine(command: String): CommandAcknowledgment =
         executeLineAtEpoch(command, expectedEpoch = null)

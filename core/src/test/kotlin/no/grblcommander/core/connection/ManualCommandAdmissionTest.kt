@@ -66,6 +66,8 @@ class ManualCommandAdmissionTest {
         )) assertFalse(held.copy(snapshot = snapshot).canCycleStart(now))
         assertFalse(idle.copy(manualCommandPending = true).canExecuteLine(now))
         assertFalse(idle.copy(closing = true).canExecuteLine(now))
+        assertFalse(idle.copy(resetPending = true).canExecuteLine(now))
+        assertFalse(held.copy(resetPending = true).canCycleStart(now))
         assertFalse(held.copy(closing = true).canCycleStart(now))
         assertFalse(idle.canExecuteLine(now.plusSeconds(4)))
     }

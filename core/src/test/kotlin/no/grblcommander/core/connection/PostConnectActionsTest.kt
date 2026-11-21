@@ -39,9 +39,9 @@ class PostConnectActionsTest {
                     terminated.complete(Unit)
                 }
 
-                override suspend fun executeLine(command: String) = try {
+                override suspend fun executeLine(command: String, expectedEpoch: Long) = try {
                     job.complete(currentCoroutineContext().job)
-                    real.executeLine(command)
+                    real.executeLine(command, expectedEpoch)
                 } finally {
                     withContext(NonCancellable) {
                         cleaningUp.complete(Unit)
@@ -171,8 +171,8 @@ class PostConnectActionsTest {
         val owner = ControllerConnection(this, { _, scope ->
             session = GrblMachineSession(transport, scope, commandTimeoutMillis = 1_000)
             object : MachineSession by session {
-                override suspend fun executeLine(command: String) = try {
-                    session.executeLine(command)
+                override suspend fun executeLine(command: String, expectedEpoch: Long) = try {
+                    session.executeLine(command, expectedEpoch)
                 } catch (error: TimeoutCancellationException) {
                     timedOut.complete(Unit)
                     resume.await()
@@ -218,6 +218,63 @@ class PostConnectActionsTest {
             assertEquals(queries.map { "$it acknowledged." }, finished.postConnectResults)
             assertTrue(transport.drainWrites().all { it == "?" })
         } finally { owner.close(); owner.awaitClosed() }
+    }
+
+    @Test fun statusAndFeedHoldBypassPendingPostConnectAcknowledgment() = scenario {
+        val transport = ConnectionTestTransport()
+        val owner = ControllerConnection(this, { _, scope -> GrblMachineSession(transport, scope) })
+        try {
+            owner.connect(endpoint)
+            assertEquals("\$I\n", transport.nextNonStatusWrite())
+
+            owner.sendRealtime(RealtimeCommand.STATUS_QUERY)
+            assertEquals("?", transport.writes.receive())
+            owner.sendRealtime(RealtimeCommand.FEED_HOLD)
+            assertEquals("!", transport.nextNonStatusWrite())
+            assertTrue(owner.state.value.postConnectPending)
+            assertFailsWith<IOException> { owner.executeLine("G0 X1") }
+
+            transport.emit("ok\n")
+            assertEquals("$#\n", transport.nextNonStatusWrite())
+            transport.emit("ok\n")
+            assertEquals("\$G\n", transport.nextNonStatusWrite())
+            transport.emit("ok\n")
+            owner.state.first { !it.postConnectPending }
+        } finally { owner.close(); owner.awaitClosed() }
+    }
+
+    @Test fun alarmBetweenAcknowledgedLinesInvalidatesTheRestEvenAfterIdleReport() = scenario {
+        val transport = ConnectionTestTransport()
+        val firstAccepted = CompletableDeferred<Unit>()
+        val resume = CompletableDeferred<Unit>()
+        val owner = ControllerConnection(this, { _, scope ->
+            val real = GrblMachineSession(transport, scope)
+            object : MachineSession by real {
+                override suspend fun executeLine(command: String, expectedEpoch: Long) =
+                    real.executeLine(command, expectedEpoch).also {
+                        if (command == "\$I") {
+                            firstAccepted.complete(Unit)
+                            resume.await()
+                        }
+                    }
+            }
+        })
+        try {
+            owner.connect(endpoint)
+            assertEquals("\$I\n", transport.nextNonStatusWrite())
+            transport.emit("ok\n")
+            firstAccepted.await()
+            transport.emit("ALARM:3\n")
+            owner.state.first { it.snapshot.alarmCode == 3 }
+            transport.emit("<Idle|MPos:0,0,0>\n")
+            owner.state.first { it.snapshot.alarmCode == null && it.snapshot.normalCommandsSynchronized }
+
+            resume.complete(Unit)
+            val finished = owner.state.first { !it.postConnectPending }
+            assertTrue(finished.postConnectResults.first().contains("acknowledged"))
+            assertTrue(finished.postConnectResults.last().contains("skipped"))
+            assertTrue(transport.drainWrites().all { it == "?" })
+        } finally { resume.complete(Unit); owner.close(); owner.awaitClosed() }
     }
 
     @Test fun orderedQueriesAndUnsupportedExtension() = scenario {

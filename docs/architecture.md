@@ -23,7 +23,7 @@ flowchart TD
 | Module | Owns |
 | --- | --- |
 | `:app-desktop` | `Main` wires startup and shutdown. `CommanderApp` assembles concrete mode roots and shared UI. Screens own interaction, view state and drafts. |
-| `:core` | `core.connection` owns the application connection/settings API, endpoint and draft models, validation, settings schema, session factory, polling and shared traffic history. Shared application workflows and domain rules belong here. |
+| `:core` | `core.connection` owns the application connection/settings API, endpoint and draft models, validation, settings schema, session factory, session-bound command buffering, polling and shared traffic history. Shared application workflows and domain rules belong here. |
 | `:infrastructure` | `machine.session`, `machine.protocol` and `machine.transport` own session synchronization, GRBL framing, TCP/serial I/O and discovery. `configuration` adapts JVM Preferences to opaque record storage. |
 
 Core re-exports the infrastructure API used in its public contracts.
