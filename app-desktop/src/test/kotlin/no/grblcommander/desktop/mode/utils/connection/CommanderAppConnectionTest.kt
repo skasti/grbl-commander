@@ -69,11 +69,13 @@ class CommanderAppConnectionTest {
             }
             val viewport = onRoot().getUnclippedBoundsInRoot()
             val firstKey = onNodeWithTag("softkey-F1").getUnclippedBoundsInRoot()
-            assertEquals(firstKey.width * 3, firstKey.height * 4, "Softkey aspect ratio")
+            val keyWidth = firstKey.right - firstKey.left
+            val keyHeight = firstKey.bottom - firstKey.top
+            assertEquals(keyWidth * 3, keyHeight * 4, "Softkey aspect ratio")
             for (slot in listOf("F1") + unassignedSlots) {
                 val tile = onNodeWithTag("softkey-$slot").assertIsDisplayed().getUnclippedBoundsInRoot()
-                assertEquals(firstKey.width, tile.width, "$slot width")
-                assertEquals(firstKey.height, tile.height, "$slot height")
+                assertEquals(keyWidth, tile.right - tile.left, "$slot width")
+                assertEquals(keyHeight, tile.bottom - tile.top, "$slot height")
                 assertTrue(tile.left >= 0.dp && tile.right <= viewport.right, "$slot fits horizontally")
                 assertTrue(tile.top >= 0.dp && tile.bottom <= viewport.bottom, "$slot fits vertically")
             }
