@@ -13,6 +13,9 @@ timestamps and failed/uncertain handoffs. Original unfamiliar text is retained.
 Control characters are escaped. Selection and copying are supported within one
 output entry. Selection spanning multiple lazy entries is not implemented.
 
+The `>` prefix and editable line share font metrics and vertical alignment.
+The entire 48 dp prompt is a focus target.
+
 Incoming events never replace the prompt value, caret or focus. Ordinary
 text editing, selection and paste use Compose text input. Enter or the onscreen
 keyboard Done/Enter action is the only submission action. Held Enter and concurrent
@@ -25,7 +28,7 @@ unchanged line after acknowledgment, without claiming motion completion. Up/Down
 and F3/F4 on the first bottom-softkey page browse up to 100 recent transport handoffs
 and restore the unsent draft. See [command recall ingestion](#terminal-subscription-and-recall).
 
-## Traffic filters and follow
+## Traffic filters
 
 F7 **Filters**, with a funnel icon, replaces the current bottom bank with a
 contextual filter menu. F7 **↩ Back** restores the previously selected bottom
@@ -46,40 +49,45 @@ and no filter buttons in the workspace.
 
 Active filters mean visible. Normal/realtime commands always remain visible.
 The display filter applies on receipt and leaves session processing and shared
-alarm and connection indicators untouched. Follow starts enabled. Upward
-manual scrolling disables it, and returning to the bottom reactivates it.
-R6 ⏬ Follow jumps directly to the latest entry.
+alarm and connection indicators untouched.
 
 ## Realtime controls and softkey pages
 
-F8 **Next page** cycles between two bottom pages, with a page indicator. F7
-The workspace has no action toolbar or explicit status-query action. It uses
-[shared background polling](controller-connection.md#freshness-and-background-polling).
+### Bottom softkeys
 
-| Bottom slot | Page 1 | Page 2 |
+The softkeys along the bottom of the Terminal provide command controls, history
+navigation, and log actions.
+
+| Bottom softkey | Page 1 | Page 2 |
 | --- | --- | --- |
-| F1 | ▶️ Guarded `sendRealtime(CYCLE_START)` | Confirm, then `reset()` handshake |
-| F2 | ⏸️ `sendRealtime(FEED_HOLD)` | Copy selected log text |
-| F3 | ⬆️ Prev Cmd | Clear view |
-| F4 | ⬇️ Next Cmd | Unassigned |
-| F5 | Unassigned | Unassigned |
-| F6 | Unassigned | Unassigned |
-| F7 | Filters (funnel icon) | Filters (funnel icon) |
-| F8 | Next page (1/2) | Next page (2/2), wrapping to page 1 |
+| F1 | ▶️ Cycle Start. Sends `~` when [core admission](controller-connection.md#manual-command-admission) permits it. | 🔄 Soft Reset. Asks for confirmation before resetting the controller. |
+| F2 | ⏸️ Feed Hold. Sends `!` to pause motion. | Copy selected text from the log. |
+| F3 | ⬆️ Prev Cmd. Recall the previous command. | 🧹 Clear view. Clear the displayed log. |
+| F4 | ⬇️ Next Cmd. Move forward through command history. | |
+| F7 | Open [Filters](#traffic-filters). | Open [Filters](#traffic-filters). |
+| F8 | Switch to page 2. | Switch back to page 1. |
 
-R6 **⏬ Follow** has reactive active state and remains available on both bottom
-pages and in Filters. See [Util navigation](controller-connection.md#util-navigation)
-and [modal bindings](dialogs.md#basedialog-and-modaldialog) for covered screens.
+Terminal groups these actions into two pages. Use the **F8 Next page** softkey
+to switch between them. It shows the current page as **1/2** or **2/2**.
+
+History and copy actions are enabled when there is a command to recall or text
+to copy, respectively. Realtime and paging actions suppress keyboard repeat.
+Realtime requests reserve separate in-flight slots. Soft Reset confirmation
+warns that reset interrupts work and invalidates pending commands.
+
+### Right softkeys
+
+**R6 ⏬ Follow** toggles whether Terminal automatically scrolls to the latest
+sent or received traffic. It starts enabled, and the softkey highlights while
+it is active. Turning it on jumps to the latest entry. Scrolling up pauses
+Follow, and scrolling back to the bottom turns it on again.
+
+Follow is available on both bottom softkey pages and in Filters. See
+[Util navigation](controller-connection.md#util-navigation) for the R7 Connection
+softkey and [modal bindings](dialogs.md#basedialog-and-modaldialog) for dialogs.
 
 Switching modes or visiting settings retains the page, filter menu, list and
-prompt. History and copy actions expose reactive enabled states. Realtime and
-paging actions suppress keyboard repeat. Realtime requests reserve separate
-in-flight slots. Reset confirmation warns about interrupting work and
-invalidating pending commands. Cycle Start uses the shared
-[core admission rule](controller-connection.md#manual-command-admission).
-
-The `>` prefix and editable line share font metrics and vertical alignment.
-The entire 48 dp prompt is a focus target.
+prompt.
 
 ## Terminal subscription and recall
 
