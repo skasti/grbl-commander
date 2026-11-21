@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.generated.resources.Res
 import no.grblcommander.desktop.generated.resources.grbl_commander_splash
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.Screen
 import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
 import org.jetbrains.compose.resources.painterResource
@@ -23,12 +24,16 @@ import org.jetbrains.compose.resources.painterResource
  *
  * This screen never claims controller connectivity or implies machine operation.
  */
-class Welcome : Screen<Unit>(Unit) {
+class Welcome(private val openUtil: () -> Unit) : Screen<Unit>(Unit) {
     private fun openEditor() { Editor().open(this) }
 
     override val bottomKeys = mapOf(
         BottomSoftKeySlot.F1 to
             SoftKeyDefinition("Open editor", action = ::openEditor),
+    )
+
+    override val rightKeys = mapOf(
+        RightSoftKeySlot.R7 to SoftKeyDefinition("Util", action = openUtil, repeatable = false),
     )
 
     @Composable
