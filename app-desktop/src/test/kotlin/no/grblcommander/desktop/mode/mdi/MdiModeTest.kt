@@ -50,4 +50,32 @@ class MdiModeTest {
         onNodeWithTag("softkey-F5").performClick()
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("N20 G0 X1")))
     }
+
+    @Test fun `browsing and deselecting return to the unfinished new line and caret`() = runComposeUiTest {
+        val stack = ScreenStack(MdiMode())
+        setContent {
+            MaterialTheme {
+                AppShell(ShellState.startup(), currentStack = { stack }) { ScreenStackHost(stack) }
+            }
+        }
+        val input = onNodeWithTag("mdi-input")
+        for (line in listOf("G90", "M2")) {
+            input.performTextInput(line)
+            input.performKeyInput { pressKey(Key.Enter) }
+        }
+        input.performTextInput("G X1")
+        input.performKeyInput { pressKey(Key.Home); pressKey(Key.DirectionRight) }
+        onNodeWithTag("softkey-F5").performClick()
+        onNodeWithTag("softkey-F5").performClick()
+        onNodeWithTag("softkey-F6").performClick()
+        onNodeWithTag("softkey-F6").performClick()
+        input.performTextInput("1")
+        onNodeWithTag("mdi-line-2").performClick()
+        onNodeWithTag("mdi-line-1").performClick().performClick()
+        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G1 X1")))
+        input.performKeyInput { pressKey(Key.Enter) }
+        onNodeWithTag("mdi-line-3").assertTextContains("G1 X1")
+        onNodeWithTag("mdi-line-3").performClick().performClick()
+        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+    }
 }

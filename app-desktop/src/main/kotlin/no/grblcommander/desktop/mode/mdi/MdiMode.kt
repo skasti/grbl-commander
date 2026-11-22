@@ -28,6 +28,7 @@ class MdiMode : Screen<Unit>(Unit) {
     private val lines = mutableStateListOf<String>()
     private var selected by mutableStateOf<Int?>(null)
     private var input by mutableStateOf(TextFieldValue())
+    private var newLineDraft = TextFieldValue()
     private var error by mutableStateOf<String?>(null)
     private val letters = KeyClusterState(Keymaps.code)
     private val numbers = KeyClusterState(Keymaps.numPlus)
@@ -45,9 +46,12 @@ class MdiMode : Screen<Unit>(Unit) {
     }
 
     private fun select(index: Int?) {
+        if (selected == null) newLineDraft = input
         selected = index
-        val text = index?.let(lines::get).orEmpty()
-        edit(TextFieldValue(text, TextRange(text.length)))
+        edit(if (index == null) newLineDraft else {
+            val text = lines[index]
+            TextFieldValue(text, TextRange(text.length))
+        })
     }
 
     private fun save() {
@@ -86,7 +90,10 @@ class MdiMode : Screen<Unit>(Unit) {
                                 val active = selected == index
                                 Row(Modifier.fillMaxWidth()
                                     .background(if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-                                    .selectable(selected = active) { select(index); focus.requestFocus() }
+                                    .selectable(selected = active) {
+                                        select(if (active) null else index)
+                                        focus.requestFocus()
+                                    }
                                     .testTag("mdi-line-${index + 1}").padding(8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     Text((index + 1).toString())
