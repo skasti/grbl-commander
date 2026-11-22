@@ -6,6 +6,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.RealtimeCommand
+import no.grblcommander.machine.transport.MachineTransport
 import kotlin.test.*
 
 class OperationTest {
@@ -113,6 +114,68 @@ class OperationTest {
         assertEquals(Operation.Phase.INTERRUPTED, run.state.value.phase)
     }
 
+    @Test fun uncertainFirstWriteHasNoSuccessfullySentLine() = scenario(
+        wrapTransport = { failOnWrite(it, "N1 G0 X1\n", prefixLength = 5) },
+    ) { owner, transport ->
+        val run = owner.startOperation(Operation.Source.MDI, "draft", listOf("G0 X1", "G0 X2"))
+        assertEquals("N1 G0", transport.nextNonStatusWrite())
+        val interrupted = run.state.first { it.phase == Operation.Phase.INTERRUPTED }
+        assertEquals(1, interrupted.uncertainWriteLineNumber)
+        assertNull(interrupted.lastSentLineNumber)
+        assertEquals(BufferState.Reply.Empty, interrupted.reply)
+        assertFalse(owner.state.value.snapshot.normalCommandsSynchronized)
+        assertTrue(transport.drainWrites().all { it == "?" })
+    }
+
+    @Test fun uncertainWritePreservesEarlierReplyAndNeverReplays() = scenario(
+        wrapTransport = { failOnWrite(it, "N2 G0 X2\n", prefixLength = 5) },
+    ) { owner, transport ->
+        val run = owner.startOperation(Operation.Source.MDI, "draft", listOf("G0 X1", "G0 X2", "G0 X3"))
+        assertEquals("N1 G0 X1\n", transport.nextNonStatusWrite())
+        transport.emit("ok\n")
+        assertEquals("N2 G0", transport.nextNonStatusWrite())
+        val interrupted = run.state.first { it.phase == Operation.Phase.INTERRUPTED }
+        assertEquals(2, interrupted.uncertainWriteLineNumber)
+        assertEquals(1, interrupted.lastSentLineNumber)
+        assertEquals(BufferState.Reply.Ok, interrupted.reply)
+
+        transport.autoStatus = true
+        owner.reset()
+        owner.state.first { !it.operationPending }
+        assertEquals(interrupted, run.state.value)
+        assertTrue(transport.drainWrites().all { it == "?" || it == "\u0018" })
+    }
+
+    @Test fun knownLocalRejectionLeavesNoUncertainWrite() = scenario(
+        wrapTransport = { failOnWrite(it, "N2 G0 X2\n") },
+    ) { owner, transport ->
+        val run = owner.startOperation(Operation.Source.MDI, "draft", listOf("G0 X1", "G0 X2", "G0 X3"))
+        assertEquals("N1 G0 X1\n", transport.nextNonStatusWrite())
+        transport.emit("ok\n")
+        val interrupted = run.state.first { it.phase == Operation.Phase.INTERRUPTED }
+        assertEquals(1, interrupted.lastSentLineNumber)
+        assertEquals(BufferState.Reply.Ok, interrupted.reply)
+        assertNull(interrupted.uncertainWriteLineNumber)
+        assertTrue(owner.state.value.snapshot.normalCommandsSynchronized)
+        assertTrue(transport.drainWrites().all { it == "?" })
+    }
+
+    private fun failOnWrite(
+        transport: ConnectionTestTransport,
+        target: String,
+        prefixLength: Int = 0,
+    ): MachineTransport =
+        object : MachineTransport by transport {
+            override suspend fun write(bytes: ByteArray) {
+                if (bytes.decodeToString() == target) {
+                    if (prefixLength == 0) throw IllegalArgumentException("rejected before writing")
+                    transport.write(bytes.copyOf(prefixLength))
+                    throw IOException("write failed after a partial transfer")
+                }
+                transport.write(bytes)
+            }
+        }
+
     @Test fun staleStatusClearsActiveLineAndKeepsReservation() = scenario { owner, transport ->
         val run = owner.startOperation(Operation.Source.MDI, "draft", listOf("N10 G0 X1"))
         assertEquals("N10 G0 X1\n", transport.nextNonStatusWrite())
@@ -160,12 +223,15 @@ class OperationTest {
         owner.state.first { it.snapshot.reportSequence > before }
     }
 
-    private fun scenario(timeoutMillis: Long = 2000, block: suspend (ControllerConnection, ConnectionTestTransport) -> Unit) =
-        runBlocking {
+    private fun scenario(
+        timeoutMillis: Long = 2000,
+        wrapTransport: (ConnectionTestTransport) -> MachineTransport = { it },
+        block: suspend (ControllerConnection, ConnectionTestTransport) -> Unit,
+    ) = runBlocking {
             withTimeout(7000) {
                 val transport = ConnectionTestTransport()
                 val owner = ControllerConnection(this, { _, scope ->
-                    GrblMachineSession(transport, scope, commandTimeoutMillis = timeoutMillis)
+                    GrblMachineSession(wrapTransport(transport), scope, commandTimeoutMillis = timeoutMillis)
                 })
                 try {
                     owner.connect(endpoint)

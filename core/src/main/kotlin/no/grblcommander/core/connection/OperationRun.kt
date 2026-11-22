@@ -61,6 +61,7 @@ internal class OperationRun(val operation: Operation, val epoch: Long) {
             phase = next,
             lastSentLineNumber = buffer.lastSentLineNumber,
             reply = buffer.reply,
+            uncertainWriteLineNumber = buffer.uncertainWriteLineNumber,
             executingLineNumber = line,
             observedAt = at.takeUnless { finished },
             activeLineElapsed = elapsed,
@@ -73,6 +74,7 @@ internal class OperationRun(val operation: Operation, val epoch: Long) {
         awaitingSynchronization = phase == Operation.Phase.INTERRUPTED
         operation.publish(operation.state.value.copy(
             phase = phase, lastSentLineNumber = buffer.lastSentLineNumber, reply = buffer.reply,
+            uncertainWriteLineNumber = buffer.uncertainWriteLineNumber,
             executingLineNumber = null, activeLineElapsed = null,
             observedAt = null, detail = detail,
         ))

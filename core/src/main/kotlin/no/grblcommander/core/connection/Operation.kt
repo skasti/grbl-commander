@@ -36,6 +36,8 @@ class Operation internal constructor(
         val observedAt: Instant? = null,
         val activeLineElapsed: Duration? = null,
         val detail: String? = null,
+        /** A line whose write outcome is uncertain. The reply still describes the last sent line. */
+        val uncertainWriteLineNumber: Int? = null,
     )
 
     private val mutableState = MutableStateFlow(Progress())

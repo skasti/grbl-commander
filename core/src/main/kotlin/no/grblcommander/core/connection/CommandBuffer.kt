@@ -78,9 +78,14 @@ internal class CommandBuffer(private val session: MachineSession) {
         }
 
     @Synchronized
-    private fun clearExecution() {
+    private fun clearExecution(uncertainWriteLineNumber: Int? = null) {
         sentAfterReport.clear()
-        mutableState.update { it.copy(executingLineNumber = null) }
+        mutableState.update {
+            it.copy(
+                executingLineNumber = null,
+                uncertainWriteLineNumber = uncertainWriteLineNumber ?: it.uncertainWriteLineNumber,
+            )
+        }
     }
 
     private suspend fun drain(
@@ -102,7 +107,7 @@ internal class CommandBuffer(private val session: MachineSession) {
                 return
             }
             val acknowledgment = try {
-                session.executeLine(command, epoch) {
+                session.executeLine(command, epoch, onUncertainWrite = { clearExecution(index + 1) }) {
                     synchronized(this) {
                         if (lineNumbers.isNotEmpty()) sentAfterReport[index + 1] = session.state.value.reportSequence
                         mutableState.update { it.copy(lastSentLineNumber = index + 1, reply = BufferState.Reply.Pending) }

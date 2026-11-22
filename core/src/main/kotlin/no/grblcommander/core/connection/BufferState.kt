@@ -5,6 +5,8 @@ data class BufferState(
     val lastSentLineNumber: Int? = null,
     val reply: Reply = Reply.Empty,
     val executingLineNumber: Int? = null,
+    /** Write failed after it may have put some or all bytes on the wire. */
+    val uncertainWriteLineNumber: Int? = null,
 ) {
     sealed interface Reply {
         data object Empty : Reply
