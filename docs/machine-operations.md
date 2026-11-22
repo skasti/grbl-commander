@@ -1,46 +1,48 @@
-# Planned machine operations
+# Machine operations
 
-These are design requirements for future operation workflows. The
-[Terminal](terminal.md) already sends individual commands and exposes guarded
-realtime actions through the [controller connection](controller-connection.md).
-The Manual and MDI screens use local demo state.
+## Line-based operations
 
-## Coordination requirements
+`ControllerConnection.startOperation` starts a line-based run against the
+current session. The returned `Operation` identifies the session, the run,
+its purpose and the caller's source ID. It retains an immutable copy of the
+source lines and exposes its latest progress through a read-only state flow.
+Line positions in progress are one-based. The connection exposes the latest
+operation handle and whether a run still reserves normal dispatch.
 
-Application operations represent user intentions rather than raw protocol
-commands.
+Starting requires a fresh, synchronized Idle report and exclusive normal
+dispatch. A run excludes Terminal and other operations from admission through
+physical completion. Post-connect queries must finish before a run can start.
+Status polling and permitted realtime controls remain available. A Hold report
+pauses dispatch of further blocks. Cycle Start can resume a confirmed Hold:0,
+and streaming continues when the controller reports Run or Idle.
 
-Examples:
+The operation projects the [session buffer's progress](controller-connection.md)
+onto its source lines. It preserves explicit N words, ignores ambiguous
+duplicates and can add N words to batches composed entirely of simple G0/G1
+blocks when they fit the line length limit. Blocks outside that subset are sent
+as written. Line reporting depends on the controller configuration. An absent
+or unmapped Ln clears the active line.
 
-- Home machine.
-- Jog an axis.
-- Set a work coordinate.
-- Execute an MDI buffer.
-- Start or resume a program.
-- Run a macro.
-- Read controller settings.
-- Synchronize macros.
+The elapsed duration is the sum of intervals between consecutive fresh reports
+that identify the same line and both report Run. A first observation begins at
+zero. Intervals touching Hold are excluded. Missing, stale or unmapped reports
+clear the estimate, and a skipped sample starts a new estimate. The report
+timestamp is available with the progress for clients displaying freshness.
 
-Shared coordination in core must cover the following responsibilities.
-The need for a dedicated operation abstraction is tracked in
-[issue #38](https://github.com/skasti/grbl-commander/issues/38).
+The final OK leaves the operation active until a later fresh Idle report arrives.
+A correlated error fails the operation at the reported line. Alarm, reset, loss
+of command correlation, command timeout and disconnection interrupt the run.
+A stale status report clears execution progress while the run waits for fresh
+status or an explicit reset or disconnect. For a stopped run with a connected
+session, a subsequent synchronized Idle report releases normal dispatch.
+The operation handle retains its outcome across reconnects.
 
-- Validating operation preconditions.
-- Preventing conflicting operations.
-- Managing operation ownership and lifecycle.
-- Dispatching commands through the machine session.
-- Monitoring controller state.
-- Reporting progress, completion, failure, and interruption.
+## Planned workflows
 
-Only one operation that owns machine motion or program execution may be active
-at a time. Monitoring and permitted real-time controls remain available
-independently.
-
-Determine operation completion from controller observations. An acknowledged
-final block follows the [session acknowledgment contract](grbl-session.md#handshake-and-command-acknowledgment).
-
-Program streaming, controller-hosted execution, and macro execution may require
-different completion and progress strategies.
+Future workflows can represent homing, jogging, probing, controller-hosted
+program execution and other controller work through an operation. They can
+use completion criteria appropriate to the work involved. The desktop Manual
+and MDI screens use local demo state.
 
 ## Global controls
 

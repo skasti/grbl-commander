@@ -11,6 +11,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import no.grblcommander.machine.session.CommandAcknowledgment
 import no.grblcommander.machine.session.MachineSession
+import no.grblcommander.machine.session.MachineSnapshot
 import no.grblcommander.machine.session.MachineSnapshot.Connection
 
 /** Runs ordered batches against one session and reserves normal dispatch until a batch ends. */
@@ -29,8 +30,7 @@ internal class CommandBuffer(private val session: MachineSession) {
     private val sentAfterReport = mutableMapOf<Int, Long>()
 
     @Synchronized
-    fun refreshExecution() {
-        val snapshot = session.state.value
+    fun refreshExecution(snapshot: MachineSnapshot = session.state.value) {
         val number = snapshot.status?.executingLineNumber
         val position = lineNumbers[number]?.takeIf {
             snapshot.reportSequence > (sentAfterReport[it] ?: Long.MAX_VALUE) && batchEpoch == session.normalCommandEpoch &&
@@ -49,6 +49,8 @@ internal class CommandBuffer(private val session: MachineSession) {
         prepareCommands: suspend () -> List<String>,
         controllerLineNumbers: Map<Int, Int> = emptyMap(),
         continueAfterError: Boolean = false,
+        expectedEpoch: Long? = null,
+        beforeLine: suspend () -> Unit = {},
         onResult: (LineResult) -> Unit,
     ): Job {
         check(batch?.isCompleted != false) { "A command batch is already active" }
@@ -60,7 +62,7 @@ internal class CommandBuffer(private val session: MachineSession) {
         return session.prepareSessionTask {
             normalDispatch.withLock {
                 val commands = prepareCommands()
-                drain(commands, continueAfterError, onResult)
+                drain(commands, continueAfterError, expectedEpoch, beforeLine, onResult)
             }
         }.also { batch = it }
     }
@@ -81,11 +83,18 @@ internal class CommandBuffer(private val session: MachineSession) {
         mutableState.update { it.copy(executingLineNumber = null) }
     }
 
-    private suspend fun drain(commands: List<String>, continueAfterError: Boolean, onResult: (LineResult) -> Unit) {
-        val epoch = session.normalCommandEpoch
+    private suspend fun drain(
+        commands: List<String>,
+        continueAfterError: Boolean,
+        expectedEpoch: Long?,
+        beforeLine: suspend () -> Unit,
+        onResult: (LineResult) -> Unit,
+    ) {
+        val epoch = expectedEpoch ?: session.normalCommandEpoch
         synchronized(this) { batchEpoch = epoch }
         for ((index, command) in commands.withIndex()) {
             currentCoroutineContext().ensureActive()
+            beforeLine()
             val snapshot = session.state.value
             if (snapshot.connection != Connection.CONNECTED || !snapshot.normalCommandsSynchronized ||
                 snapshot.resetRequired || snapshot.resetInProgress) {
