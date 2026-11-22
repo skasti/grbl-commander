@@ -106,8 +106,7 @@ supplementary Unicode code point. An explicit edit finalizes IME composition.
 Enter always invokes the supplied binding rather than inserting text implicitly.
 Physical keyboard, mouse selection, paste and touch remain Compose input behavior.
 [Terminal submission](terminal.md#console-and-prompt) is an example of a
-screen-owned Enter binding. MDI binds Enter to local newline
-insertion. It cannot execute the buffer. No keyboard control communicates with a
+screen-owned Enter binding. MDI binds Enter to saving a line in the [local MDI editor](programs-macros-tools.md#local-mdi-editor). No keyboard control communicates with a
 session/transport or triggers realtime/motion controls.
 
 ## Connection field keymaps

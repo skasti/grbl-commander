@@ -34,8 +34,8 @@ when changing visible UI.
 | `terminal-page-2` | Both second pages with a focused command draft |
 | `terminal-acknowledged` | Command acknowledged while simulated execution is Run |
 | `terminal-idle-first-letter` | Idle following Run and the first post-command keypress |
-| `mdi` | Local MDI buffer with the first pages |
-| `mdi-page-2` | Local MDI buffer with the second pages |
+| `mdi` | New-line draft and saved MDI line with the first keypad pages |
+| `mdi-page-2` | Selected, edited MDI line with the second keypad pages |
 | `connection-serial-defaults`, `connection-tcp-draft` | Serial defaults and retained TCP form |
 | `connection-port-discovery-*` | Loading, empty and failed serial discovery |
 | `connection-port-page-*`, `connection-port-single-page` | Six numbered device rows, paging/wrap and a partial final page; single-page bank |

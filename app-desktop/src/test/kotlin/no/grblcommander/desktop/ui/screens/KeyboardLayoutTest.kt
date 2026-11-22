@@ -161,7 +161,7 @@ class KeyboardLayoutTest {
             onNodeWithTag("keypad-NUM+-next").performClick()
             check(prompt)
             runOnIdle { active = mdi }
-            check(onNodeWithText("Unsent text"))
+            check(onNodeWithTag("mdi-input"))
 
             runOnIdle {
                 active = terminal

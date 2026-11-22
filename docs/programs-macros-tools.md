@@ -6,6 +6,20 @@ editing and input. The [navigation example](screen-stack.md#runnable-example)
 uses in-memory files. Real program access, analysis, toolpaths, execution,
 macro workflows and tool management remain planned.
 
+## Local MDI editor
+
+MDI shows a numbered, read-only command list above a single-line input.
+Enter on either keyboard appends the draft to the list. Each command must pass
+the session's [line validation](grbl-session.md#protocol-framing). A rejected
+draft stays in the input for correction. Saving a line is local.
+
+F5 selects the previous line, starting at the last saved line. F6 selects
+the next line. Selecting a row by touch or mouse also copies it into the
+input. Enter replaces the selected row and keeps it selected. F6 from the
+last row clears the input for a new line. Switching modes preserves the
+buffer, selection, unfinished draft and keypad pages. The display numbers
+count rows from one, independently of any G-code line numbers.
+
 ## Programs and G-code
 
 ### Program Model

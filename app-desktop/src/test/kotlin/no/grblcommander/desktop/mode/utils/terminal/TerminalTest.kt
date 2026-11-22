@@ -195,19 +195,33 @@ class TerminalTest {
             onNodeWithText("NUM+ 2/2 ▸").assertExists()
             onNode(hasText("MDI") and hasClickAction()).performClick()
             onNodeWithText("• MDI").assertIsSelected()
-            onNodeWithText("Unsent text").performClick().performTextInput("G0 X1")
+            onNodeWithTag("mdi-input").performClick().performTextInput("G0 X1")
             onNodeWithTag("keypad-NUM+-15").assertIsDisplayed().performClick()
-            onNodeWithText("Unsent text").performTextInput("M2")
-            onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G0 X1\nM2")))
+            onNodeWithTag("mdi-input").performTextInput("M2")
+            onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("M2")))
             screenshot("mdi")
             onNodeWithTag("keypad-CODE-next").performClick()
             onNodeWithTag("keypad-NUM+-next").assertIsDisplayed().performClick()
             onNodeWithText("CODE 2/2 ▸").assertExists()
             onNodeWithText("NUM+ 2/2 ▸").assertExists()
+            onNodeWithTag("mdi-input").performKeyInput { pressKey(Key.Enter) }
+            onNodeWithTag("softkey-F5").performClick()
+            onNodeWithTag("mdi-line-2").assertIsSelected()
+            onNodeWithTag("mdi-input").performTextReplacement("M30")
+            onNodeWithTag("keypad-NUM+-15").performClick()
+            onNodeWithTag("mdi-line-2").assertTextContains("M30")
+            onNodeWithTag("mdi-line-3").assertDoesNotExist()
             screenshot("mdi-page-2")
+            onNodeWithTag("mdi-input").performTextReplacement("M3")
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
             onNodeWithText("CODE 2/2 ▸").assertExists()
             onNodeWithText("NUM+ 2/2 ▸").assertExists()
+            onNode(hasText("MDI") and hasClickAction()).performClick()
+            onNodeWithTag("mdi-line-2").assertIsSelected().assertTextContains("M30")
+            onNodeWithTag("mdi-input").assertPromptText("M3")
+            onNodeWithTag("softkey-F6").performClick()
+            onNodeWithTag("mdi-input").assertPromptText("")
+            onNodeWithTag("softkey-F6").assertIsNotEnabled()
             runOnIdle { assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND }) }
         }
     }
@@ -357,8 +371,8 @@ class TerminalTest {
             assertTrue(f.transport.drainWrites().all { it == "?" }) // No realtime action leaked.
             runOnIdle { f.active = f.other }
             onNodeWithTag("terminal-prompt").assertDoesNotExist()
-            onNodeWithText("Unsent text").performClick().performTextInput("G0 X999")
-            onNodeWithText("Unsent text").performKeyInput { pressKey(Key.Enter) }
+            onNodeWithTag("mdi-input").performClick().performTextInput("G0 X999")
+            onNodeWithTag("mdi-input").performKeyInput { pressKey(Key.Enter) }
             assertTrue(f.owner.diagnosticSnapshot().none { it.event.category == CommunicationEvent.Category.COMMAND })
             runBlocking { repeat(300) { f.transport.emit("[EXT:$it]\n") } }
             waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[EXT:299]" } }
