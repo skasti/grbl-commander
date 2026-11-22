@@ -10,13 +10,20 @@ import kotlinx.coroutines.flow.asStateFlow
 class Operation internal constructor(
     val id: Long,
     val sessionId: Long,
-    val purpose: Purpose,
+    val source: Source,
     val sourceId: String,
     lines: List<String>,
 ) {
     val lines: List<String> = Collections.unmodifiableList(lines.toList())
 
-    enum class Purpose { MDI, PROGRAM }
+    /** Identifies the workflow that supplied the operation. */
+    @JvmInline
+    value class Source(val value: String) {
+        companion object {
+            val MDI = Source("MDI")
+            val PROGRAM = Source("PROGRAM")
+        }
+    }
 
     enum class Phase { PREPARED, RUNNING, HELD, COMPLETED, FAILED, INTERRUPTED }
 

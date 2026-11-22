@@ -335,9 +335,9 @@ class ControllerConnection(
     }
 
     /** Snapshot and start a source in the current session. The returned handle owns its progress. */
-    fun startOperation(purpose: Operation.Purpose, sourceId: String, lines: List<String>): Operation {
-        val source = lines.toList()
-        val commands = OperationCommands(source)
+    fun startOperation(source: Operation.Source, sourceId: String, lines: List<String>): Operation {
+        val sourceLines = lines.toList()
+        val commands = OperationCommands(sourceLines)
         val run = synchronized(gate) {
             val entry = activeSession()
             val session = entry.session
@@ -348,7 +348,7 @@ class ControllerConnection(
                 snapshot.reportSequence <= entry.lastManualReplySequence) {
                 throw IOException("Starting an operation requires a fresh Idle controller and exclusive normal dispatch")
             }
-            val operation = Operation(++nextOperationId, entry.id, purpose, sourceId, source)
+            val operation = Operation(++nextOperationId, entry.id, source, sourceId, sourceLines)
             OperationRun(operation, epoch).also { run ->
                 run.batch = entry.commands.prepareBatch(
                     prepareCommands = { commands.commands },

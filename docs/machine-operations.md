@@ -4,8 +4,11 @@
 
 `ControllerConnection.startOperation` starts a line-based run against the
 current session. The returned `Operation` identifies the session, the run,
-its purpose and the caller's source ID. It retains an immutable copy of the
-source lines and exposes its latest progress through a read-only state flow.
+its source workflow and the caller's source ID. `Operation.Source` is a
+string-backed value with constants for MDI and Program. Callers can supply
+other values such as `Operation.Source("COMMAND")`. The operation retains
+an immutable copy of the source lines and exposes its latest progress through
+a read-only state flow.
 Line positions in progress are one-based. The connection exposes the latest
 operation handle and whether a run still reserves normal dispatch.
 

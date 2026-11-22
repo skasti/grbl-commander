@@ -13,7 +13,9 @@ class OperationTest {
 
     @Test fun acknowledgementAndPhysicalCompletionAreIndependent() = scenario { owner, transport ->
         val source = mutableListOf("G0 X1", "G1 X2", "G1 X3")
-        val run = owner.startOperation(Operation.Purpose.MDI, "draft-1", source)
+        val run = owner.startOperation(source = Operation.Source("COMMAND"), sourceId = "draft-1", lines = source)
+        assertEquals(Operation.Source("COMMAND"), run.source)
+        assertEquals("draft-1", run.sourceId)
         source[0] = "G0 X99"
         assertEquals("G0 X1", run.lines.first())
         assertEquals("N1 G0 X1\n", transport.nextNonStatusWrite())
@@ -43,7 +45,7 @@ class OperationTest {
         run.state.first { it.lastSentLineNumber == 3 && it.reply == BufferState.Reply.Ok }
         assertTrue(owner.state.value.operationPending)
         assertFailsWith<IOException> { owner.executeLine("G0 X9") }
-        assertFailsWith<IOException> { owner.startOperation(Operation.Purpose.MDI, "other", listOf("G0 X9")) }
+        assertFailsWith<IOException> { owner.startOperation(Operation.Source.MDI, "other", listOf("G0 X9")) }
         report(owner, transport, "<Idle>")
         run.state.first { it.phase == Operation.Phase.COMPLETED }
         owner.state.first { !it.operationPending }
@@ -51,7 +53,7 @@ class OperationTest {
     }
 
     @Test fun rejectedLineStopsStreamingAndRequiresFreshIdleForAdmission() = scenario { owner, transport ->
-        val run = owner.startOperation(Operation.Purpose.MDI, "draft", listOf("G0 X1", "G0 X2"))
+        val run = owner.startOperation(Operation.Source.MDI, "draft", listOf("G0 X1", "G0 X2"))
         assertEquals("N1 G0 X1\n", transport.nextNonStatusWrite())
         transport.emit("error:20\n")
         val failed = run.state.first { it.phase == Operation.Phase.FAILED }
@@ -72,7 +74,7 @@ class OperationTest {
             })
             try {
                 owner.connect(endpoint)
-                val run = owner.startOperation(Operation.Purpose.MDI, "draft", listOf("G0 X1", "G0 X2"))
+                val run = owner.startOperation(Operation.Source.MDI, "draft", listOf("G0 X1", "G0 X2"))
                 assertEquals("N1 G0 X1\n", initial.nextNonStatusWrite())
                 initial.disconnect()
                 run.state.first { it.phase == Operation.Phase.INTERRUPTED }
@@ -88,7 +90,7 @@ class OperationTest {
     }
 
     @Test fun alarmInterruptsAndResetCannotCompleteTheRun() = scenario { owner, transport ->
-        val run = owner.startOperation(Operation.Purpose.MDI, "draft", listOf("G0 X1", "G0 X2"))
+        val run = owner.startOperation(Operation.Source.MDI, "draft", listOf("G0 X1", "G0 X2"))
         assertEquals("N1 G0 X1\n", transport.nextNonStatusWrite())
         transport.emit("ALARM:3\n")
         run.state.first { it.phase == Operation.Phase.INTERRUPTED }
@@ -100,7 +102,7 @@ class OperationTest {
     }
 
     @Test fun timeoutLeavesOutcomeUnknown() = scenario(timeoutMillis = 150) { owner, transport ->
-        val run = owner.startOperation(Operation.Purpose.MDI, "draft", listOf("G0 X1", "G0 X2"))
+        val run = owner.startOperation(Operation.Source.MDI, "draft", listOf("G0 X1", "G0 X2"))
         assertEquals("N1 G0 X1\n", transport.nextNonStatusWrite())
         run.state.first { it.phase == Operation.Phase.INTERRUPTED && it.reply == BufferState.Reply.Unknown }
         transport.emit("ok\n")
@@ -112,7 +114,7 @@ class OperationTest {
     }
 
     @Test fun staleStatusClearsActiveLineAndKeepsReservation() = scenario { owner, transport ->
-        val run = owner.startOperation(Operation.Purpose.MDI, "draft", listOf("N10 G0 X1"))
+        val run = owner.startOperation(Operation.Source.MDI, "draft", listOf("N10 G0 X1"))
         assertEquals("N10 G0 X1\n", transport.nextNonStatusWrite())
         run.state.first { it.reply == BufferState.Reply.Pending }
         report(owner, transport, "<Run|Ln:10>")
@@ -134,7 +136,7 @@ class OperationTest {
     }
 
     @Test fun resetInterruptsAnAcceptedRunBeforeItCompletes() = scenario { owner, transport ->
-        val run = owner.startOperation(Operation.Purpose.MDI, "draft", listOf("G0 X1"))
+        val run = owner.startOperation(Operation.Source.MDI, "draft", listOf("G0 X1"))
         assertEquals("N1 G0 X1\n", transport.nextNonStatusWrite())
         transport.emit("ok\n")
         run.state.first { it.reply == BufferState.Reply.Ok }
