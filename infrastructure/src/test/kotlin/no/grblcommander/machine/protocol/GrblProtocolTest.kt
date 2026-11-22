@@ -19,6 +19,14 @@ class GrblProtocolTest {
         assertEquals("120,8000", message.report.fields["FS"])
     }
 
+    @Test fun `executing line belongs to the individual sampled report`() {
+        for ((field, expected) in listOf("|Ln:42" to 42, "|Ln:10000000" to 10_000_000,
+            "" to null, "|Ln:-1" to null, "|Ln:x" to null, "|Ln:10000001" to null)) {
+            val status = assertIs<GrblMessage.Status>(GrblProtocol.parse("<Run$field>"))
+            assertEquals(expected, status.report.executingLineNumber)
+        }
+    }
+
     @Test fun `malformed or unknown input does not fabricate controller state`() {
         for (line in listOf("<>", "<Idle|MPos:NaN,0,0>", "<Idle|broken>", "<Idle|MPos:1|MPos:2>", "error:no", "something")) {
             assertEquals(GrblMessage.Information(line), GrblProtocol.parse(line))

@@ -39,7 +39,9 @@ realtime bytes are rejected.
 real-time and status-query API. The session publishes immutable `MachineSnapshot` values via read-only
 `StateFlow`. Reports include execution state, optional machine and work
 positions, coordinate offset, optional and unknown fields, the observation
-timestamp and explicit connection health. An application must distinguish
+timestamp and explicit connection health. `ControllerStatus.executingLineNumber` exposes
+the sampled `Ln` value from that report. A missing or invalid value yields
+`null`. The observation does not establish acknowledgment or completion. An application must distinguish
 retained observations, stale reports and live data.
 
 ## Handshake and command acknowledgment
