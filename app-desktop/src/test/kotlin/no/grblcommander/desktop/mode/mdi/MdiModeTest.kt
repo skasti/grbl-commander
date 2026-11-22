@@ -6,6 +6,12 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.text.AnnotatedString
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import no.grblcommander.core.connection.BufferState
+import no.grblcommander.core.connection.Operation
 import no.grblcommander.desktop.mode.ControllerFixture
 import no.grblcommander.desktop.ui.CommanderApp
 import no.grblcommander.desktop.ui.layout.AppShell
@@ -100,4 +106,114 @@ class MdiModeTest {
             screenshot("mdi-page-2")
         }
     }
+
+    @Test fun `Cycle Start tracks execution separately from editing and resumes without replay`() = runAtScreenshotSizes { screenshot ->
+        ControllerFixture().use { fixture ->
+            openMdi(fixture)
+            val start = onNodeWithTag("softkey-F1")
+            start.assertIsNotEnabled()
+            saveLine("N70 G0 X1")
+            saveLine("N90 G0 X2")
+            assertTrue(fixture.transport.drainWrites().all { it == "?" })
+            onNodeWithTag("mdi-line-1").performClick().assertIsSelected()
+
+            start.assertIsEnabled().performClick()
+            assertEquals("N70 G0 X1\n", fixture.nextCommand())
+            fixture.report("<Run|Ln:70>")
+            fixture.receive("ok")
+            assertEquals("N90 G0 X2\n", fixture.nextCommand())
+            fixture.report("<Run|Ln:90>")
+            val operation = checkNotNull(fixture.owner.state.value.operation)
+            waitUntil(timeoutMillis = 5_000) { operation.state.value.executingLineNumber == 2 }
+            val executing = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-2"))
+            onNode(executing, useUnmergedTree = true).assertTextEquals(">")
+            onNodeWithTag("mdi-line-1").assertIsSelected()
+            onNodeWithTag("mdi-input").assert(
+                SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("N70 G0 X1")),
+            )
+            onNodeWithTag("keypad-NUM+-8").performClick()
+            onNodeWithTag("keypad-NUM+-15").performClick()
+            onNodeWithTag("mdi-line-1").assertTextContains("N70 G0 X1")
+            screenshot("mdi-running")
+
+            onNodeWithTag("softkey-F2").performClick()
+            assertEquals("!", fixture.nextCommand())
+            fixture.report("<Hold:1|Ln:90>")
+            waitUntilExactlyOneExists(hasText("Held", substring = true), timeoutMillis = 5_000)
+            start.assertIsNotEnabled()
+            fixture.report("<Hold:0>")
+            waitUntilExactlyOneExists(hasTestTag("softkey-F1") and isEnabled(), timeoutMillis = 5_000)
+            onNodeWithText("Held · Active line unknown", substring = true).assertExists()
+            screenshot("mdi-held")
+            start.performClick()
+            assertEquals("~", fixture.nextCommand())
+            fixture.report("<Run>")
+            fixture.receive("ok")
+            waitUntil(timeoutMillis = 5_000) {
+                operation.state.value.phase == Operation.Phase.RUNNING && operation.state.value.reply == BufferState.Reply.Ok
+            }
+            onNodeWithText("Active line unknown", substring = true).assertExists()
+            onNodeWithTag("mdi-executing-line", useUnmergedTree = true).assertDoesNotExist()
+            start.assertIsNotEnabled()
+            fixture.report("<Idle>")
+            waitUntilExactlyOneExists(hasText("Completed"), timeoutMillis = 5_000)
+            assertTrue(fixture.transport.drainWrites().all { it == "?" })
+        }
+    }
+
+    @Test fun `MDI shows rejection and requires confirmation before an interrupting reset`() = runAtScreenshotSizes { screenshot ->
+        ControllerFixture().use { fixture ->
+            openMdi(fixture)
+            saveLine("N70 G0 X1")
+            saveLine("N90 G0 X2")
+            val start = onNodeWithTag("softkey-F1")
+            start.performClick()
+            assertEquals("N70 G0 X1\n", fixture.nextCommand())
+            fixture.receive("error:20")
+            waitUntilExactlyOneExists(hasText("Line 1 rejected (error:20)"), timeoutMillis = 5_000)
+            screenshot("mdi-rejected")
+            assertTrue(fixture.transport.drainWrites().all { it == "?" })
+
+            fixture.report("<Idle>")
+            waitUntilExactlyOneExists(hasTestTag("softkey-F1") and isEnabled(), timeoutMillis = 5_000)
+            start.performClick()
+            assertEquals("N70 G0 X1\n", fixture.nextCommand())
+            val reset = onNodeWithTag("softkey-F3")
+            reset.performClick()
+            onNodeWithText("Reset controller?").assertExists()
+            screenshot("mdi-reset-confirmation")
+            onNodeWithTag("softkey-F8").performClick()
+            assertTrue(fixture.transport.drainWrites().all { it == "?" })
+
+            reset.performClick()
+            onNodeWithTag("softkey-F1").performClick()
+            assertEquals("\u0018", fixture.nextCommand())
+            waitUntilExactlyOneExists(hasText("Interrupted · completion unknown", substring = true), timeoutMillis = 5_000)
+            assertTrue(fixture.transport.drainWrites().all { it == "?" })
+        }
+    }
+
+    private fun ComposeUiTest.openMdi(fixture: ControllerFixture) {
+        fixture.connect()
+        setContent { CommanderApp(fixture.owner, fixture.settings) }
+        onNode(hasText("MDI") and hasClickAction()).performClick()
+    }
+
+    private fun ComposeUiTest.saveLine(line: String) {
+        val input = onNodeWithTag("mdi-input")
+        input.performClick().performTextInput(line)
+        input.performKeyInput { pressKey(Key.Enter) }
+    }
+
+    private fun ControllerFixture.nextCommand() = runBlocking {
+        withTimeout(5_000) { transport.nextNonStatusWrite() }
+    }
+
+    private fun ControllerFixture.report(report: String) {
+        transport.statusReport = report
+        receive(report)
+    }
+
+    private fun ControllerFixture.receive(line: String) = runBlocking { transport.emit("$line\n") }
+
 }
