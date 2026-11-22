@@ -45,7 +45,8 @@ The operation handle retains its outcome across reconnects.
 Future workflows can represent homing, jogging, probing, controller-hosted
 program execution and other controller work through an operation. They can
 use completion criteria appropriate to the work involved. The desktop Manual
-and MDI screens use local demo state.
+screen uses local demo state. [MDI](programs-macros-tools.md#mdi-execution)
+uses line-based operations.
 
 ## Global controls
 

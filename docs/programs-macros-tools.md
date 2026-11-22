@@ -1,10 +1,10 @@
 # Planned programs, macros and tools
 
 This guide defines requirements for program handling, execution,
-controller-side macros and tools. Program and MDI currently demonstrate local
-editing and input. The [navigation example](screen-stack.md#runnable-example)
-uses in-memory files. Real program access, analysis, toolpaths, execution,
-macro workflows and tool management remain planned.
+controller-side macros and tools. MDI supports local editing and execution.
+The [Program navigation example](screen-stack.md#runnable-example) uses
+in-memory files. Program file access, analysis, toolpaths, macro workflows
+and tool management remain planned.
 
 ## Local MDI editor
 
@@ -20,6 +20,26 @@ last row or a second click on the selected row restores the unfinished new
 line and its caret or selection. Switching modes preserves the
 buffer, selection, unfinished draft and keypad pages. The display numbers
 count rows from one, independently of any G-code line numbers.
+
+## MDI execution
+
+F1 starts the saved buffer when the shared connection admits a new operation.
+The unfinished input remains in the editor. While the run is active, the input
+is read-only and the operator can still browse the saved rows. MDI starts one
+[core operation](machine-operations.md#line-based-operations) from the saved
+lines and displays the result of that run across mode changes.
+
+F2 sends Feed Hold. During a controller hold, F1 shows Resume and becomes
+available when the controller reports Hold:0. F3 opens Soft Reset confirmation.
+A confirmed reset interrupts the operation. Starting another run requires an
+explicit Cycle Start.
+
+The active row has a `>` marker and a separate accent from the row selected for
+editing. Status reports leave the edit selection and draft intact. The status
+line shows sampled execution progress when available, reports when the active
+line is unknown, and distinguishes a sent or accepted block from completion.
+It identifies a rejected line or reports an interrupted run with unknown
+completion.
 
 ## Programs and G-code
 

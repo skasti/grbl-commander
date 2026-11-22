@@ -37,6 +37,10 @@ when changing visible UI.
 | `terminal-idle-first-letter` | Idle following Run and the first post-command keypress |
 | `mdi` | New-line draft and saved MDI line with the first keypad pages |
 | `mdi-page-2` | Selected, edited MDI line with the second keypad pages |
+| `mdi-running` | A reported execution row and a different selected editing row |
+| `mdi-held` | Controller Hold with Resume available and an unknown active line |
+| `mdi-reset-confirmation` | Soft Reset confirmation during an MDI run |
+| `mdi-rejected` | Controller rejection identifying the failed MDI line |
 | `connection-serial-defaults`, `connection-tcp-draft` | Serial defaults and retained TCP form |
 | `connection-port-discovery-*` | Loading, empty and failed serial discovery |
 | `connection-port-page-*`, `connection-port-single-page` | Six numbered device rows, paging/wrap and a partial final page; single-page bank |
