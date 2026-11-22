@@ -39,9 +39,9 @@ class PostConnectActionsTest {
                     terminated.complete(Unit)
                 }
 
-                override suspend fun executeLine(command: String, expectedEpoch: Long) = try {
+                override suspend fun executeLine(command: String, expectedEpoch: Long, onSent: () -> Unit) = try {
                     job.complete(currentCoroutineContext().job)
-                    real.executeLine(command, expectedEpoch)
+                    real.executeLine(command, expectedEpoch, onSent)
                 } finally {
                     withContext(NonCancellable) {
                         cleaningUp.complete(Unit)
@@ -171,8 +171,8 @@ class PostConnectActionsTest {
         val owner = ControllerConnection(this, { _, scope ->
             session = GrblMachineSession(transport, scope, commandTimeoutMillis = 1_000)
             object : MachineSession by session {
-                override suspend fun executeLine(command: String, expectedEpoch: Long) = try {
-                    session.executeLine(command, expectedEpoch)
+                override suspend fun executeLine(command: String, expectedEpoch: Long, onSent: () -> Unit) = try {
+                    session.executeLine(command, expectedEpoch, onSent)
                 } catch (error: TimeoutCancellationException) {
                     timedOut.complete(Unit)
                     resume.await()
@@ -250,8 +250,8 @@ class PostConnectActionsTest {
         val owner = ControllerConnection(this, { _, scope ->
             val real = GrblMachineSession(transport, scope)
             object : MachineSession by real {
-                override suspend fun executeLine(command: String, expectedEpoch: Long) =
-                    real.executeLine(command, expectedEpoch).also {
+                override suspend fun executeLine(command: String, expectedEpoch: Long, onSent: () -> Unit) =
+                    real.executeLine(command, expectedEpoch, onSent).also {
                         if (command == "\$I") {
                             firstAccepted.complete(Unit)
                             resume.await()

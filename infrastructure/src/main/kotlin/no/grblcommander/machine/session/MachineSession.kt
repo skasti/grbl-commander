@@ -26,9 +26,9 @@ interface MachineSession : Closeable {
     /** A session-local fence invalidated by a reset, alarm or uncertain response. */
     val normalCommandEpoch: Long get() = 0L
     /** Submit a line only if the batch's original correlation fence still holds. */
-    suspend fun executeLine(command: String, expectedEpoch: Long): CommandAcknowledgment {
+    suspend fun executeLine(command: String, expectedEpoch: Long, onSent: () -> Unit = {}): CommandAcknowledgment {
         if (expectedEpoch != normalCommandEpoch) throw CommandCorrelationException("Normal command batch interrupted")
-        return executeLine(command)
+        return executeLine(command).also { onSent() }
     }
     /**
      * Bypasses normal-command admission and acknowledgment waits, including during
