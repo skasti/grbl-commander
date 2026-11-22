@@ -189,6 +189,10 @@ class MdiModeTest {
             onNodeWithTag("softkey-F1").performClick()
             assertEquals("\u0018", fixture.nextCommand())
             waitUntilExactlyOneExists(hasText("Interrupted · completion unknown", substring = true), timeoutMillis = 5_000)
+            waitUntil(timeoutMillis = 5_000) {
+                val state = fixture.owner.state.value
+                !state.resetPending && !state.snapshot.resetInProgress && state.snapshot.normalCommandsSynchronized
+            }
             assertTrue(fixture.transport.drainWrites().all { it == "?" })
         }
     }

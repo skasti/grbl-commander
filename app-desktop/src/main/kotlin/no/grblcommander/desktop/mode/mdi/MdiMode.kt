@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import no.grblcommander.core.connection.BufferState
 import no.grblcommander.core.connection.ControllerConnection
@@ -110,7 +111,8 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
         if (!connected || controlPending || screenStack.top !== this) return
         controlPending = true
         controlError = null
-        activeScope.launch {
+        // The Skiko composition dispatcher can resume inline on a controller thread.
+        activeScope.launch(Dispatchers.Main) {
             try {
                 action()
             } catch (cancelled: CancellationException) {
@@ -160,7 +162,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
 
     @Composable
     override fun Content() {
-        val currentConnection by connection.state.collectAsState()
+        val currentConnection by connection.state.collectAsState(context = Dispatchers.Main)
         val time = rememberCurrentTime()
         SideEffect {
             connectionState = currentConnection
@@ -171,7 +173,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
             scope = compositionScope
             onDispose { scope = null }
         }
-        val progress = operation?.state?.collectAsState()?.value
+        val progress = operation?.state?.collectAsState(context = Dispatchers.Main)?.value
         val editingLocked = progress?.isActive() == true
         val executingLine = progress?.executingLineNumber?.takeUnless { currentConnection.reportIsStale(time) }
         val focus = remember { FocusRequester() }
