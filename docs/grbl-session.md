@@ -39,7 +39,9 @@ realtime bytes are rejected.
 real-time and status-query API. The session publishes immutable `MachineSnapshot` values via read-only
 `StateFlow`. Reports include execution state, optional machine and work
 positions, coordinate offset, optional and unknown fields, the observation
-timestamp and explicit connection health. An application must distinguish
+timestamp and explicit connection health. `ControllerStatus.executingLineNumber` exposes
+the sampled `Ln` value from that report. A missing or invalid value yields
+`null`. The observation does not establish acknowledgment or completion. An application must distinguish
 retained observations, stale reports and live data.
 
 ## Handshake and command acknowledgment
@@ -61,6 +63,11 @@ dispatching a batch can capture the session's normal-command epoch and supply
 it with every line. A reset, alarm or uncertain response invalidates that
 epoch. The session checks it at normal-line admission, including after waiting
 for an earlier line. A late acknowledgment cannot make an old epoch valid again.
+The fenced `executeLine` overload calls `onSent` after a full transport write
+returns successfully and before awaiting the response. If the write fails and
+may have transferred bytes, it calls `onUncertainWrite` before propagating the
+failure. Admission failure and known local rejection invoke neither callback.
+Each session implementation supplies these signals at its write boundary.
 
 
 ## Alarms and command correlation

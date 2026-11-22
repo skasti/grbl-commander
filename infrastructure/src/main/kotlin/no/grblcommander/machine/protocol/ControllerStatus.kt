@@ -9,6 +9,11 @@ data class ControllerStatus(
     /** Includes optional/unknown grblHAL fields without assuming capability support. */
     val fields: Map<String, String>,
 ) {
+    /** Executing N word sampled in this report, when supplied by the controller. */
+    val executingLineNumber: Int? get() = fields["Ln"]?.takeIf { value ->
+        value.isNotEmpty() && value.all { it in '0'..'9' }
+    }?.toIntOrNull()?.takeIf { it <= 10_000_000 }
+
     /** Core includes $C:1 only while blocking; FW marks its all-fields report. */
     val blockingCriticalEvent: Boolean? get() = when {
         fields["\$C"] == "1" -> true

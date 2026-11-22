@@ -119,10 +119,19 @@ class GrblMachineSession(
     override suspend fun executeLine(command: String): CommandAcknowledgment =
         executeLineAtEpoch(command, expectedEpoch = null)
 
-    override suspend fun executeLine(command: String, expectedEpoch: Long): CommandAcknowledgment =
-        executeLineAtEpoch(command, expectedEpoch)
+    override suspend fun executeLine(
+        command: String,
+        expectedEpoch: Long,
+        onUncertainWrite: () -> Unit,
+        onSent: () -> Unit,
+    ): CommandAcknowledgment = executeLineAtEpoch(command, expectedEpoch, onUncertainWrite, onSent)
 
-    private suspend fun executeLineAtEpoch(command: String, expectedEpoch: Long?): CommandAcknowledgment {
+    private suspend fun executeLineAtEpoch(
+        command: String,
+        expectedEpoch: Long?,
+        onUncertainWrite: () -> Unit = {},
+        onSent: () -> Unit = {},
+    ): CommandAcknowledgment {
         val bytes = GrblProtocol.encodeCommand(command)
         val epoch = synchronized(gate) { checkNormalCommands(); expectedEpoch ?: commandEpoch }
         // Cancellation while waiting for admission cannot have transmitted anything.
@@ -133,6 +142,7 @@ class GrblMachineSession(
                 if (epoch != commandEpoch) throw CommandCorrelationException("Queued line interrupted; submit explicitly again")
                 pending = request
             }
+            var locallyRejected = false
             try {
                 withTimeout(commandTimeoutMillis) {
                     writes.withLock {
@@ -142,13 +152,20 @@ class GrblMachineSession(
                             if (request.abandoned) throw CommandCorrelationException("Line interrupted before transmission")
                             request.transmissionStarted = true
                         }
-                        writeObserved(bytes, CommunicationEvent.Category.COMMAND)
+                        try {
+                            writeObserved(bytes, CommunicationEvent.Category.COMMAND)
+                        } catch (error: Throwable) {
+                            locallyRejected = error is IllegalArgumentException
+                            if (!locallyRejected) onUncertainWrite()
+                            throw error
+                        }
+                        onSent()
                     }
                     request.response.await()
                 }
             } catch (error: Throwable) {
                 if (!transport.isConnected) terminate(error)
-                else synchronized(gate) { abandon(request, error, knownNotSent = error is IllegalArgumentException) }
+                else synchronized(gate) { abandon(request, error, knownNotSent = locallyRejected) }
                 throw error
             }
         }

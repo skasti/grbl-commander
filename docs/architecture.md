@@ -23,7 +23,7 @@ flowchart TD
 | Module | Owns |
 | --- | --- |
 | `:app-desktop` | `Main` wires startup and shutdown. `CommanderApp` assembles concrete mode roots and shared UI. Screens own interaction, view state and drafts. |
-| `:core` | `core.connection` owns the application connection/settings API, endpoint and draft models, validation, settings schema, session factory, session-bound command buffering, polling and shared traffic history. Shared application workflows and domain rules belong here. |
+| `:core` | `core.connection` owns the application connection/settings API, endpoint and draft models, validation, settings schema, session factory, session-bound command buffering, operation coordination, polling and shared traffic history. Shared application workflows and domain rules belong here. |
 | `:infrastructure` | `machine.session`, `machine.protocol` and `machine.transport` own session synchronization, GRBL framing, TCP/serial I/O and discovery. `configuration` adapts JVM Preferences to opaque record storage. |
 
 Core re-exports the infrastructure API used in its public contracts.
@@ -111,5 +111,5 @@ when it forms part of the same contract and has no independent use.
 | [Controller connection and settings](controller-connection.md) | Core lifecycle, startup, persistence, polling, admission, traffic aggregation and the Util form |
 | [GRBL session](grbl-session.md) · [grblHAL alarms](grbl-alarms.md) | Transports, protocol, correlation, recovery, session events and firmware alarm details |
 | [Terminal and traffic diagnostics](terminal.md) | Operator console, traffic presentation and command recall |
-| [Planned machine operations](machine-operations.md) · [Planned programs, macros and tools](programs-macros-tools.md) | Future coordination, jogging/DRO, execution, analysis, controller macros and tools |
+| [Machine operations](machine-operations.md) · [Planned programs, macros and tools](programs-macros-tools.md) | Operation lifecycle and progress, planned jogging/DRO, analysis, controller macros and tools |
 | [Building and testing](testing.md) · [UI screenshots](ui-screenshots.md) · [Release process](releases.md) | Verification commands and coverage, visual review and native packaging |

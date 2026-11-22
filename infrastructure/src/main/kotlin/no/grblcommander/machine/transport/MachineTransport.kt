@@ -11,7 +11,8 @@ import java.io.Closeable
  * isConnected means no connection loss is known; it does not prove peer readiness.
  * Write cancellation preserves the connection but may leave an uncertain/partial
  * write. Other write failures must update isConnected before throwing if the
- * transport is no longer usable. Local argument rejection sends no bytes.
+ * transport is no longer usable. An IllegalArgumentException from write signals
+ * local argument rejection before transferring any bytes.
  * Failed/closed transports cannot be reconnected; construct a fresh instance.
  */
 interface MachineTransport : Closeable {

@@ -53,6 +53,7 @@ class ControllerConnection(
     private val gate = Any()
     private var closed = false
     private var nextSessionId = 0L
+    private var nextOperationId = 0L
     private var active: Active? = null
     private val mutableState = MutableStateFlow(ControllerConnectionState())
     val state = mutableState.asStateFlow()
@@ -76,6 +77,8 @@ class ControllerConnection(
     private class Active(val session: MachineSession, val id: Long, val endpoint: ControllerEndpoint) {
         lateinit var connecting: Deferred<Unit>
         val commands = CommandBuffer(session)
+        var run: OperationRun? = null
+        var lastManualReplySequence = -1L
         val observers = mutableListOf<Job>()
         var dropped = 0L
         var lastObservedSequence = 0L
@@ -118,7 +121,7 @@ class ControllerConnection(
                     mutableState.value = ControllerConnectionState(endpoint, MachineSnapshot(
                         connection = MachineSnapshot.Connection.FAILED, failure = error.message,
                         normalCommandsSynchronized = false, resetRequired = true,
-                    ))
+                    ), operation = state.value.operation)
                     throw error
                 }
                 val id = ++nextSessionId
@@ -126,7 +129,7 @@ class ControllerConnection(
                 val postConnect = preparePostConnect(entry, automatic)
                 active = entry
                 mutableState.value = ControllerConnectionState(
-                    endpoint, session.state.value, postConnectPending = postConnect != null,
+                    endpoint, session.state.value, postConnectPending = postConnect != null, operation = state.value.operation,
                 )
                 // Subscribe before connect, including the first status query/banner in history.
                 entry.observers += scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -142,7 +145,10 @@ class ControllerConnection(
                 }
                 entry.observers += scope.launch(start = CoroutineStart.UNDISPATCHED) {
                     session.state.collect { synchronized(gate) {
-                        if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
+                        if (active === entry && !closed && !state.value.closing) {
+                            refreshOperation(entry)
+                            mutableState.value = state.value.copy(snapshot = session.state.value)
+                        }
                     } }
                 }
                 entry.observers += scope.launch {
@@ -152,6 +158,7 @@ class ControllerConnection(
                         delay(500)
                         val snapshot = synchronized(gate) {
                             if (active !== entry || closed || state.value.closing) return@launch
+                            refreshOperation(entry)
                             session.state.value
                         }
                         if (snapshot.connection != MachineSnapshot.Connection.CONNECTED) return@launch
@@ -219,6 +226,7 @@ class ControllerConnection(
         }
 
         return entry.commands.prepareBatch(
+            continueAfterError = true,
             prepareCommands = prepare@{
                 if (actions.resetController && automatic) {
                     result("Controller reset skipped: startup has no operator consent.")
@@ -259,7 +267,7 @@ class ControllerConnection(
             currentCoroutineContext().ensureActive()
             stopActive()
             currentCoroutineContext().ensureActive()
-            synchronized(gate) { checkOpen(); mutableState.value = ControllerConnectionState(endpoint) }
+            synchronized(gate) { checkOpen(); mutableState.value = ControllerConnectionState(endpoint, operation = state.value.operation) }
         }
     }
 
@@ -279,7 +287,10 @@ class ControllerConnection(
 
     private suspend fun stopActive() = withContext(NonCancellable) {
         val old = synchronized(gate) {
-            active?.also { mutableState.value = state.value.copy(closing = true) }
+            active?.also {
+                mutableState.value = state.value.copy(closing = true)
+                interruptOperation(it, "Controller disconnected")
+            }
         } ?: return@withContext
         old.close()
         old.connecting.cancelAndJoin()
@@ -287,6 +298,7 @@ class ControllerConnection(
         old.observers.forEach { it.cancelAndJoin() }
         synchronized(gate) {
             finishObservations(old)
+            old.run?.publish(old.commands.state.value, old.session.state.value, fresh = false)
             if (active === old) {
                 active = null
                 mutableState.value = state.value.copy(
@@ -294,7 +306,7 @@ class ControllerConnection(
                     // Retain the last observation, but not the session's technical close reason.
                     snapshot = old.session.state.value.copy(connection = if (closed) MachineSnapshot.Connection.CLOSED
                         else MachineSnapshot.Connection.DISCONNECTED, failure = null),
-                    closing = false, manualCommandPending = false, postConnectPending = false, resetPending = false,
+                    closing = false, manualCommandPending = false, postConnectPending = false, resetPending = false, operationPending = false,
                 )
             }
         }
@@ -322,6 +334,103 @@ class ControllerConnection(
         mutableTraffic.tryEmit(traffic) // DROP_OLDEST may evict even when this returns true.
     }
 
+    /** Snapshot and start a source in the current session. The returned handle owns its progress. */
+    fun startOperation(source: Operation.Source, sourceId: String, lines: List<String>): Operation {
+        val sourceLines = lines.toList()
+        val commands = OperationCommands(sourceLines)
+        val run = synchronized(gate) {
+            val entry = activeSession()
+            val session = entry.session
+            val epoch = session.normalCommandEpoch
+            val snapshot = session.state.value
+            if (!state.value.copy(snapshot = snapshot).canExecuteLine() ||
+                snapshot.status?.executionState != "Idle" || snapshot.alarmCode != null ||
+                snapshot.reportSequence <= entry.lastManualReplySequence) {
+                throw IOException("Starting an operation requires a fresh Idle controller and exclusive normal dispatch")
+            }
+            val operation = Operation(++nextOperationId, entry.id, source, sourceId, sourceLines)
+            OperationRun(operation, epoch).also { run ->
+                run.batch = entry.commands.prepareBatch(
+                    prepareCommands = { commands.commands },
+                    controllerLineNumbers = commands.lineNumbers,
+                    expectedEpoch = epoch,
+                    beforeLine = {
+                        session.state.first {
+                            it.connection != MachineSnapshot.Connection.CONNECTED ||
+                                session.normalCommandEpoch != epoch ||
+                                (it.status?.executionState?.substringBefore(':') in setOf("Idle", "Run") &&
+                                    !ControllerConnectionState(snapshot = it).reportIsStale())
+                        }
+                    },
+                    onResult = { result -> synchronized(gate) { recordOperationReply(entry, run, result) } },
+                )
+                entry.run = run
+                mutableState.value = state.value.copy(operation = operation, operationPending = true)
+                scope.launch {
+                    entry.commands.state.collect {
+                        synchronized(gate) {
+                            if (active === entry && entry.run === run) refreshOperation(entry)
+                        }
+                    }
+                }.also { observer ->
+                    // Polling handles physical completion after the batch has finished.
+                    run.batch.invokeOnCompletion { observer.cancel() }
+                }
+            }
+        }
+        run.batch.start()
+        return run.operation
+    }
+
+    private fun recordOperationReply(entry: Active, run: OperationRun, result: CommandBuffer.LineResult) {
+        if (active !== entry || entry.run !== run || run.finished) return
+        val sequence = entry.session.state.value.reportSequence
+        val buffer = entry.commands.state.value
+        when (result) {
+            is CommandBuffer.LineResult.Acknowledged -> {
+                val error = result.acknowledgment.errorCode
+                if (error != null) run.finish(Operation.Phase.FAILED, "Controller rejected line with error:$error", sequence, buffer)
+                else if (buffer.lastSentLineNumber == run.operation.lines.size) run.finalReplySequence = sequence
+            }
+            is CommandBuffer.LineResult.Unavailable ->
+                run.finish(Operation.Phase.INTERRUPTED, "Normal command correlation unavailable", sequence, buffer)
+            is CommandBuffer.LineResult.Interrupted ->
+                run.finish(Operation.Phase.INTERRUPTED, result.failure.message ?: "Command outcome unknown", sequence, buffer)
+        }
+        refreshOperation(entry)
+    }
+
+    /** Called under gate by the report observer, buffer observer and polling loop. */
+    private fun refreshOperation(entry: Active) {
+        val run = entry.run ?: return
+        val snapshot = entry.session.state.value
+        val fresh = !ControllerConnectionState(snapshot = snapshot).reportIsStale()
+        val mode = snapshot.status?.executionState?.substringBefore(':')
+        val invalid = when {
+            closed || state.value.closing || snapshot.connection != MachineSnapshot.Connection.CONNECTED -> "Controller disconnected"
+            snapshot.alarmCode != null || mode == "Alarm" -> "Controller alarm"
+            state.value.resetPending || snapshot.resetInProgress || snapshot.resetRequired -> "Controller reset boundary"
+            entry.session.normalCommandEpoch != run.epoch || !snapshot.normalCommandsSynchronized -> "Command correlation lost"
+            fresh && mode !in setOf("Idle", "Run", "Hold") -> "Unexpected controller state: ${snapshot.status?.executionState}"
+            run.batch.isCancelled -> "Command batch interrupted"
+            else -> null
+        }
+        if (invalid != null) interruptOperation(entry, invalid)
+        entry.commands.refreshExecution(snapshot)
+        run.publish(entry.commands.state.value, snapshot, fresh)
+        if (run.canRelease(snapshot, fresh && mode == "Idle", state.value.resetPending)) {
+            entry.run = null
+            mutableState.value = state.value.copy(operationPending = false)
+        }
+    }
+
+    private fun interruptOperation(entry: Active, detail: String) {
+        val run = entry.run ?: return
+        if (run.finished) return
+        run.finish(Operation.Phase.INTERRUPTED, detail, entry.session.state.value.reportSequence, entry.commands.state.value)
+        run.batch.cancel()
+    }
+
     suspend fun executeLine(command: String): CommandAcknowledgment {
         GrblProtocol.encodeCommand(command)
         val (selected, epoch) = synchronized(gate) {
@@ -336,7 +445,10 @@ class ControllerConnection(
         }
         try { return selected.commands.executeLine(command, epoch) }
         finally { synchronized(gate) {
-            if (active === selected) mutableState.value = state.value.copy(manualCommandPending = false)
+            if (active === selected) {
+                selected.lastManualReplySequence = selected.session.state.value.reportSequence
+                mutableState.value = state.value.copy(manualCommandPending = false)
+            }
         } }
     }
     suspend fun sendRealtime(command: RealtimeCommand) {
@@ -358,6 +470,7 @@ class ControllerConnection(
             if (connection != MachineSnapshot.Connection.CONNECTED) throw IOException("Session is $connection")
             if (state.value.resetPending) throw IOException("Reset already in progress")
             mutableState.value = state.value.copy(resetPending = true)
+            interruptOperation(selected, "Controller reset requested")
             selected
         }
         try {
@@ -389,6 +502,7 @@ class ControllerConnection(
         if (!closed) {
             closed = true
             mutableState.value = state.value.copy(closing = true)
+            active?.let { interruptOperation(it, "Connection owner closed") }
             try { active?.close() } finally { owner.cancel() }
         }
     }
@@ -397,10 +511,13 @@ class ControllerConnection(
         owner.join()
         active?.session?.awaitClosed()
         synchronized(gate) {
-            active?.let { finishObservations(it) }
+            active?.let {
+                finishObservations(it)
+                it.run?.publish(it.commands.state.value, it.session.state.value, fresh = false)
+            }
             mutableState.value = state.value.copy(
                 snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.CLOSED, failure = null),
-                closing = false, postConnectPending = false, resetPending = false,
+                closing = false, postConnectPending = false, resetPending = false, operationPending = false,
             )
         }
     }
