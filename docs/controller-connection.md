@@ -149,6 +149,20 @@ serialization, correlation and uncertain results. Realtime requests and status
 queries go directly to the session. Pending lines fail on disposal and their
 controller outcome must not be assumed known.
 
+The session buffer exposes a read-only `StateFlow<BufferState>` for the current
+batch. Both line numbers use one-based batch positions. A successful write
+publishes the sent position with a pending reply. A correlated response sets
+the reply to OK or an error carrying the controller code. An interruption
+while waiting for a reply leaves the outcome unknown. A new batch starts empty.
+The buffer processes each response before advancing, even if a state collector
+skips intermediate updates. A rejected line stops ordinary batches. Post-connect
+metadata queries can continue after a correlated rejection.
+
+The batch owner supplies the mapping from unambiguous transmitted N words to
+batch positions. Only a fresh Run or Hold report with a mapped Ln observed after
+that line was sent supplies an execution position. Missing or stale reports
+clear it. Command acceptance and sampled execution are independent.
+
 `ControllerConnectionState` exposes the selected endpoint, the authoritative
 `MachineSnapshot` and a closing flag. Transport health, controller execution
 state, command synchronization and report freshness remain separate. A retained

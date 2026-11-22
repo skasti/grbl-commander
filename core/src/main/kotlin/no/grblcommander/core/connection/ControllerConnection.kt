@@ -142,6 +142,7 @@ class ControllerConnection(
                 }
                 entry.observers += scope.launch(start = CoroutineStart.UNDISPATCHED) {
                     session.state.collect { synchronized(gate) {
+                        entry.commands.refreshExecution()
                         if (active === entry && !closed && !state.value.closing) mutableState.value = state.value.copy(snapshot = session.state.value)
                     } }
                 }
@@ -155,6 +156,7 @@ class ControllerConnection(
                             session.state.value
                         }
                         if (snapshot.connection != MachineSnapshot.Connection.CONNECTED) return@launch
+                        entry.commands.refreshExecution()
                         if (snapshot.resetInProgress) continue // Reset owns its own status handshake.
                         try {
                             // Status has no acknowledgment slot; the existing reader owns all reports.
@@ -219,6 +221,7 @@ class ControllerConnection(
         }
 
         return entry.commands.prepareBatch(
+            continueAfterError = true,
             prepareCommands = prepare@{
                 if (actions.resetController && automatic) {
                     result("Controller reset skipped: startup has no operator consent.")
