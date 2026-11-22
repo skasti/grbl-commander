@@ -1,7 +1,7 @@
 package no.grblcommander.core.connection
 
 /** One-based batch positions. A controller N word is translated before publication. */
-internal data class BufferState(
+data class BufferState(
     val lastSentLineNumber: Int? = null,
     val reply: Reply = Reply.Empty,
     val executingLineNumber: Int? = null,
