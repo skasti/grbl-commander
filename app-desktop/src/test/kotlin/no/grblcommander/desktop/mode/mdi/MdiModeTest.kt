@@ -5,11 +5,14 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.text.AnnotatedString
+import kotlin.test.Test
+import no.grblcommander.desktop.mode.ControllerFixture
+import no.grblcommander.desktop.ui.CommanderApp
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 import no.grblcommander.desktop.ui.navigation.ScreenStackHost
-import kotlin.test.Test
+import no.grblcommander.desktop.ui.runAtScreenshotSizes
 
 @OptIn(ExperimentalTestApi::class)
 class MdiModeTest {
@@ -77,5 +80,30 @@ class MdiModeTest {
         onNodeWithTag("mdi-line-3").assertTextContains("G1 X1")
         onNodeWithTag("mdi-line-3").performClick().performClick()
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+    }
+
+    @Test fun `physical and keypad Enter save to the local buffer`() = runAtScreenshotSizes { screenshot ->
+        ControllerFixture().use { fixture ->
+            fixture.connect()
+            setContent { CommanderApp(fixture.owner, fixture.settings) }
+            onNode(hasText("MDI") and hasClickAction()).performClick()
+            onNodeWithTag("mdi-input").performClick().performTextInput("G0 X1")
+            onNodeWithTag("keypad-NUM+-15").assertIsDisplayed().performClick()
+            onNodeWithTag("mdi-input").performTextInput("M2")
+            onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("M2")))
+            screenshot("mdi")
+            onNodeWithTag("keypad-CODE-next").performClick()
+            onNodeWithTag("keypad-NUM+-next").assertIsDisplayed().performClick()
+            onNodeWithText("CODE 2/2 ▸").assertExists()
+            onNodeWithText("NUM+ 2/2 ▸").assertExists()
+            onNodeWithTag("mdi-input").performKeyInput { pressKey(Key.Enter) }
+            onNodeWithTag("softkey-F5").performClick()
+            onNodeWithTag("mdi-line-2").assertIsSelected()
+            onNodeWithTag("mdi-input").performTextReplacement("M30")
+            onNodeWithTag("keypad-NUM+-15").performClick()
+            onNodeWithTag("mdi-line-2").assertTextContains("M30")
+            onNodeWithTag("mdi-line-3").assertDoesNotExist()
+            screenshot("mdi-page-2")
+        }
     }
 }

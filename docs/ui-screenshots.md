@@ -7,6 +7,7 @@ Capture the welcome screen, Terminal, MDI and connection settings locally with
 
 ```bash
 gradle :app-desktop:test -PuiScreenshots \
+  --tests 'no.grblcommander.desktop.mode.mdi.MdiModeTest' \
   --tests 'no.grblcommander.desktop.mode.utils.terminal.TerminalTest' \
   --tests 'no.grblcommander.desktop.mode.utils.connection.*'
 ```
