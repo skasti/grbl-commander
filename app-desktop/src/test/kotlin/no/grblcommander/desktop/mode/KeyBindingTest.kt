@@ -24,7 +24,7 @@ class KeyBindingTest {
     @Test fun `only the active screen handles keys and mode switches preserve each editor`() = runComposeUiTest {
         Fixture().use { f ->
             f.connect()
-            val mdi = ScreenStack(MdiMode())
+            val mdi = ScreenStack(MdiMode(f.owner))
             var active by mutableStateOf(f.util)
             setContent {
                 MaterialTheme {

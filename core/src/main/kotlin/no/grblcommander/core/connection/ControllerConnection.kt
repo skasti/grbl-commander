@@ -453,15 +453,26 @@ class ControllerConnection(
     }
     suspend fun sendRealtime(command: RealtimeCommand) {
         if (command == RealtimeCommand.SOFT_RESET) return reset()
+        if (command == RealtimeCommand.CYCLE_START) return cycleStart(requireHold = false)
+        session().sendRealtime(command)
+    }
+
+    /** Resume a confirmed feed hold without accepting Idle as an alternate action. */
+    suspend fun resumeFeedHold() = cycleStart(requireHold = true)
+
+    private suspend fun cycleStart(requireHold: Boolean) {
         val selected = synchronized(gate) {
-            val current = session()
-            if (command == RealtimeCommand.CYCLE_START) check(state.value.copy(snapshot = current.state.value).canCycleStart()) {
-                "Cycle Start requires a fresh synchronized Idle or Hold:0 report without an alarm or reset"
+            val current = activeSession().session
+            val observed = state.value.copy(snapshot = current.state.value)
+            check(observed.canCycleStart() && (!requireHold || observed.snapshot.status?.executionState == "Hold:0")) {
+                if (requireHold) "Resume requires a fresh synchronized Hold:0 report"
+                else "Cycle Start requires a fresh synchronized Idle or Hold:0 report without an alarm or reset"
             }
             current
         }
-        selected.sendRealtime(command)
+        selected.sendRealtime(RealtimeCommand.CYCLE_START)
     }
+
     suspend fun reset() {
         currentCoroutineContext().ensureActive()
         val selected = synchronized(gate) {

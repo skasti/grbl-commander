@@ -48,7 +48,7 @@ fun CommanderApp(connection: ControllerConnection, settings: ControllerSettings)
         mapOf(
             OperatorMode.Program to ScreenStack(Welcome()),
             OperatorMode.Manual to ScreenStack(ManualMode()),
-            OperatorMode.Mdi to ScreenStack(MdiMode()),
+            OperatorMode.Mdi to ScreenStack(MdiMode(connection)),
             OperatorMode.Util to ScreenStack(Terminal(settings)),
         )
     }

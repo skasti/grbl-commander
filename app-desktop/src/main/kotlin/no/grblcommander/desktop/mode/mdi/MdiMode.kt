@@ -20,11 +20,22 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import java.time.Instant
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import no.grblcommander.core.connection.BufferState
+import no.grblcommander.core.connection.ControllerConnection
+import no.grblcommander.core.connection.Operation
+import no.grblcommander.desktop.ui.components.dialogs.controllerResetDialog
+import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.desktop.ui.components.controls.*
 import no.grblcommander.desktop.ui.navigation.*
 import no.grblcommander.machine.protocol.GrblProtocol
+import no.grblcommander.machine.session.MachineSnapshot.Connection
+import no.grblcommander.machine.session.RealtimeCommand
 
-class MdiMode : Screen<Unit>(Unit) {
+class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit) {
     private val lines = mutableStateListOf<String>()
     private var selected by mutableStateOf<Int?>(null)
     private var input by mutableStateOf(TextFieldValue())
@@ -33,12 +44,87 @@ class MdiMode : Screen<Unit>(Unit) {
     private val letters = KeyClusterState(Keymaps.code)
     private val numbers = KeyClusterState(Keymaps.numPlus)
 
-    override val bottomKeys = mapOf(
+    private var operation by mutableStateOf<Operation?>(null)
+    private var connectionState by mutableStateOf(connection.state.value)
+    private var now by mutableStateOf(Instant.now())
+    private var scope: CoroutineScope? = null
+    private var controlPending by mutableStateOf(false)
+    private var controlError by mutableStateOf<String?>(null)
+    private val connected get() = !connectionState.closing && connectionState.snapshot.connection == Connection.CONNECTED
+
+    private val navigationKeys = mapOf(
         BottomSoftKeySlot.F5 to SoftKeyDefinition("↑\nPrevious", enabled = { (selected ?: lines.size) > 0 },
             action = { select((selected ?: lines.size) - 1) }),
         BottomSoftKeySlot.F6 to SoftKeyDefinition("↓\nNext", enabled = { selected != null },
             action = { selected?.let { select((it + 1).takeIf(lines.indices::contains)) } }),
     )
+
+    private val start = SoftKeyDefinition(
+        "▶️\nCycle Start", action = ::startOperation, enabled = ::canStartOperation, repeatable = false,
+    )
+    private val resume = SoftKeyDefinition(
+        "▶️\nResume (~)", action = { control { connection.resumeFeedHold() } }, enabled = ::canResume, repeatable = false,
+    )
+    private val controlKeys = navigationKeys + mapOf(
+        BottomSoftKeySlot.F2 to SoftKeyDefinition(
+            "⏸️\nFeed Hold (!)", action = { control { connection.sendRealtime(RealtimeCommand.FEED_HOLD) } },
+            enabled = { connected && !controlPending && !connectionState.resetPending }, repeatable = false,
+        ),
+        BottomSoftKeySlot.F3 to SoftKeyDefinition(
+            "🔄\nSoft Reset", action = ::confirmReset,
+            enabled = { connected && !controlPending && !connectionState.resetPending &&
+                !connectionState.snapshot.resetInProgress }, repeatable = false,
+        ),
+    )
+    private val startKeys = controlKeys + (BottomSoftKeySlot.F1 to start)
+    private val resumeKeys = controlKeys + (BottomSoftKeySlot.F1 to resume)
+    override val bottomKeys get() =
+        if (connectionState.snapshot.status?.executionState?.startsWith("Hold:") == true) resumeKeys else startKeys
+
+    private fun canStartOperation(): Boolean = !controlPending && lines.isNotEmpty() &&
+        connectionState.snapshot.status?.executionState == "Idle" && connectionState.canExecuteLine(now) &&
+        connectionState.snapshot.alarmCode == null
+
+    private fun canResume(): Boolean = !controlPending && connectionState.canCycleStart(now) &&
+        connectionState.snapshot.status?.executionState == "Hold:0"
+
+    private fun startOperation() {
+        if (screenStack.top !== this || !canStartOperation()) return
+        controlError = null
+        try {
+            operation = connection.startOperation(Operation.Source.MDI, "mdi", lines.toList())
+        } catch (failure: Exception) {
+            controlError = failure.message ?: "Unable to start MDI"
+        }
+    }
+
+    private fun confirmReset() {
+        if (!connected || screenStack.top !== this) return
+        controllerResetDialog().open(this) { confirmed ->
+            if (confirmed) control { connection.reset() }
+        }
+    }
+
+    private fun control(action: suspend () -> Unit) {
+        val activeScope = scope ?: return
+        if (!connected || controlPending || screenStack.top !== this) return
+        controlPending = true
+        controlError = null
+        activeScope.launch {
+            try {
+                action()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                controlError = failure.message ?: "Controller action failed"
+            } finally {
+                controlPending = false
+            }
+        }
+    }
+
+    private fun Operation.Progress.isActive(): Boolean =
+        phase == Operation.Phase.PREPARED || phase == Operation.Phase.RUNNING || phase == Operation.Phase.HELD
 
     private fun edit(value: TextFieldValue) {
         input = value
@@ -55,6 +141,7 @@ class MdiMode : Screen<Unit>(Unit) {
     }
 
     private fun save() {
+        if (operation?.state?.value?.isActive() == true) return
         val text = input.text
         try {
             GrblProtocol.encodeCommand(text)
@@ -73,6 +160,20 @@ class MdiMode : Screen<Unit>(Unit) {
 
     @Composable
     override fun Content() {
+        val currentConnection by connection.state.collectAsState()
+        val time = rememberCurrentTime()
+        SideEffect {
+            connectionState = currentConnection
+            now = time
+        }
+        val compositionScope = rememberCoroutineScope()
+        DisposableEffect(compositionScope) {
+            scope = compositionScope
+            onDispose { scope = null }
+        }
+        val progress = operation?.state?.collectAsState()?.value
+        val editingLocked = progress?.isActive() == true
+        val executingLine = progress?.executingLineNumber?.takeUnless { currentConnection.reportIsStale(time) }
         val focus = remember { FocusRequester() }
         val list = rememberLazyListState()
         LaunchedEffect(selected, lines.size) {
@@ -85,24 +186,41 @@ class MdiMode : Screen<Unit>(Unit) {
                 Row(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("MDI buffer", style = MaterialTheme.typography.titleMedium)
+                        progress?.let {
+                            Text(operationStatus(it, executingLine), Modifier.testTag("mdi-operation-status"),
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        controlError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list) {
                             items(lines.size) { index ->
-                                val active = selected == index
+                                val editing = selected == index
+                                val executing = executingLine == index + 1
+                                val background = when {
+                                    editing -> MaterialTheme.colorScheme.secondaryContainer
+                                    executing -> MaterialTheme.colorScheme.tertiaryContainer
+                                    else -> Color.Transparent
+                                }
                                 Row(Modifier.fillMaxWidth()
-                                    .background(if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
-                                    .selectable(selected = active) {
-                                        select(if (active) null else index)
+                                    .background(background)
+                                    .selectable(selected = editing) {
+                                        select(if (editing) null else index)
                                         focus.requestFocus()
                                     }
                                     .testTag("mdi-line-${index + 1}").padding(8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Box(Modifier.width(12.dp)) {
+                                        if (executing) Text(">", Modifier.testTag("mdi-executing-line"),
+                                            color = MaterialTheme.colorScheme.tertiary, fontFamily = FontFamily.Monospace)
+                                    }
                                     Text((index + 1).toString())
                                     Text(lines[index], fontFamily = FontFamily.Monospace)
                                 }
                             }
                         }
                         OutlinedTextField(
-                            value = input, onValueChange = ::edit, singleLine = true,
+                            value = input, onValueChange = { value ->
+                                if (operation?.state?.value?.isActive() != true) edit(value)
+                            }, singleLine = true, readOnly = editingLocked,
                             label = { Text(selected?.let { "Edit line ${it + 1}" } ?: "New line") },
                             isError = error != null,
                             supportingText = error?.let { message -> { Text(message) } },
@@ -121,7 +239,7 @@ class MdiMode : Screen<Unit>(Unit) {
                     GCodeKeyboard(
                         letters = letters, numbers = numbers,
                         onAction = { action ->
-                            editWithKeypad(input, action, ::edit, ::save)
+                            if (operation?.state?.value?.isActive() != true) editWithKeypad(input, action, ::edit, ::save)
                             focus.requestFocus()
                         },
                         modifier = Modifier.widthIn(max = keyboardWidth).fillMaxHeight(),
@@ -130,4 +248,35 @@ class MdiMode : Screen<Unit>(Unit) {
             }
         }
     }
+
+    private fun operationStatus(progress: Operation.Progress, executingLine: Int?): String {
+        val position = executingLine?.let { line ->
+            val elapsed = progress.activeLineElapsed?.toMillis()?.let { " · ~${it / 1000.0} s" }.orEmpty()
+            "Executing line $line$elapsed"
+        } ?: "Active line unknown"
+        val dispatch = progress.lastSentLineNumber?.let { line ->
+            when (progress.reply) {
+                BufferState.Reply.Pending -> " · Line $line sent"
+                BufferState.Reply.Ok -> " · Line $line accepted"
+                else -> ""
+            }
+        }.orEmpty()
+        return when (progress.phase) {
+            Operation.Phase.PREPARED -> "Starting MDI"
+            Operation.Phase.RUNNING -> "Running · $position$dispatch"
+            Operation.Phase.HELD -> "Held · $position$dispatch"
+            Operation.Phase.COMPLETED -> "Completed"
+            Operation.Phase.FAILED -> {
+                val line = progress.lastSentLineNumber
+                val error = (progress.reply as? BufferState.Reply.Error)?.code
+                "Line $line rejected (error:$error)"
+            }
+            Operation.Phase.INTERRUPTED -> buildString {
+                append("Interrupted · completion unknown")
+                progress.uncertainWriteLineNumber?.let { append(" · write uncertain at line $it") }
+                progress.detail?.let { append(" · $it") }
+            }
+        }
+    }
+
 }

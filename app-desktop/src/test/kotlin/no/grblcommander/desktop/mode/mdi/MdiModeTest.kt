@@ -16,26 +16,26 @@ import no.grblcommander.desktop.ui.runAtScreenshotSizes
 
 @OptIn(ExperimentalTestApi::class)
 class MdiModeTest {
-    @Test fun `MDI accepts its first mouse letter without a prior hover or input focus`() = runComposeUiTest {
-        val stack = ScreenStack(MdiMode())
-        setContent {
-            MaterialTheme {
-                AppShell(ShellState.startup(), currentStack = { stack }) { ScreenStackHost(stack) }
+    private fun editorTest(block: ComposeUiTest.() -> Unit) = runComposeUiTest {
+        ControllerFixture().use { fixture ->
+            val stack = ScreenStack(MdiMode(fixture.owner))
+            setContent {
+                MaterialTheme {
+                    AppShell(ShellState.startup(), currentStack = { stack }) { ScreenStackHost(stack) }
+                }
             }
+            block()
         }
+    }
+
+    @Test fun `MDI accepts its first mouse letter without a prior hover or input focus`() = editorTest {
         onNodeWithTag("keypad-CODE-2").performMouseInput { click() }
         onNode(hasSetTextAction()).assert(
             SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G")),
         )
     }
 
-    @Test fun `invalid replacement preserves the saved row and draft`() = runComposeUiTest {
-        val stack = ScreenStack(MdiMode())
-        setContent {
-            MaterialTheme {
-                AppShell(ShellState.startup(), currentStack = { stack }) { ScreenStackHost(stack) }
-            }
-        }
+    @Test fun `invalid replacement preserves the saved row and draft`() = editorTest {
         val input = onNodeWithTag("mdi-input")
         onNodeWithTag("softkey-F5").assertIsNotEnabled()
         onNodeWithTag("softkey-F6").assertIsNotEnabled()
@@ -54,13 +54,7 @@ class MdiModeTest {
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("N20 G0 X1")))
     }
 
-    @Test fun `browsing and deselecting return to the unfinished new line and caret`() = runComposeUiTest {
-        val stack = ScreenStack(MdiMode())
-        setContent {
-            MaterialTheme {
-                AppShell(ShellState.startup(), currentStack = { stack }) { ScreenStackHost(stack) }
-            }
-        }
+    @Test fun `browsing and deselecting return to the unfinished new line and caret`() = editorTest {
         val input = onNodeWithTag("mdi-input")
         for (line in listOf("G90", "M2")) {
             input.performTextInput(line)
