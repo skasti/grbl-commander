@@ -9,6 +9,8 @@ import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
+internal const val standardKeyGapRatio = .30f
+
 private val minimumGridUnit = 44.dp
 private val maximumGridUnit = 72.dp
 
@@ -27,8 +29,8 @@ private data class GridExtent(val units: Int, val gapCount: Int, val gapInUnits:
 private val gridBudget = LayoutBudget(widthFraction = 0.65f, heightFraction = 0.75f)
 
 // Calibration from the standard QWERTY + NUM+ footprint, documented in docs/layout-grid-unit.md.
-private val referenceWidth = GridExtent(units = 10, gapCount = 9, gapInUnits = 0.30f)
-private val referenceHeight = GridExtent(units = 7, gapCount = 5, gapInUnits = 0.30f)
+private val referenceWidth = GridExtent(units = 10, gapCount = 9, gapInUnits = standardKeyGapRatio)
+private val referenceHeight = GridExtent(units = 7, gapCount = 5, gapInUnits = standardKeyGapRatio)
 
 internal fun Density.workspaceGridUnit(workspaceWidth: Int, workspaceHeight: Int): Dp {
     val budget = gridBudget.within(workspaceWidth, workspaceHeight)

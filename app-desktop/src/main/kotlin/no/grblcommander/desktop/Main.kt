@@ -1,5 +1,6 @@
 package no.grblcommander.desktop
 
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -17,6 +18,9 @@ import no.grblcommander.desktop.generated.resources.Res
 import no.grblcommander.desktop.generated.resources.grbl_commander_icon
 import no.grblcommander.desktop.ui.CommanderApp
 import org.jetbrains.compose.resources.painterResource
+import java.awt.Dimension
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 
 fun main() {
     val applicationJob = SupervisorJob()
@@ -33,6 +37,22 @@ fun main() {
                 icon = painterResource(Res.drawable.grbl_commander_icon),
                 state = rememberWindowState(width = 1680.dp, height = 1050.dp),
             ) {
+                DisposableEffect(window) {
+                    fun updateMinimumSize() {
+                        val insets = window.insets
+                        val minimumSize = Dimension(1024 + insets.left + insets.right, 720 + insets.top + insets.bottom)
+                        if (window.minimumSize != minimumSize) window.minimumSize = minimumSize
+                    }
+
+                    // AWT sizes the outer frame. The window manager may report insets after showing it.
+                    val listener = object : ComponentAdapter() {
+                        override fun componentShown(event: ComponentEvent) = updateMinimumSize()
+                        override fun componentResized(event: ComponentEvent) = updateMinimumSize()
+                    }
+                    window.addComponentListener(listener)
+                    updateMinimumSize()
+                    onDispose { window.removeComponentListener(listener) }
+                }
                 CommanderApp(connection, settings)
             }
         }

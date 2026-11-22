@@ -31,18 +31,18 @@ class KeyboardLayoutTest {
     @Test fun `terminal and MDI keyboard stay inside workspace at 1024 by 768`() = verifyLayout(1024f, 768f)
     @Test fun `terminal and MDI keyboard stay inside workspace at 1024 by 720`() = verifyLayout(1024f, 720f)
     @Test fun `terminal and MDI keyboard stay inside workspace at 1280 by 720`() = verifyLayout(1280f, 720f)
-    @Test fun `terminal and MDI keyboard stay inside workspace at 1680 by 1050`() = verifyLayout(1680f, 1050f, keyDp = 63)
-    @Test fun `terminal and MDI keyboard stay inside workspace at 1920 by 1080`() = verifyLayout(1920f, 1080f, keyDp = 65)
+    @Test fun `terminal and MDI keyboard stay inside workspace at 1680 by 1050`() = verifyLayout(1680f, 1050f, keyDp = 60)
+    @Test fun `terminal and MDI keyboard stay inside workspace at 1920 by 1080`() = verifyLayout(1920f, 1080f, keyDp = 63)
     @Test fun `terminal and MDI keyboard stay inside workspace at 2560 by 1440`() = verifyLayout(2560f, 1440f, keyDp = 72)
 
-    @Test fun `72 dp fits both the calculation budget and actual layouts at 1560 by 1152`() =
-        verifyLayout(1560f, 1152f, keyDp = 72)
+    @Test fun `72 dp fits both the calculation budget and actual layouts at 1660 by 1220`() =
+        verifyLayout(1660f, 1220f, keyDp = 72)
 
     @Test fun `minimum logical viewport preserves 44 dp keys at fractional display density`() = verifyLayout(1024f, 720f, 1.25f)
 
     @Test fun `minimum logical viewport preserves minimum targets at 110 percent density`() = verifyLayout(1024f, 720f, 1.1f)
 
-    @Test fun `resizing the shell updates both clusters together`() = runSkikoComposeUiTest(size = Size(1560f, 1152f)) {
+    @Test fun `resizing the shell updates both clusters together`() = runSkikoComposeUiTest(size = Size(1660f, 1220f)) {
         val stack = ScreenStack(MdiMode())
         var viewport by mutableStateOf(Size(1024f, 720f))
         setContent {
@@ -61,11 +61,11 @@ class KeyboardLayoutTest {
         }
         checkKeys(44)
         runOnIdle { viewport = Size(1500f, 1152f) }
-        checkKeys(69)
-        runOnIdle { viewport = Size(1560f, 1152f) }
-        checkKeys(72)
-        runOnIdle { viewport = Size(1560f, 1100f) }
         checkKeys(68)
+        runOnIdle { viewport = Size(1660f, 1220f) }
+        checkKeys(72)
+        runOnIdle { viewport = Size(1660f, 1100f) }
+        checkKeys(64)
         runOnIdle { viewport = Size(1024f, 720f) }
         checkKeys(44)
     }
@@ -108,11 +108,13 @@ class KeyboardLayoutTest {
                 assertTrue(numbersFirst.top >= lettersFooter.bottom, "Numbers must be below letters")
                 val gridHeight = 4 * expectedKey + 3 * (.30f * expectedKey).roundToInt()
                 val compactHeight = (2 * gridHeight + 2 * minimumKey) / scale
-                val margin = ((height - 188f - compactHeight) / 2).coerceIn(0f, 30f)
+                val tilePadding = (8f * scale).roundToInt() / scale
+                val workspaceHeight = bottom.top - tilePadding - (78f * scale).roundToInt() / scale
+                val margin = ((workspaceHeight - 2 * tilePadding - compactHeight) / 2).coerceIn(0f, 30f)
                 // The screen and bottom tile each contribute an additional 8 dp.
-                assertEquals(16f + margin, bottom.top - footer.bottom, 2f, "Combined panel keeps its adaptive bottom margin")
+                assertEquals(2 * tilePadding + margin, bottom.top - footer.bottom, 2f, "Combined panel keeps its adaptive bottom margin")
                 if (height == 720f) {
-                    val budgetHeight = (height - 78f - 94f) * .75f
+                    val budgetHeight = workspaceHeight * .75f
                     assertTrue(footer.bottom - first.top > budgetHeight, "The workspace budget must not clip a fitting panel")
                 }
                 if (height >= 1050f) {

@@ -1,5 +1,6 @@
 package no.grblcommander.desktop.ui.components.controls
 
+import no.grblcommander.desktop.ui.layout.standardKeyGapRatio
 import kotlin.math.roundToInt
 
 /** Immutable configuration snapshot. Missing slots stay empty on every page. */
@@ -8,7 +9,7 @@ class KeypadLayout(
     val rows: Int = 4,
     val columns: Int = 4,
     pages: List<Map<Int, KeypadKey>>,
-    val spacing: Float = .30f,
+    val spacing: Float = standardKeyGapRatio,
     gapsBeforeColumns: Map<Int, Float> = emptyMap(),
 ) {
     val pages = pages.map { it.toMap() }

@@ -2,23 +2,35 @@ package no.grblcommander.desktop.ui.layout
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.ScreenStack
 
+internal val bottomSoftkeyPadding = 8.dp
+
 @Composable
-internal fun BottomSoftkeys(stack: ScreenStack, currentStack: () -> ScreenStack, modifier: Modifier = Modifier.Companion) {
+internal fun BottomSoftkeys(
+    stack: ScreenStack,
+    currentStack: () -> ScreenStack,
+    tileSize: DpSize,
+    gap: Dp,
+    padding: PaddingValues,
+    modifier: Modifier = Modifier,
+) {
     Row(
-        modifier = modifier.background(ShellColors.bottom).padding(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        modifier = modifier.background(ShellColors.bottom).padding(padding),
+        horizontalArrangement = Arrangement.spacedBy(gap),
     ) {
         BottomSoftKeySlot.entries.forEach { slot ->
-            SoftkeyTile(slot, stack, currentStack, Modifier.weight(1f).fillMaxHeight())
+            SoftkeyTile(slot, stack, currentStack, Modifier.size(tileSize))
         }
     }
 }

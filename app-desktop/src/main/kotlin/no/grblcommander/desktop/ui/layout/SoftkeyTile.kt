@@ -64,7 +64,7 @@ internal fun SoftkeyTile(
                 .clickable(enabled = enabled, role = Role.Button) {
                     activateSoftKey(currentStack, slot)
                 }
-                .padding(7.dp),
+                .padding(horizontal = 4.dp, vertical = 2.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
@@ -73,7 +73,7 @@ internal fun SoftkeyTile(
                 Text(slot.shortcut, color = ShellColors.muted, fontSize = 10.sp, lineHeight = 12.sp)
             }
             if (hasContent) {
-                Spacer(Modifier.height(7.dp))
+                Spacer(Modifier.height(2.dp))
                 definition.icon?.let {
                     Icon(
                         it,
@@ -85,10 +85,10 @@ internal fun SoftkeyTile(
                 Text(
                     definition.label,
                     color = foreground,
-                    fontSize = 12.sp,
-                    lineHeight = 14.sp,
+                    fontSize = 11.sp,
+                    lineHeight = 12.sp,
                     textAlign = TextAlign.Center,
-                    maxLines = 2,
+                    maxLines = if (definition.icon == null) 3 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }

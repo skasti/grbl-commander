@@ -168,6 +168,14 @@ class TerminalTest {
             onNodeWithText("CODE 1/2 ▸").assertExists()
             onNodeWithText("NUM+ 1/2 ▸").assertExists()
             screenshot("terminal")
+            for (label in listOf("Cycle Start (~)", "Feed Hold (!)")) {
+                val layouts = mutableListOf<TextLayoutResult>()
+                onNodeWithText(label, substring = true, useUnmergedTree = true)
+                    .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+                val layout = layouts.single()
+                assertTrue((0 until layout.lineCount).none(layout::isLineEllipsized), "$label is not ellipsized")
+                assertEquals(layout.layoutInput.text.length, layout.getLineEnd(layout.lineCount - 1, visibleEnd = true))
+            }
             onNodeWithTag("terminal-prompt").performClick().performTextInput("\$I")
             onNodeWithTag("keypad-CODE-next").performClick()
             onNodeWithTag("keypad-NUM+-next").assertIsDisplayed().performClick()

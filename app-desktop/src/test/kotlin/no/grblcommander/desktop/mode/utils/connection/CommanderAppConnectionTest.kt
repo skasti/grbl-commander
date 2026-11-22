@@ -2,6 +2,7 @@ package no.grblcommander.desktop.mode.utils.connection
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.*
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -12,10 +13,12 @@ import no.grblcommander.core.connection.ControllerConnection
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.desktop.ui.CommanderApp
 import no.grblcommander.desktop.ui.runAtScreenshotSizes
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import java.util.UUID
 import java.util.prefs.Preferences
 import no.grblcommander.configuration.ControllerEndpointPreferences
@@ -61,9 +64,33 @@ class CommanderAppConnectionTest {
             onNodeWithContentDescription("GRBL Commander splash screen").assertIsDisplayed()
             onNodeWithTag("softkey-F1").assertTextContains("F1")
                 .assertTextContains("Open editor").assertIsEnabled()
-            for (slot in (2..8).map { "F$it" } + (1..7).map { "R$it" }) {
+            val unassignedSlots = (2..8).map { "F$it" } + (1..7).map { "R$it" }
+            for (slot in unassignedSlots) {
                 onNodeWithTag("softkey-$slot").assertTextContains(slot).assertIsNotEnabled()
             }
+            val viewport = onRoot().getUnclippedBoundsInRoot()
+            val firstKey = onNodeWithTag("softkey-F1").getUnclippedBoundsInRoot()
+            val keyWidth = firstKey.right - firstKey.left
+            val keyHeight = firstKey.bottom - firstKey.top
+            assertEquals(keyWidth * 3, keyHeight * 4, "Softkey aspect ratio")
+            for (slot in listOf("F1") + unassignedSlots) {
+                val tile = onNodeWithTag("softkey-$slot").assertIsDisplayed().getUnclippedBoundsInRoot()
+                assertEquals(keyWidth, tile.right - tile.left, "$slot width")
+                assertEquals(keyHeight, tile.bottom - tile.top, "$slot height")
+                assertTrue(tile.left >= 0.dp && tile.right <= viewport.right, "$slot fits horizontally")
+                assertTrue(tile.top >= 0.dp && tile.bottom <= viewport.bottom, "$slot fits vertically")
+            }
+            val lastRightKey = onNodeWithTag("softkey-R7").getUnclippedBoundsInRoot()
+            assertEquals(firstKey.bottom, lastRightKey.bottom, "R7 aligns with the bottom softkeys")
+            val expectedGap = (keyHeight.value * .30f).roundToInt().dp
+            val bottomRow = (1..8).map { onNodeWithTag("softkey-F$it").getUnclippedBoundsInRoot() } + lastRightKey
+            for ((left, right) in bottomRow.zipWithNext()) {
+                assertEquals(expectedGap, right.left - left.right, "Bottom row gap")
+            }
+            assertEquals(firstKey.left - viewport.left, viewport.right - lastRightKey.right, "Bottom row margins")
+            val firstRightKey = onNodeWithTag("softkey-R1").getUnclippedBoundsInRoot()
+            val secondRightKey = onNodeWithTag("softkey-R2").getUnclippedBoundsInRoot()
+            assertEquals(expectedGap, secondRightKey.top - firstRightKey.bottom, "Right softkey gap")
             screenshot("welcome")
             onNodeWithContentDescription("Util").performClick().assertIsSelected()
             onNodeWithText("R1").assertDoesNotExist()
