@@ -50,7 +50,7 @@ import no.grblcommander.core.connection.ControllerTraffic
 import no.grblcommander.core.connection.description
 import no.grblcommander.desktop.mode.utils.connection.ControllerConnectionSettings
 import no.grblcommander.desktop.ui.components.controls.*
-import no.grblcommander.desktop.ui.components.dialogs.ModalDialog
+import no.grblcommander.desktop.ui.components.dialogs.controllerResetDialog
 import no.grblcommander.desktop.ui.navigation.*
 import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.machine.protocol.GrblProtocol
@@ -139,12 +139,9 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
 
     private fun confirmReset() {
         if (!connected || connection.state.value.snapshot.resetInProgress || screenStack.top !== this) return
-        ModalDialog(
-            "Reset controller?",
-            "Soft reset interrupts active work and invalidates pending commands. Machine position and execution may be uncertain. Nothing is replayed, unlocked or resumed automatically.",
-            false,
-            mapOf(BottomSoftKeySlot.F1 to ModalDialog.Choice("Reset", true), BottomSoftKeySlot.F8 to ModalDialog.Choice("Cancel", false)),
-        ).open(this) { confirmed -> if (confirmed) realtime(BottomSoftKeySlot.F1) { connection.reset() } }
+        controllerResetDialog().open(this) { confirmed ->
+            if (confirmed) realtime(BottomSoftKeySlot.F1) { connection.reset() }
+        }
     }
 
     internal fun submit() {
