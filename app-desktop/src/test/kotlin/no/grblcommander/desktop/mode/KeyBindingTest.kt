@@ -10,7 +10,7 @@ import kotlin.test.*
 import kotlinx.coroutines.*
 import no.grblcommander.desktop.mode.mdi.MdiMode
 import no.grblcommander.desktop.mode.utils.connection.ControllerConnectionSettings
-import no.grblcommander.desktop.mode.utils.terminal.TerminalFixture
+import no.grblcommander.desktop.mode.utils.terminal.Fixture
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.navigation.*
@@ -22,7 +22,7 @@ class KeyBindingTest {
         assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(text)))
 
     @Test fun `only the active screen handles keys and mode switches preserve each editor`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             f.connect()
             val mdi = ScreenStack(MdiMode())
             var active by mutableStateOf(f.util)

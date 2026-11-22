@@ -20,12 +20,12 @@ import no.grblcommander.machine.session.CommunicationEvent
 
 @OptIn(ExperimentalTestApi::class)
 class TerminalTest {
-    private fun ComposeUiTest.host(f: TerminalFixture) {
+    private fun ComposeUiTest.host(f: Fixture) {
         setContent {
             MaterialTheme { AppShell(ShellState.startup(), { f.util }) { ScreenStackHost(f.util) } }
         }
     }
-    private fun ComposeUiTest.hostApplication(f: TerminalFixture) {
+    private fun ComposeUiTest.hostApplication(f: Fixture) {
         setContent { CommanderApp(f.owner, f.settings) }
         onNodeWithContentDescription("Util").performClick().assertIsSelected()
         // Leave wall-clock timestamps out of the captured traffic rows.
@@ -40,7 +40,7 @@ class TerminalTest {
     private fun ComposeUiTest.enter() = onNodeWithTag("terminal-prompt").performKeyInput { pressKey(Key.Enter) }
 
     @Test fun `rapid keypad sequence survives rendering between pointer down and up`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             host(f)
             val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
                 onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
@@ -58,7 +58,7 @@ class TerminalTest {
     }
 
     @Test fun `rapid keypad clicks keep digits when the mouse drifts one pixel while held`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             host(f)
             val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
                 onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
@@ -78,7 +78,7 @@ class TerminalTest {
     }
 
     @Test fun `rapid touch keypad sequence tolerates small movement within each key`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             host(f)
             val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
                 onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
@@ -95,7 +95,7 @@ class TerminalTest {
     }
 
     @Test fun `rapid 50ms keypad presses with 250ms mouse travel preserve every digit`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             host(f)
             val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
                 onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
@@ -114,7 +114,7 @@ class TerminalTest {
     }
 
     @Test fun `Enter submits once without echo duplication and incoming output preserves draft caret`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             f.connect(); host(f)
             onNodeWithTag("terminal-prompt").performClick().performTextInput("\$I")
             enter()
@@ -139,7 +139,7 @@ class TerminalTest {
     }
 
     @Test fun `touch Enter shares physical and IME admission`() = runAtScreenshotSizes { screenshot ->
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             f.connect(); hostApplication(f)
             onNodeWithText("CODE 1/2 ▸").assertExists()
             onNodeWithText("NUM+ 1/2 ▸").assertExists()
@@ -169,7 +169,7 @@ class TerminalTest {
     }
 
     @Test fun `acknowledgment during the first letter gesture does not cancel insertion`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             f.connect(); host(f)
             onNodeWithTag("terminal-prompt").performClick().performTextInput("G1X100F500")
             enter()
@@ -183,7 +183,7 @@ class TerminalTest {
     }
 
     @Test fun `new keypad and keyboard edits survive asynchronous acknowledgment`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             f.connect(); host(f)
             onNodeWithTag("terminal-prompt").performClick().performTextInput("G1X100F500")
             enter()
@@ -198,7 +198,7 @@ class TerminalTest {
     }
 
     @Test fun `keypad-only mouse input works without first focusing the prompt`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             f.connect(); host(f)
             // G1X100F500, entirely through the mouse-operated keypad, with no input focus request.
             listOf("CODE-2", "NUM+-8", "CODE-4", "NUM+-8", "NUM+-13", "NUM+-13", "CODE-12", "NUM+-5", "NUM+-13", "NUM+-13").forEach {
@@ -227,7 +227,7 @@ class TerminalTest {
     @Test fun `first platform text input after motion reaches Idle is inserted once`() = firstInputAfterCommand(motion = true, touch = false)
 
     private fun firstInputAfterCommand(motion: Boolean, touch: Boolean, mouse: Boolean = false) = runAtScreenshotSizes(capture = motion && mouse) { screenshot ->
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             f.connect(); hostApplication(f)
             onNodeWithTag("terminal-prompt").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             onNodeWithTag("terminal-prompt").performTextInput("G1X100F500")
@@ -270,7 +270,7 @@ class TerminalTest {
     }
 
     @Test fun `disconnected multiline and unsynchronized admission preserve input without TX`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             host(f)
             onNodeWithTag("terminal-prompt").performClick().performTextInput("G0 X1")
             enter()
@@ -289,7 +289,7 @@ class TerminalTest {
     }
 
     @Test fun `realtime controls use correct shared path without a status key and Reset requires confirmation`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             host(f)
             onNodeWithTag("softkey-F1").assertIsNotEnabled()
             onNodeWithTag("softkey-F2").assertIsNotEnabled()
@@ -315,7 +315,7 @@ class TerminalTest {
     }
 
     @Test fun `Cycle Start is restored after acknowledged motion reaches completed feed hold`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             f.connect(); host(f)
             onNodeWithText("▶️\nCycle Start (~)").assertExists()
             onNodeWithText("⏸️\nFeed Hold (!)").assertExists()
@@ -356,7 +356,7 @@ class TerminalTest {
     }
 
     @Test fun `manual scrollback is preserved during incoming traffic and Follow explicitly jumps to latest`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             f.connect(); host(f)
             runBlocking { repeat(100) { f.transport.emit("[LINE:$it]\n") } }
             waitUntil(timeoutMillis = 5_000) { f.terminal.history.any { it.event.text == "[LINE:99]" } }
@@ -382,7 +382,7 @@ class TerminalTest {
         }
     }
     @Test fun `prompt marker and editable text share the same vertical position and touch target`() = runComposeUiTest {
-        TerminalFixture().use { f ->
+        Fixture().use { f ->
             host(f)
             onNodeWithTag("terminal-prompt-marker", useUnmergedTree = true).performClick()
             onNodeWithTag("terminal-prompt").performTextInput("G0 X100")
