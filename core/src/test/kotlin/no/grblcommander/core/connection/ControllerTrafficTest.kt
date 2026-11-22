@@ -24,6 +24,12 @@ class ControllerTrafficTest {
             check(events.tryEmit(event))
         }
         override suspend fun executeLine(command: String) = CommandAcknowledgment(null, emptyList())
+        override suspend fun executeLine(
+            command: String,
+            expectedEpoch: Long,
+            onUncertainWrite: () -> Unit,
+            onSent: () -> Unit,
+        ): CommandAcknowledgment = error("This fixture does not send fenced commands")
         override suspend fun sendRealtime(command: RealtimeCommand) = Unit
         override suspend fun reset() = Unit
         override suspend fun queryStatus(): ControllerStatus = error("Not needed")

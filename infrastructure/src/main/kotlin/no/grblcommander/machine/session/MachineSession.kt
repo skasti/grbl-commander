@@ -25,11 +25,18 @@ interface MachineSession : Closeable {
     suspend fun executeLine(command: String): CommandAcknowledgment
     /** A session-local fence invalidated by a reset, alarm or uncertain response. */
     val normalCommandEpoch: Long get() = 0L
-    /** Submit a line only if the batch's original correlation fence still holds. */
-    suspend fun executeLine(command: String, expectedEpoch: Long, onSent: () -> Unit = {}): CommandAcknowledgment {
-        if (expectedEpoch != normalCommandEpoch) throw CommandCorrelationException("Normal command batch interrupted")
-        return executeLine(command).also { onSent() }
-    }
+    /**
+     * Submit a line only while the caller's correlation fence holds. Invoke [onSent] once
+     * after a successful full write and before awaiting its response. Invoke [onUncertainWrite]
+     * instead if the write fails and some or all bytes may have reached the controller.
+     * Admission failure and known local rejection invoke neither callback.
+     */
+    suspend fun executeLine(
+        command: String,
+        expectedEpoch: Long,
+        onUncertainWrite: () -> Unit = {},
+        onSent: () -> Unit = {},
+    ): CommandAcknowledgment
     /**
      * Bypasses normal-command admission and acknowledgment waits, including during
      * alarm/uncertain normal-command outcomes. Exceptions propagate without replay;

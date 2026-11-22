@@ -33,8 +33,17 @@ class GrblMachineSessionTest {
             val transport = InMemoryTransport()
             val session = connected(this, transport)
             try {
-                val identification = async { session.executeLine("\$I") }
+                val sent = CompletableDeferred<Unit>()
+                val finishWrite = CompletableDeferred<Unit>()
+                transport.onWrite = { if (it == "\$I\n") finishWrite.await() }
+                val identification = async {
+                    session.executeLine("\$I", session.normalCommandEpoch, onSent = { sent.complete(Unit) })
+                }
                 assertEquals("\$I\n", transport.writes.receive())
+                assertFalse(sent.isCompleted)
+                finishWrite.complete(Unit)
+                sent.await()
+                assertFalse(identification.isCompleted)
                 transport.emit("[VER:1.1f:grblHAL]\r\n[OPT:VN,35,1024]\r\nok\r\n")
                 assertEquals(listOf("[VER:1.1f:grblHAL]", "[OPT:VN,35,1024]"), identification.await().responseLines)
                 val rejected = async { session.executeLine("INVALID") }

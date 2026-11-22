@@ -45,6 +45,12 @@ class ControllerPollingTest {
             try { onPoll() } finally { inFlight-- }
         }
         override suspend fun executeLine(command: String): CommandAcknowledgment = error("Polling cannot send normal commands")
+        override suspend fun executeLine(
+            command: String,
+            expectedEpoch: Long,
+            onUncertainWrite: () -> Unit,
+            onSent: () -> Unit,
+        ): CommandAcknowledgment = error("This fixture does not send fenced commands")
         override suspend fun queryStatus(): ControllerStatus = error("Polling cannot wait for a status response")
         override suspend fun reset(): Unit = error("Polling cannot reset")
         override fun close() {

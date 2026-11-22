@@ -63,6 +63,11 @@ dispatching a batch can capture the session's normal-command epoch and supply
 it with every line. A reset, alarm or uncertain response invalidates that
 epoch. The session checks it at normal-line admission, including after waiting
 for an earlier line. A late acknowledgment cannot make an old epoch valid again.
+The fenced `executeLine` overload calls `onSent` after a full transport write
+returns successfully and before awaiting the response. If the write fails and
+may have transferred bytes, it calls `onUncertainWrite` before propagating the
+failure. Admission failure and known local rejection invoke neither callback.
+Each session implementation supplies these signals at its write boundary.
 
 
 ## Alarms and command correlation
