@@ -123,7 +123,7 @@ class OperationTest {
         assertEquals(1, interrupted.uncertainWriteLineNumber)
         assertNull(interrupted.lastSentLineNumber)
         assertEquals(BufferState.Reply.Empty, interrupted.reply)
-        assertFalse(owner.state.value.snapshot.normalCommandsSynchronized)
+        owner.state.first { !it.snapshot.normalCommandsSynchronized }
         assertTrue(transport.drainWrites().all { it == "?" })
     }
 
