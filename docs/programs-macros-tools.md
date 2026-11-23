@@ -39,7 +39,7 @@ available when the controller reports Hold:0. F3 opens Soft Reset confirmation.
 A confirmed reset interrupts the operation. Starting another run requires an
 explicit Cycle Start.
 
-R6 toggles the active row's subtle green background and green `・` marker.
+R6 toggles the active row's subtle green background and green `•` marker.
 If the row is also selected for editing, the purple selection background and
 green marker appear together. R7 toggles the light blue `↳` for the last sent
 block. The green marker is closer to the code. The sent marker stays visible

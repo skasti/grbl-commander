@@ -158,7 +158,7 @@ class MdiModeTest {
             val executing = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-3"))
             waitUntil(timeoutMillis = 5_000) {
                 onAllNodes(sent and hasText("↳"), useUnmergedTree = true).fetchSemanticsNodes().size == 1 &&
-                    onAllNodes(executing and hasText("・"), useUnmergedTree = true).fetchSemanticsNodes().size == 1
+                    onAllNodes(executing and hasText("•"), useUnmergedTree = true).fetchSemanticsNodes().size == 1
             }
             onNodeWithTag("mdi-line-6").assertIsSelected()
             onNodeWithTag("mdi-input").assert(
@@ -184,7 +184,7 @@ class MdiModeTest {
             formatKey.performClick().assertIsSelected()
             onNodeWithTag("mdi-line-6").assertTextContains("N60 G1 Y0")
             executingKey.performClick().assertIsSelected()
-            onNode(executing, useUnmergedTree = true).assertTextEquals("・")
+            onNode(executing, useUnmergedTree = true).assertTextEquals("•")
             sentKey.performClick().assertIsSelected()
             onNode(sent, useUnmergedTree = true).assertTextEquals("↳")
 

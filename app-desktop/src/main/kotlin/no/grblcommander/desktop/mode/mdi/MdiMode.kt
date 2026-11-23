@@ -81,7 +81,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
             "💄\nFormat", action = { autoFormat = !autoFormat }, active = { autoFormat }, repeatable = false,
         ),
         RightSoftKeySlot.R6 to SoftKeyDefinition(
-            "・\nExecuting", action = { showExecutingLine = !showExecutingLine },
+            "•\nExecuting", action = { showExecutingLine = !showExecutingLine },
             active = { showExecutingLine }, repeatable = false,
         ),
         RightSoftKeySlot.R7 to SoftKeyDefinition(
@@ -265,7 +265,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                                             color = sentMarker, fontFamily = FontFamily.Monospace)
                                     }
                                     Box(Modifier.width(16.dp)) {
-                                        if (executing) Text("・", Modifier.testTag("mdi-executing-line"),
+                                        if (executing) Text("•", Modifier.testTag("mdi-executing-line"),
                                             color = executionMarker, fontFamily = FontFamily.Monospace)
                                     }
                                     Text((index + 1).toString())
