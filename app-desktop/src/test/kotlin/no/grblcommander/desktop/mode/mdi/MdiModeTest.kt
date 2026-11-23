@@ -107,15 +107,17 @@ class MdiModeTest {
             val dro = onNodeWithTag("mdi-dro").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             val label = onNodeWithText("DRO", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
             val firstLetter = onNodeWithTag("keypad-CODE-0").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            val lastLetter = onNodeWithTag("keypad-CODE-3").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             val firstNumber = onNodeWithTag("keypad-NUM+-0").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             val lastNumber = onNodeWithTag("keypad-NUM+-3").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             val buffer = onNodeWithTag("mdi-buffer").fetchSemanticsNode().boundsInRoot
-            assertTrue(dro.height / workspace.height in 0.25f..0.30f)
+            assertEquals(workspace.height * 0.40f, dro.height, absoluteTolerance = 1f)
             assertTrue((dro.center - label.center).getDistance() <= 1f)
             assertEquals(lastNumber.right, dro.right)
             assertEquals(lastNumber.right - firstNumber.left, dro.width)
             assertEquals(firstLetter.top, firstNumber.top)
-            assertTrue(buffer.right < firstLetter.left && firstLetter.right < firstNumber.left)
+            assertTrue(buffer.right < firstLetter.left)
+            assertEquals(firstLetter.width, firstNumber.left - lastLetter.right)
             assertTrue(dro.bottom < firstNumber.top)
             screenshot("mdi")
             onNodeWithTag("keypad-CODE-next").performClick()

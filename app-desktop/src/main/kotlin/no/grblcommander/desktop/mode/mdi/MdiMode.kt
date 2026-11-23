@@ -229,7 +229,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
         }
         Surface(Modifier.fillMaxSize()) {
             BoxWithConstraints(Modifier.fillMaxSize().testTag("mdi-workspace")) {
-                val droHeight = maxHeight * .28f
+                val droHeight = maxHeight * .40f
                 val gridUnit = LocalGridUnit.current
                 val droWidth = with(LocalDensity.current) {
                     val unit = gridUnit.roundToPx()
@@ -325,7 +325,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                         ) {
                             Text("DRO", style = MaterialTheme.typography.titleMedium)
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(gridUnit)) {
                             KeyCluster(letters, onKeypadAction)
                             KeyCluster(numbers, onKeypadAction)
                         }

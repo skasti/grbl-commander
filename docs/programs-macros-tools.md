@@ -26,9 +26,9 @@ buffer, selection, unfinished draft and keypad pages. The display numbers
 count rows from one, independently of any G-code line numbers.
 
 The upper-right workspace contains a placeholder digital readout labeled
-`DRO`. It occupies 28% of the workspace height and spans 5.2 grid units before
+`DRO`. It occupies 40% of the workspace height and spans 5.2 grid units before
 pixel rounding. CODE and NUM+ sit side by side beneath it, to the right of
-the editor.
+the editor, with one grid unit between them.
 
 ## MDI execution
 
