@@ -5,6 +5,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -73,6 +74,12 @@ class MdiModeTest {
         onNodeWithTag("softkey-F6").performClick()
         onNodeWithTag("softkey-F6").performClick()
         input.performTextInput("1")
+        onNodeWithTag("mdi-line-1").performClick()
+        input.performTextReplacement("G91")
+        input.performKeyInput { pressKey(Key.Enter) }
+        onNodeWithTag("mdi-line-1").assertTextContains("G91").assertIsNotSelected()
+        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G1 X1")))
+        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(2)))
         onNodeWithTag("mdi-line-2").performClick()
         onNodeWithTag("mdi-line-1").performClick().performClick()
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G1 X1")))
@@ -100,10 +107,14 @@ class MdiModeTest {
             onNodeWithTag("softkey-F5").performClick()
             onNodeWithTag("mdi-line-2").assertIsSelected()
             onNodeWithTag("mdi-input").performTextReplacement("M30")
-            onNodeWithTag("keypad-NUM+-15").performClick()
-            onNodeWithTag("mdi-line-2").assertTextContains("M30")
-            onNodeWithTag("mdi-line-3").assertDoesNotExist()
             screenshot("mdi-page-2")
+            onNodeWithTag("keypad-NUM+-15").performClick()
+            onNodeWithTag("mdi-line-2").assertTextContains("M30").assertIsNotSelected()
+            onNodeWithTag("mdi-line-3").assertDoesNotExist()
+            onNodeWithText("New line").assertExists()
+            onNodeWithTag("mdi-input").assert(
+                SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")),
+            )
         }
     }
 
@@ -119,17 +130,25 @@ class MdiModeTest {
 
             start.assertIsEnabled().performClick()
             assertEquals("N70 G0 X1\n", fixture.nextCommand())
+            val operation = checkNotNull(fixture.owner.state.value.operation)
+            waitUntil(timeoutMillis = 5_000) { operation.state.value.lastSentLineNumber == 1 }
             fixture.report("<Run|Ln:70>")
+            waitUntil(timeoutMillis = 5_000) { operation.state.value.executingLineNumber == 1 }
             fixture.receive("ok")
             assertEquals("N90 G0 X2\n", fixture.nextCommand())
-            val operation = checkNotNull(fixture.owner.state.value.operation)
             waitUntil(timeoutMillis = 5_000) {
                 operation.state.value.lastSentLineNumber == 2 && operation.state.value.reply == BufferState.Reply.Pending
             }
+            val sent = hasTestTag("mdi-sent-line") and hasAnyAncestor(hasTestTag("mdi-line-2"))
+            waitUntil(timeoutMillis = 5_000) { onAllNodes(sent, useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
+            onNode(sent, useUnmergedTree = true).assertTextEquals("^")
+            val previousExecution = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-1"))
+            onNode(previousExecution, useUnmergedTree = true).assertTextEquals(">")
             fixture.report("<Run|Ln:90>")
-            waitUntil(timeoutMillis = 5_000) { operation.state.value.executingLineNumber == 2 }
             val executing = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-2"))
+            waitUntil(timeoutMillis = 5_000) { onAllNodes(executing, useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
             onNode(executing, useUnmergedTree = true).assertTextEquals(">")
+            onNode(sent, useUnmergedTree = true).assertTextEquals("^")
             onNodeWithTag("mdi-line-1").assertIsSelected()
             onNodeWithTag("mdi-input").assert(
                 SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("N70 G0 X1")),
@@ -160,6 +179,7 @@ class MdiModeTest {
             start.assertIsNotEnabled()
             fixture.report("<Idle>")
             waitUntilExactlyOneExists(hasText("Completed"), timeoutMillis = 5_000)
+            onNode(sent, useUnmergedTree = true).assertTextEquals("^")
             assertTrue(fixture.transport.drainWrites().all { it == "?" })
         }
     }

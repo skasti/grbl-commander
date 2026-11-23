@@ -15,9 +15,9 @@ draft stays in the input for correction. Saving a line is local.
 
 F5 selects the previous line, starting at the last saved line. F6 selects
 the next line. Selecting a row by touch or mouse also copies it into the
-input. Enter replaces the selected row and keeps it selected. F6 from the
-last row or a second click on the selected row restores the unfinished new
-line and its caret or selection. Switching modes preserves the
+input. Enter saves the replacement and returns to new-line mode. The
+unfinished new line and its caret or selection are restored. F6 from the last
+row and a second click on the selected row also return to new-line mode. Switching modes preserves the
 buffer, selection, unfinished draft and keypad pages. The display numbers
 count rows from one, independently of any G-code line numbers.
 
@@ -37,7 +37,9 @@ explicit Cycle Start.
 
 The active row has a green background and a green `>` marker. If it is also
 selected for editing, the purple selection background and green marker appear
-together. Status reports leave the edit selection and draft intact. The status
+together. A light blue `^` marks the last sent block in a separate margin slot.
+It stays visible after completion while the row still matches the sent source.
+Status reports leave the edit selection and draft intact. The status
 line shows sampled execution progress when available, reports when the active
 line is unknown, and distinguishes a sent or accepted block from completion.
 It identifies a rejected line or reports an interrupted run with unknown

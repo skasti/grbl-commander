@@ -39,6 +39,7 @@ import no.grblcommander.machine.session.RealtimeCommand
 
 private val executionBackground = Color(0xFF234834)
 private val executionMarker = Color(0xFF93D6A3)
+private val sentMarker = Color(0xFF8BD7FF)
 
 class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit) {
     private val lines = mutableStateListOf<String>()
@@ -167,6 +168,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
             edit(TextFieldValue())
         } else {
             lines[index] = text
+            select(null)
         }
     }
 
@@ -183,7 +185,8 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
             scope = compositionScope
             onDispose { scope = null }
         }
-        val progress = operation?.state?.collectAsState(context = Dispatchers.Main)?.value
+        val run = operation
+        val progress = run?.state?.collectAsState(context = Dispatchers.Main)?.value
         val editingLocked = progress?.isActive() == true
         val executingLine = progress?.executingLineNumber?.takeUnless { currentConnection.reportIsStale(time) }
         val focus = remember { FocusRequester() }
@@ -212,6 +215,8 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                             items(lines.size) { index ->
                                 val editing = selected == index
                                 val executing = executingLine == index + 1
+                                val sent = progress?.lastSentLineNumber == index + 1 &&
+                                    run?.lines?.getOrNull(index) == lines[index]
                                 val background = when {
                                     editing -> MaterialTheme.colorScheme.secondaryContainer
                                     executing -> executionBackground
@@ -228,6 +233,10 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                                     Box(Modifier.width(12.dp)) {
                                         if (executing) Text(">", Modifier.testTag("mdi-executing-line"),
                                             color = executionMarker, fontFamily = FontFamily.Monospace)
+                                    }
+                                    Box(Modifier.width(12.dp)) {
+                                        if (sent) Text("^", Modifier.testTag("mdi-sent-line"),
+                                            color = sentMarker, fontFamily = FontFamily.Monospace)
                                     }
                                     Text((index + 1).toString())
                                     Text(lines[index], fontFamily = FontFamily.Monospace)
