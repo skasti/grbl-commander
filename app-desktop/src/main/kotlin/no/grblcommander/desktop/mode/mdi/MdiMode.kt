@@ -1,21 +1,25 @@
 package no.grblcommander.desktop.mode.mdi
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
@@ -23,6 +27,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import java.time.Instant
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +39,9 @@ import no.grblcommander.core.connection.Operation
 import no.grblcommander.desktop.ui.components.dialogs.controllerResetDialog
 import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.desktop.ui.components.controls.*
+import no.grblcommander.desktop.ui.layout.LocalGridUnit
+import no.grblcommander.desktop.ui.layout.ShellColors
+import no.grblcommander.desktop.ui.layout.standardKeyGapRatio
 import no.grblcommander.desktop.ui.navigation.*
 import no.grblcommander.machine.protocol.GrblProtocol
 import no.grblcommander.machine.session.MachineSnapshot.Connection
@@ -220,8 +228,18 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
             if (lines.isNotEmpty()) list.scrollToItem(selected ?: lines.lastIndex)
         }
         Surface(Modifier.fillMaxSize()) {
-            BoxWithConstraints(Modifier.fillMaxSize()) {
-                val keyboardWidth = minOf(400.dp, maxWidth * .40f) + keypadPanelMargin * 2f
+            BoxWithConstraints(Modifier.fillMaxSize().testTag("mdi-workspace")) {
+                val droHeight = maxHeight * .28f
+                val gridUnit = LocalGridUnit.current
+                val droWidth = with(LocalDensity.current) {
+                    val unit = gridUnit.roundToPx()
+                    val gap = unit * standardKeyGapRatio
+                    (4 * unit + 2 * gap.roundToInt() + (2 * gap).roundToInt()).toDp()
+                }
+                val onKeypadAction: (KeypadAction) -> Unit = { action ->
+                    if (operation?.state?.value?.isActive() != true) editWithKeypad(input, action, ::edit, ::save)
+                    focus.requestFocus()
+                }
                 Row(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("MDI buffer", style = MaterialTheme.typography.titleMedium)
@@ -295,14 +313,23 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                                 },
                         )
                     }
-                    GCodeKeyboard(
-                        letters = letters, numbers = numbers,
-                        onAction = { action ->
-                            if (operation?.state?.value?.isActive() != true) editWithKeypad(input, action, ::edit, ::save)
-                            focus.requestFocus()
-                        },
-                        modifier = Modifier.widthIn(max = keyboardWidth).fillMaxHeight(),
-                    )
+                    Column(
+                        Modifier.fillMaxHeight(),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Box(
+                            Modifier.size(droWidth, droHeight).testTag("mdi-dro")
+                                .border(1.dp, ShellColors.accent, RoundedCornerShape(6.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("DRO", style = MaterialTheme.typography.titleMedium)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            KeyCluster(letters, onKeypadAction)
+                            KeyCluster(numbers, onKeypadAction)
+                        }
+                    }
                 }
             }
         }

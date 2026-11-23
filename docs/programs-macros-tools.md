@@ -25,6 +25,11 @@ also return to new-line mode. Switching modes preserves the
 buffer, selection, unfinished draft and keypad pages. The display numbers
 count rows from one, independently of any G-code line numbers.
 
+The upper-right workspace contains a placeholder digital readout labeled
+`DRO`. It occupies 28% of the workspace height and spans 5.2 grid units before
+pixel rounding. CODE and NUM+ sit side by side beneath it, to the right of
+the editor.
+
 ## MDI execution
 
 F1 starts the saved buffer when the shared connection admits a new operation.

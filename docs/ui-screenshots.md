@@ -35,7 +35,7 @@ when changing visible UI.
 | `terminal-page-2` | Both second pages with a focused command draft |
 | `terminal-acknowledged` | Command acknowledged while simulated execution is Run |
 | `terminal-idle-first-letter` | Idle following Run and the first post-command keypress |
-| `mdi` | New-line draft and saved MDI line with the first keypad pages |
+| `mdi` | New-line draft and saved MDI line with the DRO placeholder and first keypad pages |
 | `mdi-page-2` | MDI line with an unsaved replacement and the second keypad pages |
 | `mdi-running` | Eight-line MDI program with active execution, last sent and edit selection on separate rows |
 | `mdi-running-markers-overlap` | Executing and last sent refer to the same row, with only the executing marker visible |
