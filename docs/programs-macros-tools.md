@@ -35,8 +35,9 @@ available when the controller reports Hold:0. F3 opens Soft Reset confirmation.
 A confirmed reset interrupts the operation. Starting another run requires an
 explicit Cycle Start.
 
-The active row has a `>` marker and a separate accent from the row selected for
-editing. Status reports leave the edit selection and draft intact. The status
+The active row has a green background and a green `>` marker. If it is also
+selected for editing, the purple selection background and green marker appear
+together. Status reports leave the edit selection and draft intact. The status
 line shows sampled execution progress when available, reports when the active
 line is unknown, and distinguishes a sent or accepted block from completion.
 It identifies a rejected line or reports an interrupted run with unknown

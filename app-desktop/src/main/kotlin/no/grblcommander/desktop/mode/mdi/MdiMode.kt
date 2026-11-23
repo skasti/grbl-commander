@@ -37,6 +37,9 @@ import no.grblcommander.machine.protocol.GrblProtocol
 import no.grblcommander.machine.session.MachineSnapshot.Connection
 import no.grblcommander.machine.session.RealtimeCommand
 
+private val executionBackground = Color(0xFF234834)
+private val executionMarker = Color(0xFF93D6A3)
+
 class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit) {
     private val lines = mutableStateListOf<String>()
     private var selected by mutableStateOf<Int?>(null)
@@ -211,7 +214,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                                 val executing = executingLine == index + 1
                                 val background = when {
                                     editing -> MaterialTheme.colorScheme.secondaryContainer
-                                    executing -> MaterialTheme.colorScheme.tertiaryContainer
+                                    executing -> executionBackground
                                     else -> Color.Transparent
                                 }
                                 Row(Modifier.fillMaxWidth()
@@ -224,7 +227,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     Box(Modifier.width(12.dp)) {
                                         if (executing) Text(">", Modifier.testTag("mdi-executing-line"),
-                                            color = MaterialTheme.colorScheme.tertiary, fontFamily = FontFamily.Monospace)
+                                            color = executionMarker, fontFamily = FontFamily.Monospace)
                                     }
                                     Text((index + 1).toString())
                                     Text(lines[index], fontFamily = FontFamily.Monospace)
