@@ -208,7 +208,7 @@ class MdiModeTest {
             start.assertIsEnabled()
             fixture.receive("ok")
             waitUntilExactlyOneExists(hasText("Controller reset is required before sending commands."), timeoutMillis = 5_000)
-            start.assertIsNotEnabled()
+            waitUntilExactlyOneExists(hasTestTag("softkey-F1") and isNotEnabled(), timeoutMillis = 5_000)
             assertEquals("Idle", fixture.owner.state.value.snapshot.status?.executionState)
             screenshot("mdi-start-blocked")
             assertTrue(fixture.transport.drainWrites().all { it == "?" })
