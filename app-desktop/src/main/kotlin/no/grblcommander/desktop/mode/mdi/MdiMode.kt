@@ -19,7 +19,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
@@ -27,7 +26,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import java.time.Instant
-import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +39,6 @@ import no.grblcommander.desktop.ui.rememberCurrentTime
 import no.grblcommander.desktop.ui.components.controls.*
 import no.grblcommander.desktop.ui.layout.LocalGridUnit
 import no.grblcommander.desktop.ui.layout.ShellColors
-import no.grblcommander.desktop.ui.layout.standardKeyGapRatio
 import no.grblcommander.desktop.ui.navigation.*
 import no.grblcommander.machine.protocol.GrblProtocol
 import no.grblcommander.machine.session.MachineSnapshot.Connection
@@ -230,12 +227,8 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
         Surface(Modifier.fillMaxSize()) {
             BoxWithConstraints(Modifier.fillMaxSize().testTag("mdi-workspace")) {
                 val droHeight = maxHeight * .40f
+                val droWidth = droHeight * (4f / 3f)
                 val gridUnit = LocalGridUnit.current
-                val droWidth = with(LocalDensity.current) {
-                    val unit = gridUnit.roundToPx()
-                    val gap = unit * standardKeyGapRatio
-                    (4 * unit + 2 * gap.roundToInt() + (2 * gap).roundToInt()).toDp()
-                }
                 val onKeypadAction: (KeypadAction) -> Unit = { action ->
                     if (operation?.state?.value?.isActive() != true) editWithKeypad(input, action, ::edit, ::save)
                     focus.requestFocus()

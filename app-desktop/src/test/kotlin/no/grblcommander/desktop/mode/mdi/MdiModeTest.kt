@@ -114,7 +114,7 @@ class MdiModeTest {
             assertEquals(workspace.height * 0.40f, dro.height, absoluteTolerance = 1f)
             assertTrue((dro.center - label.center).getDistance() <= 1f)
             assertEquals(lastNumber.right, dro.right)
-            assertEquals(lastNumber.right - firstNumber.left, dro.width)
+            assertEquals(dro.height * (4f / 3f), dro.width, absoluteTolerance = 1.5f)
             assertEquals(firstLetter.top, firstNumber.top)
             assertTrue(buffer.right < firstLetter.left)
             assertEquals(firstLetter.width, firstNumber.left - lastLetter.right)
