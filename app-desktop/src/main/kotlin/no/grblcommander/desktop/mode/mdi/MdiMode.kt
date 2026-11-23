@@ -43,6 +43,12 @@ private val executionBackground = Color(0xFF234834)
 private val executionMarker = Color(0xFF93D6A3)
 private val sentMarker = Color(0xFF8BD7FF)
 
+private val numericWord = Regex("""[A-Za-z][+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)""")
+private val numericBlock = Regex(""" *(?:${numericWord.pattern} *)+""")
+
+private fun formatBufferLine(line: String): String =
+    if (numericBlock.matches(line)) numericWord.findAll(line).joinToString(" ") { it.value } else line
+
 class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit) {
     private val lines = mutableStateListOf<String>()
     private var selected by mutableStateOf<Int?>(null)
@@ -247,7 +253,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                                             color = sentMarker, fontFamily = FontFamily.Monospace)
                                     }
                                     Text((index + 1).toString())
-                                    Text(lines[index], fontFamily = FontFamily.Monospace)
+                                    Text(formatBufferLine(lines[index]), fontFamily = FontFamily.Monospace)
                                 }
                             }
                         }

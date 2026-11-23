@@ -11,7 +11,9 @@ and tool management remain planned.
 MDI shows a numbered, read-only command list above a single-line input.
 Enter on either keyboard appends the draft to the list. Each command must pass
 the session's [line validation](grbl-session.md#protocol-framing). A rejected
-draft stays in the input for correction. Saving a line is local.
+draft stays in the input for correction. Saving a line is local. The list
+displays numeric G-code words with spaces, so `G1X100F500` appears as
+`G1 X100 F500`. The editor and execution still use the stored source text.
 
 F5 selects the previous line, starting at the last saved line. F6 selects
 the next line. Selecting a row by touch or mouse also copies it into the

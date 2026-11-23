@@ -98,8 +98,9 @@ class MdiModeTest {
             fixture.connect()
             setContent { CommanderApp(fixture.owner, fixture.settings) }
             onNode(hasText("MDI") and hasClickAction()).performClick()
-            onNodeWithTag("mdi-input").performClick().performTextInput("G0 X1")
+            onNodeWithTag("mdi-input").performClick().performTextInput("G1X100F500")
             onNodeWithTag("keypad-NUM+-15").assertIsDisplayed().performClick()
+            onNodeWithTag("mdi-line-1").assertTextContains("G1 X100 F500")
             onNodeWithTag("mdi-input").performTextInput("M2")
             onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("M2")))
             screenshot("mdi")
@@ -130,10 +131,10 @@ class MdiModeTest {
             val program = listOf(
                 "N10 G90",
                 "N20 G0 X0 Y0",
-                "N30 G1 X20 F120",
+                "N30G1X20F120",
                 "N40 G1 Y15",
                 "N50 G1 X0",
-                "N60 G1 Y0",
+                "N60G1Y0",
                 "N70 G0 Z5",
                 "N80 M2",
             )
@@ -165,7 +166,7 @@ class MdiModeTest {
             )
             onNodeWithTag("keypad-NUM+-8").performClick()
             onNodeWithTag("keypad-NUM+-15").performClick()
-            onNodeWithTag("mdi-line-6").assertTextContains(program[5])
+            onNodeWithTag("mdi-line-6").assertTextContains("N60 G1 Y0")
             screenshot("mdi-running")
 
             onNodeWithTag("softkey-F2").performClick()
