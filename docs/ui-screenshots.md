@@ -37,7 +37,7 @@ when changing visible UI.
 | `terminal-idle-first-letter` | Idle following Run and the first post-command keypress |
 | `mdi` | New-line draft and saved MDI line with the first keypad pages |
 | `mdi-page-2` | MDI line with an unsaved replacement and the second keypad pages |
-| `mdi-running` | Active execution and last sent markers on one row, with another row selected for editing |
+| `mdi-running` | Eight-line MDI program with active execution, last sent and edit selection on separate rows |
 | `mdi-held` | Controller Hold with Resume available and an unknown active line |
 | `mdi-reset-confirmation` | Soft Reset confirmation during an MDI run |
 | `mdi-rejected` | Controller rejection identifying the failed MDI line |

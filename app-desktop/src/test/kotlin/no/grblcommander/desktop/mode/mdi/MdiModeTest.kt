@@ -127,44 +127,50 @@ class MdiModeTest {
             openMdi(fixture)
             val start = onNodeWithTag("softkey-F1")
             start.assertIsNotEnabled()
-            saveLine("N70 G0 X1")
-            saveLine("N90 G0 X2")
+            val program = listOf(
+                "N10 G90",
+                "N20 G0 X0 Y0",
+                "N30 G1 X20 F120",
+                "N40 G1 Y15",
+                "N50 G1 X0",
+                "N60 G1 Y0",
+                "N70 G0 Z5",
+                "N80 M2",
+            )
+            program.forEach { saveLine(it) }
             assertTrue(fixture.transport.drainWrites().all { it == "?" })
-            onNodeWithTag("mdi-line-1").performClick().assertIsSelected()
+            onNodeWithTag("mdi-line-6").performClick().assertIsSelected()
 
             start.assertIsEnabled().performClick()
-            assertEquals("N70 G0 X1\n", fixture.nextCommand())
-            val operation = checkNotNull(fixture.owner.state.value.operation)
-            waitUntil(timeoutMillis = 5_000) { operation.state.value.lastSentLineNumber == 1 }
-            fixture.report("<Run|Ln:70>")
-            waitUntil(timeoutMillis = 5_000) { operation.state.value.executingLineNumber == 1 }
-            fixture.receive("ok")
-            assertEquals("N90 G0 X2\n", fixture.nextCommand())
-            waitUntil(timeoutMillis = 5_000) {
-                operation.state.value.lastSentLineNumber == 2 && operation.state.value.reply == BufferState.Reply.Pending
+            fixture.report("<Run>")
+            for (line in program.take(4)) {
+                assertEquals("$line\n", fixture.nextCommand())
+                fixture.receive("ok")
             }
-            val sent = hasTestTag("mdi-sent-line") and hasAnyAncestor(hasTestTag("mdi-line-2"))
-            waitUntil(timeoutMillis = 5_000) { onAllNodes(sent, useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
-            onNode(sent, useUnmergedTree = true).assertTextEquals("^")
-            val previousExecution = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-1"))
-            onNode(previousExecution, useUnmergedTree = true).assertTextEquals(">")
-            fixture.report("<Run|Ln:90>")
-            val executing = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-2"))
-            waitUntil(timeoutMillis = 5_000) { onAllNodes(executing, useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
-            onNode(executing, useUnmergedTree = true).assertTextEquals(">")
-            onNode(sent, useUnmergedTree = true).assertTextEquals("^")
-            onNodeWithTag("mdi-line-1").assertIsSelected()
+            assertEquals("${program[4]}\n", fixture.nextCommand())
+            val operation = checkNotNull(fixture.owner.state.value.operation)
+            waitUntil(timeoutMillis = 5_000) {
+                operation.state.value.lastSentLineNumber == 5 && operation.state.value.reply == BufferState.Reply.Pending
+            }
+            fixture.report("<Run|Ln:30>")
+            val sent = hasTestTag("mdi-sent-line") and hasAnyAncestor(hasTestTag("mdi-line-5"))
+            val executing = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-3"))
+            waitUntil(timeoutMillis = 5_000) {
+                onAllNodes(sent and hasText("^"), useUnmergedTree = true).fetchSemanticsNodes().size == 1 &&
+                    onAllNodes(executing and hasText(">"), useUnmergedTree = true).fetchSemanticsNodes().size == 1
+            }
+            onNodeWithTag("mdi-line-6").assertIsSelected()
             onNodeWithTag("mdi-input").assert(
-                SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("N70 G0 X1")),
+                SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(program[5])),
             )
             onNodeWithTag("keypad-NUM+-8").performClick()
             onNodeWithTag("keypad-NUM+-15").performClick()
-            onNodeWithTag("mdi-line-1").assertTextContains("N70 G0 X1")
+            onNodeWithTag("mdi-line-6").assertTextContains(program[5])
             screenshot("mdi-running")
 
             onNodeWithTag("softkey-F2").performClick()
             assertEquals("!", fixture.nextCommand())
-            fixture.report("<Hold:1|Ln:90>")
+            fixture.report("<Hold:1|Ln:50>")
             waitUntilExactlyOneExists(hasText("Held", substring = true), timeoutMillis = 5_000)
             start.assertIsNotEnabled()
             fixture.report("<Hold:0>")
@@ -175,15 +181,22 @@ class MdiModeTest {
             assertEquals("~", fixture.nextCommand())
             fixture.report("<Run>")
             fixture.receive("ok")
+            for (line in program.drop(5)) {
+                assertEquals("$line\n", fixture.nextCommand())
+                fixture.receive("ok")
+            }
             waitUntil(timeoutMillis = 5_000) {
-                operation.state.value.phase == Operation.Phase.RUNNING && operation.state.value.reply == BufferState.Reply.Ok
+                operation.state.value.phase == Operation.Phase.RUNNING &&
+                    operation.state.value.lastSentLineNumber == program.size &&
+                    operation.state.value.reply == BufferState.Reply.Ok
             }
             onNodeWithText("Active line unknown", substring = true).assertExists()
             onNodeWithTag("mdi-executing-line", useUnmergedTree = true).assertDoesNotExist()
             start.assertIsNotEnabled()
             fixture.report("<Idle>")
             waitUntilExactlyOneExists(hasText("Completed"), timeoutMillis = 5_000)
-            onNode(sent, useUnmergedTree = true).assertTextEquals("^")
+            val finalSent = hasTestTag("mdi-sent-line") and hasAnyAncestor(hasTestTag("mdi-line-8"))
+            onNode(finalSent, useUnmergedTree = true).assertTextEquals("^")
             assertTrue(fixture.transport.drainWrites().all { it == "?" })
         }
     }
