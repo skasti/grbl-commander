@@ -1,6 +1,7 @@
 package no.grblcommander.desktop.mode.mdi
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -14,6 +15,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
@@ -211,7 +213,13 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                             }
                         }
                         controlError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list) {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f).fillMaxWidth().testTag("mdi-buffer")
+                                .pointerInput(Unit) {
+                                    detectTapGestures { if (selected != null) select(null) }
+                                },
+                            state = list,
+                        ) {
                             items(lines.size) { index ->
                                 val editing = selected == index
                                 val executing = executingLine == index + 1

@@ -1,6 +1,7 @@
 package no.grblcommander.desktop.mode.mdi
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
@@ -85,7 +86,10 @@ class MdiModeTest {
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G1 X1")))
         input.performKeyInput { pressKey(Key.Enter) }
         onNodeWithTag("mdi-line-3").assertTextContains("G1 X1")
-        onNodeWithTag("mdi-line-3").performClick().performClick()
+        onNodeWithTag("mdi-line-3").performClick().assertIsSelected()
+        input.performTextReplacement("G0 X99")
+        onNodeWithTag("mdi-buffer").performTouchInput { click(Offset(center.x, height - 8f)) }
+        onNodeWithTag("mdi-line-3").assertTextContains("G1 X1").assertIsNotSelected()
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
     }
 

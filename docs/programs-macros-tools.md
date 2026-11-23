@@ -17,7 +17,8 @@ F5 selects the previous line, starting at the last saved line. F6 selects
 the next line. Selecting a row by touch or mouse also copies it into the
 input. Enter saves the replacement and returns to new-line mode. The
 unfinished new line and its caret or selection are restored. F6 from the last
-row and a second click on the selected row also return to new-line mode. Switching modes preserves the
+row, a second click on the selected row, and a click in empty buffer space
+also return to new-line mode. Switching modes preserves the
 buffer, selection, unfinished draft and keypad pages. The display numbers
 count rows from one, independently of any G-code line numbers.
 
