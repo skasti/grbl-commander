@@ -197,6 +197,27 @@ class MdiModeTest {
         }
     }
 
+    @Test fun `Idle with an unowned reply shows why Cycle Start is blocked`() = runAtScreenshotSizes { screenshot ->
+        ControllerFixture().use { fixture ->
+            openMdi(fixture)
+            saveLine("G0 X1")
+            val start = onNodeWithTag("softkey-F1")
+            start.assertIsEnabled()
+            fixture.receive("ok")
+            waitUntilExactlyOneExists(hasText("Controller reset is required before sending commands."), timeoutMillis = 5_000)
+            start.assertIsNotEnabled()
+            onNodeWithText("CONNECTED · TCP localhost:4321 · Idle").assertExists()
+            screenshot("mdi-start-blocked")
+            assertTrue(fixture.transport.drainWrites().all { it == "?" })
+
+            onNodeWithTag("softkey-F3").performClick()
+            onNodeWithTag("softkey-F1").performClick()
+            assertEquals("\u0018", fixture.nextCommand())
+            waitUntilExactlyOneExists(hasTestTag("softkey-F1") and isEnabled(), timeoutMillis = 5_000)
+            onNodeWithText("Controller reset is required before sending commands.").assertDoesNotExist()
+        }
+    }
+
     private fun ComposeUiTest.openMdi(fixture: ControllerFixture) {
         fixture.connect()
         setContent { CommanderApp(fixture.owner, fixture.settings) }

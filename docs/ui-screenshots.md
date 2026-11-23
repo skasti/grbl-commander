@@ -41,6 +41,7 @@ when changing visible UI.
 | `mdi-held` | Controller Hold with Resume available and an unknown active line |
 | `mdi-reset-confirmation` | Soft Reset confirmation during an MDI run |
 | `mdi-rejected` | Controller rejection identifying the failed MDI line |
+| `mdi-start-blocked` | Idle controller with Cycle Start blocked by a required reset |
 | `connection-serial-defaults`, `connection-tcp-draft` | Serial defaults and retained TCP form |
 | `connection-port-discovery-*` | Loading, empty and failed serial discovery |
 | `connection-port-page-*`, `connection-port-single-page` | Six numbered device rows, paging/wrap and a partial final page; single-page bank |

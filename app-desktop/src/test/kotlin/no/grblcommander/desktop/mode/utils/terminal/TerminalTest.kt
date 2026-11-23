@@ -210,6 +210,7 @@ class TerminalTest {
             runOnIdle { f.terminal.prompt = TextFieldValue("\$I") }
             onNodeWithTag("terminal-prompt").performImeAction()
             runOnIdle { assertEquals("\$I", f.terminal.prompt.text); assertNotNull(f.terminal.localError) }
+            onNodeWithText("Controller reset is required before sending commands.").assertExists()
             assertTrue(f.owner.diagnosticSnapshot().none { it.event.category == CommunicationEvent.Category.COMMAND })
         }
     }

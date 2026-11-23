@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import no.grblcommander.core.connection.BufferState
 import no.grblcommander.core.connection.ControllerConnection
+import no.grblcommander.core.connection.ControllerConnectionState
 import no.grblcommander.core.connection.Operation
 import no.grblcommander.desktop.ui.components.dialogs.controllerResetDialog
 import no.grblcommander.desktop.ui.rememberCurrentTime
@@ -82,9 +83,15 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
     override val bottomKeys get() =
         if (connectionState.snapshot.status?.executionState?.startsWith("Hold:") == true) resumeKeys else startKeys
 
-    private fun canStartOperation(): Boolean = !controlPending && lines.isNotEmpty() &&
-        connectionState.snapshot.status?.executionState == "Idle" && connectionState.canExecuteLine(now) &&
-        connectionState.snapshot.alarmCode == null
+    private fun canStartOperation(): Boolean = !controlPending && startBlockReason(connectionState, now) == null
+
+    private fun startBlockReason(state: ControllerConnectionState, time: Instant): String? =
+        state.commandBlockReason(time) ?: when {
+            state.snapshot.alarmCode != null -> "Controller alarm blocks Cycle Start."
+            state.snapshot.status?.executionState != "Idle" -> "Cycle Start requires the controller to be Idle."
+            lines.isEmpty() -> "Press Enter to add a line before starting."
+            else -> null
+        }
 
     private fun canResume(): Boolean = !controlPending && connectionState.canCycleStart(now) &&
         connectionState.snapshot.status?.executionState == "Hold:0"
@@ -191,6 +198,11 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                         progress?.let {
                             Text(operationStatus(it, executingLine), Modifier.testTag("mdi-operation-status"),
                                 style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (!editingLocked && currentConnection.snapshot.status?.executionState?.startsWith("Hold:") != true) {
+                            startBlockReason(currentConnection, time)?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                         controlError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list) {

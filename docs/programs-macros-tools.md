@@ -24,6 +24,7 @@ count rows from one, independently of any G-code line numbers.
 ## MDI execution
 
 F1 starts the saved buffer when the shared connection admits a new operation.
+MDI shows the condition blocking Cycle Start when a new run is unavailable.
 The unfinished input remains in the editor. While the run is active, the input
 is read-only and the operator can still browse the saved rows. MDI starts one
 [core operation](machine-operations.md#line-based-operations) from the saved

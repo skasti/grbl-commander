@@ -149,8 +149,11 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
         val entered = prompt
         try {
             GrblProtocol.encodeCommand(entered.text)
-            check(connection.state.value.canExecuteLine()) { "Manual command unavailable: controller must be synchronized and idle" }
         } catch (error: Exception) { localError = error.message; return }
+        connection.state.value.commandBlockReason()?.let { reason ->
+            localError = reason
+            return
+        }
         submitting = true // Set before launch: IME and key callbacks cannot admit twice.
         localError = null
         scope?.launch {
@@ -303,8 +306,9 @@ class Terminal(private val settings: ControllerSettings) : Screen<Unit>(Unit) {
                         }
                         Text("Commands can move the machine. Enter submits one line; ok acknowledges reception, not completed motion.", style = MaterialTheme.typography.bodySmall)
                         if (submitting) Text("Awaiting command acknowledgment…")
-                        if (!state.canExecuteLine(clock)) Text("Manual commands unavailable while disconnected, busy, stale or unsynchronized.", style = MaterialTheme.typography.bodySmall)
-                        localError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        val commandBlock = state.commandBlockReason(clock)
+                        commandBlock?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                        localError?.takeUnless { it == commandBlock }?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                     }
                     GCodeKeyboard(
                         onAction = { action -> editWithKeypad(prompt, action, ::updatePrompt, ::submit) },
