@@ -188,6 +188,19 @@ class MdiModeTest {
             sentKey.performClick().assertIsSelected()
             onNode(sent, useUnmergedTree = true).assertTextEquals("↳")
 
+            fixture.report("<Run|Ln:50>")
+            val executingOnSentRow = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-5"))
+            waitUntil(timeoutMillis = 5_000) {
+                onAllNodes(executingOnSentRow, useUnmergedTree = true).fetchSemanticsNodes().size == 1
+            }
+            onNode(executingOnSentRow, useUnmergedTree = true).assertTextEquals("•")
+            onNode(sent, useUnmergedTree = true).assertDoesNotExist()
+            screenshot("mdi-running-markers-overlap")
+            executingKey.performClick().assertIsNotSelected()
+            onNode(sent, useUnmergedTree = true).assertTextEquals("↳")
+            executingKey.performClick().assertIsSelected()
+            onNode(sent, useUnmergedTree = true).assertDoesNotExist()
+
             onNodeWithTag("softkey-F2").performClick()
             assertEquals("!", fixture.nextCommand())
             fixture.report("<Hold:1|Ln:50>")

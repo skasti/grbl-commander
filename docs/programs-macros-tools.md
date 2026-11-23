@@ -42,8 +42,10 @@ explicit Cycle Start.
 R6 toggles the active row's subtle green background and green `•` marker.
 If the row is also selected for editing, the purple selection background and
 green marker appear together. R7 toggles the light blue `↳` for the last sent
-block. The green marker is closer to the code. The sent marker stays visible
-after completion while its toggle is on and the row matches the sent source.
+block. Both markers share the column next to the line numbers, and the executing
+marker takes precedence when both apply to the same row and both toggles are on.
+The sent marker stays visible after completion while its toggle is on and the row
+matches the sent source.
 All three toggles default to on and retain their state when switching modes.
 Status reports leave the edit selection and draft intact. The status
 line shows sampled execution progress when available, reports when the active

@@ -260,13 +260,15 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                                     }
                                     .testTag("mdi-line-${index + 1}").padding(8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    // Reserve the first column for future breakpoint markers.
+                                    Spacer(Modifier.width(16.dp))
                                     Box(Modifier.width(16.dp)) {
-                                        if (sent) Text("↳", Modifier.testTag("mdi-sent-line"),
-                                            color = sentMarker, fontFamily = FontFamily.Monospace)
-                                    }
-                                    Box(Modifier.width(16.dp)) {
-                                        if (executing) Text("•", Modifier.testTag("mdi-executing-line"),
-                                            color = executionMarker, fontFamily = FontFamily.Monospace)
+                                        when {
+                                            executing -> Text("•", Modifier.testTag("mdi-executing-line"),
+                                                color = executionMarker, fontFamily = FontFamily.Monospace)
+                                            sent -> Text("↳", Modifier.testTag("mdi-sent-line"),
+                                                color = sentMarker, fontFamily = FontFamily.Monospace)
+                                        }
                                     }
                                     Text((index + 1).toString())
                                     val line = lines[index]
