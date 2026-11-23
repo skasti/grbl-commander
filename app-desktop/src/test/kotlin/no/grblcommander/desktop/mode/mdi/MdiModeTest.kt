@@ -122,8 +122,11 @@ class MdiModeTest {
             fixture.report("<Run|Ln:70>")
             fixture.receive("ok")
             assertEquals("N90 G0 X2\n", fixture.nextCommand())
-            fixture.report("<Run|Ln:90>")
             val operation = checkNotNull(fixture.owner.state.value.operation)
+            waitUntil(timeoutMillis = 5_000) {
+                operation.state.value.lastSentLineNumber == 2 && operation.state.value.reply == BufferState.Reply.Pending
+            }
+            fixture.report("<Run|Ln:90>")
             waitUntil(timeoutMillis = 5_000) { operation.state.value.executingLineNumber == 2 }
             val executing = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-2"))
             onNode(executing, useUnmergedTree = true).assertTextEquals(">")
@@ -206,7 +209,7 @@ class MdiModeTest {
             fixture.receive("ok")
             waitUntilExactlyOneExists(hasText("Controller reset is required before sending commands."), timeoutMillis = 5_000)
             start.assertIsNotEnabled()
-            onNodeWithText("CONNECTED · TCP localhost:4321 · Idle").assertExists()
+            assertEquals("Idle", fixture.owner.state.value.snapshot.status?.executionState)
             screenshot("mdi-start-blocked")
             assertTrue(fixture.transport.drainWrites().all { it == "?" })
 
