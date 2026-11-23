@@ -1,10 +1,62 @@
 # Planned programs, macros and tools
 
 This guide defines requirements for program handling, execution,
-controller-side macros and tools. Program and MDI currently demonstrate local
-editing and input. The [navigation example](screen-stack.md#runnable-example)
-uses in-memory files. Real program access, analysis, toolpaths, execution,
-macro workflows and tool management remain planned.
+controller-side macros and tools. MDI supports local editing and execution.
+The [Program navigation example](screen-stack.md#runnable-example) uses
+in-memory files. Program file access, analysis, toolpaths, macro workflows
+and tool management remain planned.
+
+## Local MDI editor
+
+MDI shows a numbered, read-only command list above a single-line input.
+Enter on either keyboard appends the draft to the list. Each command must pass
+the session's [line validation](grbl-session.md#protocol-framing). A rejected
+draft stays in the input for correction. Saving a line is local. The list
+displays numeric G-code words with spaces, so `G1X100F500` appears as
+`G1 X100 F500`. R5 (💄 Format) toggles this display formatting.
+The editor and execution use the stored source text.
+
+F5 selects the previous line, starting at the last saved line. F6 selects
+the next line. Selecting a row by touch or mouse also copies it into the
+input. Enter saves the replacement and returns to new-line mode. The
+unfinished new line and its caret or selection are restored. F6 from the last
+row, a second click on the selected row, and a click in empty buffer space
+also return to new-line mode. Switching modes preserves the
+buffer, selection, unfinished draft and keypad pages. The display numbers
+count rows from one, independently of any G-code line numbers.
+
+The upper-right workspace contains a placeholder digital readout labeled
+`DRO`. Its height is 40% of the workspace height and its width follows a 4:3
+aspect ratio. CODE and NUM+ sit side by side beneath it, to the right of the
+editor, with one grid unit between them.
+
+## MDI execution
+
+F1 starts the saved buffer when the shared connection admits a new operation.
+MDI shows the condition blocking Cycle Start when a new run is unavailable.
+The unfinished input remains in the editor. While the run is active, the input
+is read-only and the operator can still browse the saved rows. MDI starts one
+[core operation](machine-operations.md#line-based-operations) from the saved
+lines and displays the result of that run across mode changes.
+
+F2 sends Feed Hold. During a controller hold, F1 shows Resume and becomes
+available when the controller reports Hold:0. F3 opens Soft Reset confirmation.
+A confirmed reset interrupts the operation. Starting another run requires an
+explicit Cycle Start.
+
+R6 toggles the active row's subtle green background and green `•` marker.
+If the row is also selected for editing, the purple selection background and
+green marker appear together. R7 toggles the light blue `↳` for the last sent
+block. Both markers share the column next to the line numbers, and the executing
+marker takes precedence when both apply to the same row and both toggles are on.
+The sent marker stays visible after completion while its toggle is on and the row
+matches the sent source.
+All three toggles default to on and retain their state when switching modes.
+Status reports leave the edit selection and draft intact. The status
+line shows sampled execution progress when available, reports when the active
+line is unknown, and distinguishes a sent or accepted block from completion.
+It identifies a rejected line or reports an interrupted run with unknown
+completion.
 
 ## Programs and G-code
 

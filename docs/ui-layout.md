@@ -50,9 +50,9 @@ controller execution unchanged.
 
 Util provides the live Terminal and controller connection settings. Program
 provides the welcome screen and an in-memory editor/file explorer, Manual
-provides a details screen with local notes, and MDI provides a local text
-buffer. See the guides for [planned machine operations](machine-operations.md)
-and [program handling](programs-macros-tools.md).
+provides a details screen with local notes, and MDI provides a temporary
+buffer for [editing and execution](programs-macros-tools.md#mdi-execution).
+See the [machine operations guide](machine-operations.md) for shared execution.
 
 ## System guides
 

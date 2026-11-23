@@ -19,10 +19,22 @@ data class ControllerConnectionState(
     /** A run owns normal dispatch, including while it waits for controller completion. */
     val operationPending: Boolean = false,
 ) {
-    fun canExecuteLine(now: Instant = Instant.now()): Boolean = !closing && !resetPending && !manualCommandPending && !postConnectPending && !operationPending &&
-        !reportIsStale(now) && snapshot.normalCommandsSynchronized &&
-        !snapshot.resetInProgress && !snapshot.resetRequired &&
-        snapshot.status?.executionState?.substringBefore(':') in setOf("Idle", "Alarm", "Check")
+    fun canExecuteLine(now: Instant = Instant.now()): Boolean = commandBlockReason(now) == null
+
+    fun commandBlockReason(now: Instant = Instant.now()): String? = when {
+        closing -> "Controller connection is closing."
+        snapshot.connection != MachineSnapshot.Connection.CONNECTED -> "Controller is disconnected."
+        resetPending || snapshot.resetInProgress -> "Controller reset is in progress."
+        snapshot.resetRequired -> "Controller reset is required before sending commands."
+        !snapshot.normalCommandsSynchronized -> "Waiting for command responses to synchronize."
+        postConnectPending -> "Waiting for post-connect actions to finish."
+        manualCommandPending -> "Waiting for the manual command acknowledgment."
+        operationPending -> "A machine operation still owns the command stream."
+        reportIsStale(now) -> "Waiting for a fresh controller status report."
+        snapshot.status?.executionState?.substringBefore(':') !in setOf("Idle", "Alarm", "Check") ->
+            "Controller is in ${snapshot.status?.executionState ?: "an unknown state"}."
+        else -> null
+    }
 
     /** Explicit start/resume follows controller state, independently of command acknowledgment. */
     fun canCycleStart(now: Instant = Instant.now()): Boolean = !closing && !resetPending && !postConnectPending &&

@@ -4,12 +4,11 @@ Shared renderers, keymaps and editing helpers live in desktop `ui.components.con
 
 ## Clusters and default G-code keymaps
 
-![MDI with the CODE letter keypad above NUM+, each with its own page control](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/mdi/1024x720.png)
+![MDI with CODE and NUM+ keypads, each with its own page control](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/mdi/1024x720.png)
 
 `ui.components.controls.GCodeKeyboard` stacks the letter `KeyCluster` above the
-numeric cluster in a right-hand workspace panel beside the Util Terminal console
-or the local buffer owned by `mode.mdi.MdiMode`. The console/input occupies
-the full available height.
+numeric cluster beside the Util Terminal console. The [MDI editor](programs-macros-tools.md#local-mdi-editor)
+places the same clusters side by side.
 Each cluster has independent retained
 `KeyClusterState`, a square grid and one page-count/Next control below it, wrapping
 to the first page. Single-page maps omit the page control. Paging preserves focus,
@@ -61,9 +60,9 @@ aligns to the bottom right of the panel when it fits. The panel scrolls on
 each axis where the grids and page controls exceed the available space at the
 shared size.
 
-At the minimum supported **1024×720 viewport**, Terminal and MDI have 541 dp
-of height for the panel. At 1× scale, their two 44 dp grids and page controls
-need 518 dp, leaving 11 dp for each vertical margin. Terminal and MDI allow up
+At the minimum supported **1024×720 viewport**, Terminal has 541 dp
+of height for the panel. At 1× scale, its two stacked 44 dp grids and page controls
+need 518 dp, leaving 11 dp for each vertical margin. Terminal allows up
 to 40% of workspace width, capped at 400 dp, for the keys and page controls,
 with the margin outside that budget.
 
@@ -106,8 +105,7 @@ supplementary Unicode code point. An explicit edit finalizes IME composition.
 Enter always invokes the supplied binding rather than inserting text implicitly.
 Physical keyboard, mouse selection, paste and touch remain Compose input behavior.
 [Terminal submission](terminal.md#console-and-prompt) is an example of a
-screen-owned Enter binding. MDI binds Enter to local newline
-insertion. It cannot execute the buffer. No keyboard control communicates with a
+screen-owned Enter binding. MDI binds Enter to saving a line in the [local MDI editor](programs-macros-tools.md#local-mdi-editor). No keyboard control communicates with a
 session/transport or triggers realtime/motion controls.
 
 ## Connection field keymaps

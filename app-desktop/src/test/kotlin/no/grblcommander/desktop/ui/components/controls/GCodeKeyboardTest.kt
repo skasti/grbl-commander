@@ -5,6 +5,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
@@ -15,22 +16,76 @@ import kotlin.test.*
 
 @OptIn(ExperimentalTestApi::class)
 class GCodeKeyboardTest {
-    @Test fun `rapid pointer sequence emits each digit once without waiting between gestures`() = runComposeUiTest {
-        val emitted = mutableListOf<String>()
-        setContent { MaterialTheme { GCodeKeyboard({ if (it is KeypadAction.Insert) emitted += it.text }, Modifier.fillMaxSize()) } }
-        val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
-            onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
+    private fun ComposeUiTest.hostKeyboard(emitted: MutableList<KeypadAction>) {
+        setContent { MaterialTheme { GCodeKeyboard(onAction = { emitted.add(it) }, modifier = Modifier.fillMaxSize()) } }
+    }
+
+    private fun ComposeUiTest.digitPositions() = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
+        onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
+    }
+
+    private fun ComposeUiTest.assertDigits(emitted: List<KeypadAction>) {
+        runOnIdle { assertEquals((1..9).map { KeypadAction.Insert(it.toString()) }, emitted) }
+    }
+
+    @Test fun `rapid mouse clicks emit each digit once with slight pointer drift`() = runComposeUiTest {
+        val emitted = mutableListOf<KeypadAction>()
+        hostKeyboard(emitted)
+        val positions = digitPositions()
+        onRoot().performMouseInput {
+            moveTo(positions.first())
+            positions.forEachIndexed { index, position ->
+                animateMoveTo(position, durationMillis = 250)
+                press(); advanceEventTime(25)
+                if (index !in listOf(0, 2, 5)) moveTo(position + Offset(1f, 0f))
+                advanceEventTime(25); release()
+            }
         }
+        assertDigits(emitted)
+    }
+
+    @Test fun `rapid keypad sequence survives rendering between pointer down and up`() = runComposeUiTest {
+        val emitted = mutableListOf<KeypadAction>()
+        hostKeyboard(emitted)
+        digitPositions().forEach { position ->
+            onRoot().performMouseInput { animateMoveTo(position, durationMillis = 250) }
+            mainClock.advanceTimeBy(250)
+            onRoot().performMouseInput { press() }
+            mainClock.advanceTimeBy(50)
+            waitForIdle()
+            onRoot().performMouseInput { advanceEventTime(50); release() }
+        }
+        assertDigits(emitted)
+    }
+
+    @Test fun `rapid touch keypad sequence tolerates small movement within each key`() = runComposeUiTest {
+        val emitted = mutableListOf<KeypadAction>()
+        hostKeyboard(emitted)
+        val positions = digitPositions()
+        onRoot().performTouchInput {
+            positions.forEach { position ->
+                advanceEventTime(250); down(position); advanceEventTime(25)
+                moveTo(position + Offset(1f, 0f))
+                advanceEventTime(25); up()
+            }
+        }
+        assertDigits(emitted)
+    }
+
+    @Test fun `rapid 50ms keypad presses with 250ms mouse travel preserve every digit`() = runComposeUiTest {
+        val emitted = mutableListOf<KeypadAction>()
+        hostKeyboard(emitted)
+        val positions = digitPositions()
         onRoot().performMouseInput {
             moveTo(positions.first())
             positions.forEach { position ->
                 animateMoveTo(position, durationMillis = 250)
-                press(); advanceEventTime(25)
-                moveTo(position + androidx.compose.ui.geometry.Offset(1f, 0f))
-                advanceEventTime(25); release()
+                press()
+                advanceEventTime(50)
+                release()
             }
         }
-        runOnIdle { assertEquals((1..9).map(Int::toString), emitted) }
+        assertDigits(emitted)
     }
 
     @Test fun `keys and independent page controls preserve focus selection and geometry`() = runSkikoComposeUiTest(size = androidx.compose.ui.geometry.Size(1024f, 768f)) {

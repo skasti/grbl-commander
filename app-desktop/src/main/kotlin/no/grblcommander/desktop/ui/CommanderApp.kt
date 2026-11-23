@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.Dispatchers
 import no.grblcommander.core.connection.ControllerConnection
 import no.grblcommander.core.connection.ControllerSettings
 import no.grblcommander.core.connection.description
@@ -41,14 +42,14 @@ private enum class OperatorMode(val label: String) {
 @Composable
 fun CommanderApp(connection: ControllerConnection, settings: ControllerSettings) {
     LaunchedEffect(settings) { settings.onUiReady() }
-    val connectionState by connection.state.collectAsState()
+    val connectionState by connection.state.collectAsState(context = Dispatchers.Main)
     val now = rememberCurrentTime()
     // Each application window owns one persistent ScreenStack for each UI mode.
     val stacks = remember(connection) {
         mapOf(
             OperatorMode.Program to ScreenStack(Welcome()),
             OperatorMode.Manual to ScreenStack(ManualMode()),
-            OperatorMode.Mdi to ScreenStack(MdiMode()),
+            OperatorMode.Mdi to ScreenStack(MdiMode(connection)),
             OperatorMode.Util to ScreenStack(Terminal(settings)),
         )
     }

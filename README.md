@@ -13,11 +13,12 @@ on-screen softkeys and a G-code keypad inspired by industrial CNC controls.
 - Send individual G-code commands from the Terminal using a physical or touch
   keyboard. The Terminal also offers Feed Hold, Cycle Start and Soft Reset.
 
-Program, Manual and MDI are currently interface demos with local sample data or
-input. Program file access and execution, jogging, and sending commands from
-MDI are planned.
+MDI edits and runs a temporary G-code buffer. It shows controller-reported
+execution separately from the line selected for editing. Program and Manual
+currently demonstrate local workflows. Program file access, program execution
+and jogging are planned.
 
-| MDI (demo) | Terminal | QWERTY keypad |
+| MDI | Terminal | QWERTY keypad |
 | --- | --- | --- |
 | <a href="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/mdi/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/mdi/1680x1050.png" alt="MDI screen with the G-code keypad" width="240"></a> | <a href="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/terminal-idle-first-letter/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/terminal-idle-first-letter/1680x1050.png" alt="Terminal with controller traffic and the G-code keypad" width="240"></a> | <a href="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/connection-host-input/1680x1050.png"><img src="https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/connection-host-input/1680x1050.png" alt="QWERTY keypad in the TCP hostname editor" width="240"></a> |
 

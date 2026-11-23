@@ -1,52 +1,28 @@
 package no.grblcommander.desktop.mode.utils.terminal
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.*
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.test.*
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.*
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
-import java.util.UUID
-import java.util.prefs.Preferences
+import kotlin.test.*
 import kotlinx.coroutines.*
-import no.grblcommander.desktop.mode.mdi.MdiMode
-import no.grblcommander.configuration.ControllerEndpointPreferences
-import no.grblcommander.core.connection.*
-import no.grblcommander.desktop.mode.utils.connection.ControllerConnectionSettings
 import no.grblcommander.desktop.ui.CommanderApp
-import no.grblcommander.desktop.ui.runAtScreenshotSizes
 import no.grblcommander.desktop.ui.layout.AppShell
 import no.grblcommander.desktop.ui.layout.ShellState
 import no.grblcommander.desktop.ui.navigation.*
-import no.grblcommander.machine.session.GrblMachineSession
+import no.grblcommander.desktop.ui.runAtScreenshotSizes
 import no.grblcommander.machine.session.CommunicationEvent
-import kotlin.test.*
 
 @OptIn(ExperimentalTestApi::class)
 class TerminalTest {
-    private class Fixture : AutoCloseable {
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val transport = ConnectionTestTransport()
-        val owner = ControllerConnection(scope, { _, child -> GrblMachineSession(transport, child) })
-        val node = Preferences.userRoot().node("no/grblcommander/tests/${UUID.randomUUID()}")
-        val settings = ControllerSettings(owner, ControllerEndpointPreferences(node))
-        val terminal = Terminal(settings)
-        val util = ScreenStack(terminal)
-        val other = ScreenStack(MdiMode())
-        var active by mutableStateOf(util)
-        fun connect() = runBlocking { owner.connect(ControllerEndpoint.Tcp("localhost", 4321, no.grblcommander.core.connection.noPostConnectActions())) }
-        override fun close() {
-            owner.close(); runBlocking { owner.awaitClosed() }; scope.cancel()
-            node.removeNode(); Preferences.userRoot().flush()
-        }
-    }
     private fun ComposeUiTest.host(f: Fixture) {
         setContent {
-            MaterialTheme { AppShell(ShellState.startup(), { f.active }) { ScreenStackHost(listOf(f.util, f.other), f.active) } }
+            MaterialTheme { AppShell(ShellState.startup(), { f.util }) { ScreenStackHost(f.util) } }
         }
     }
     private fun ComposeUiTest.hostApplication(f: Fixture) {
@@ -62,80 +38,6 @@ class TerminalTest {
         assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(text)))
 
     private fun ComposeUiTest.enter() = onNodeWithTag("terminal-prompt").performKeyInput { pressKey(Key.Enter) }
-
-    @Test fun `rapid keypad sequence survives rendering between pointer down and up`() = runComposeUiTest {
-        Fixture().use { f ->
-            host(f)
-            val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
-                onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
-            }
-            positions.forEach { position ->
-                onRoot().performMouseInput { animateMoveTo(position, durationMillis = 250) }
-                mainClock.advanceTimeBy(250)
-                onRoot().performMouseInput { press() }
-                mainClock.advanceTimeBy(50)
-                waitForIdle()
-                onRoot().performMouseInput { advanceEventTime(50); release() }
-            }
-            onNodeWithTag("terminal-prompt").assertPromptText("123456789")
-        }
-    }
-
-    @Test fun `rapid keypad clicks keep digits when the mouse drifts one pixel while held`() = runComposeUiTest {
-        Fixture().use { f ->
-            host(f)
-            val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
-                onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
-            }
-            onRoot().performMouseInput {
-                moveTo(positions.first())
-                positions.forEachIndexed { index, position ->
-                    animateMoveTo(position, durationMillis = 250)
-                    press(); advanceEventTime(25)
-                    // Tiny motion inside the same key is a click, not a drag or cancellation.
-                    if (index !in listOf(0, 2, 5)) moveTo(position + androidx.compose.ui.geometry.Offset(1f, 0f))
-                    advanceEventTime(25); release()
-                }
-            }
-            onNodeWithTag("terminal-prompt").assertPromptText("123456789")
-        }
-    }
-
-    @Test fun `rapid touch keypad sequence tolerates small movement within each key`() = runComposeUiTest {
-        Fixture().use { f ->
-            host(f)
-            val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
-                onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
-            }
-            onRoot().performTouchInput {
-                positions.forEach { position ->
-                    advanceEventTime(250); down(position); advanceEventTime(25)
-                    moveTo(position + androidx.compose.ui.geometry.Offset(1f, 0f))
-                    advanceEventTime(25); up()
-                }
-            }
-            onNodeWithTag("terminal-prompt").assertPromptText("123456789")
-        }
-    }
-
-    @Test fun `rapid 50ms keypad presses with 250ms mouse travel preserve every digit`() = runComposeUiTest {
-        Fixture().use { f ->
-            host(f)
-            val positions = listOf(8, 9, 10, 4, 5, 6, 0, 1, 2).map {
-                onNodeWithTag("keypad-NUM+-$it").fetchSemanticsNode().boundsInRoot.center
-            }
-            onRoot().performMouseInput {
-                moveTo(positions.first())
-                positions.forEach { position ->
-                    animateMoveTo(position, durationMillis = 250)
-                    press()
-                    advanceEventTime(50)
-                    release()
-                }
-            }
-            onNodeWithTag("terminal-prompt").assertPromptText("123456789")
-        }
-    }
 
     @Test fun `Enter submits once without echo duplication and incoming output preserves draft caret`() = runComposeUiTest {
         Fixture().use { f ->
@@ -162,7 +64,7 @@ class TerminalTest {
         }
     }
 
-    @Test fun `touch Enter shares physical and IME admission and pages survive navigation`() = runAtScreenshotSizes { screenshot ->
+    @Test fun `touch Enter shares physical and IME admission`() = runAtScreenshotSizes { screenshot ->
         Fixture().use { f ->
             f.connect(); hostApplication(f)
             onNodeWithText("CODE 1/2 ▸").assertExists()
@@ -188,26 +90,6 @@ class TerminalTest {
             enter()
             onNodeWithTag("terminal-prompt").performImeAction()
             onNodeWithTag("keypad-NUM+-15").assertIsDisplayed().performClick()
-            runOnIdle { assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND }) }
-            onNodeWithTag("softkey-R7").performClick()
-            onNodeWithTag("softkey-R7").performClick()
-            onNodeWithText("CODE 2/2 ▸").assertExists()
-            onNodeWithText("NUM+ 2/2 ▸").assertExists()
-            onNode(hasText("MDI") and hasClickAction()).performClick()
-            onNodeWithText("• MDI").assertIsSelected()
-            onNodeWithText("Unsent text").performClick().performTextInput("G0 X1")
-            onNodeWithTag("keypad-NUM+-15").assertIsDisplayed().performClick()
-            onNodeWithText("Unsent text").performTextInput("M2")
-            onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G0 X1\nM2")))
-            screenshot("mdi")
-            onNodeWithTag("keypad-CODE-next").performClick()
-            onNodeWithTag("keypad-NUM+-next").assertIsDisplayed().performClick()
-            onNodeWithText("CODE 2/2 ▸").assertExists()
-            onNodeWithText("NUM+ 2/2 ▸").assertExists()
-            screenshot("mdi-page-2")
-            onNodeWithContentDescription("Util").performClick().assertIsSelected()
-            onNodeWithText("CODE 2/2 ▸").assertExists()
-            onNodeWithText("NUM+ 2/2 ▸").assertExists()
             runOnIdle { assertEquals(1, f.owner.diagnosticSnapshot().count { it.event.category == CommunicationEvent.Category.COMMAND }) }
         }
     }
@@ -328,66 +210,8 @@ class TerminalTest {
             runOnIdle { f.terminal.prompt = TextFieldValue("\$I") }
             onNodeWithTag("terminal-prompt").performImeAction()
             runOnIdle { assertEquals("\$I", f.terminal.prompt.text); assertNotNull(f.terminal.localError) }
+            onNodeWithText("Controller reset is required before sending commands.").assertExists()
             assertTrue(f.owner.diagnosticSnapshot().none { it.event.category == CommunicationEvent.Category.COMMAND })
-        }
-    }
-
-    @Test fun `bottom Filters restores the selected page and R7 navigation preserves menu and input`() = runComposeUiTest {
-        Fixture().use { f ->
-            f.connect(); host(f)
-            onNodeWithTag("terminal-prompt").performClick().performTextInput("unsent")
-            onNodeWithTag("softkey-R6").assertIsSelected().performClick().assertIsNotSelected()
-            onNodeWithTag("softkey-F8").performClick() // Utilities page.
-            runOnIdle {
-                assertNotNull(f.util.softKeyDefinition(BottomSoftKeySlot.F7)!!.icon)
-                assertEquals("Filters", f.util.softKeyDefinition(BottomSoftKeySlot.F7)!!.label)
-                assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F5))
-                assertEquals(setOf(RightSoftKeySlot.R6, RightSoftKeySlot.R7), f.util.effectiveRightKeys.keys)
-                assertEquals("⏬\nFollow", f.util.softKeyDefinition(RightSoftKeySlot.R6)!!.label)
-                assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F4))
-            }
-            onNodeWithTag("softkey-F7").performClick()
-            onNodeWithTag("softkey-F1").assertIsNotSelected().performClick().assertIsSelected()
-            runOnIdle {
-                assertNull(f.util.softKeyDefinition(BottomSoftKeySlot.F8))
-                assertFalse(activateSoftKey({ f.util }, BottomSoftKeySlot.F8))
-            }
-            onNodeWithTag("softkey-F3").performClick() // OK filter, never Reset.
-            onNodeWithText("Reset controller?").assertDoesNotExist()
-            assertTrue(f.transport.drainWrites().all { it == "?" }) // No realtime action leaked.
-            runOnIdle { f.active = f.other }
-            onNodeWithTag("terminal-prompt").assertDoesNotExist()
-            onNodeWithText("Unsent text").performClick().performTextInput("G0 X999")
-            onNodeWithText("Unsent text").performKeyInput { pressKey(Key.Enter) }
-            assertTrue(f.owner.diagnosticSnapshot().none { it.event.category == CommunicationEvent.Category.COMMAND })
-            runBlocking { repeat(300) { f.transport.emit("[EXT:$it]\n") } }
-            waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[EXT:299]" } }
-            waitUntil(timeoutMillis = 5_000) { f.terminal.history.any { it.event.text == "[EXT:299]" } }
-            runOnIdle { f.active = f.util }
-            onNodeWithTag("terminal-prompt").assertPromptText("unsent")
-            onNodeWithTag("softkey-F1").assertIsSelected() // Filter bank survived the mode switch.
-            onNodeWithTag("softkey-R7").performClick()
-            runOnIdle {
-                assertIs<ControllerConnectionSettings>(f.util.top)
-                assertEquals(setOf(RightSoftKeySlot.R7), f.util.effectiveRightKeys.keys)
-                assertEquals("⌨\nTerminal", f.util.softKeyDefinition(RightSoftKeySlot.R7)!!.label)
-                assertNotNull(f.util.softKeyDefinition(BottomSoftKeySlot.F6))
-                assertEquals("Save", f.util.softKeyDefinition(BottomSoftKeySlot.F7)!!.label)
-            }
-            runBlocking { f.transport.emit("[COVERED:settings]\n") }
-            waitUntil(timeoutMillis = 5_000) { f.terminal.history.any { it.event.text == "[COVERED:settings]" } }
-            onNodeWithTag("softkey-R7").performClick()
-            onNodeWithTag("terminal-prompt").assertPromptText("unsent")
-            onNodeWithTag("softkey-F1").assertIsSelected() // Settings restores the filter menu too.
-            onNodeWithTag("softkey-F7").performClick() // Back to the same utilities page.
-            onNodeWithText("🔄\nSoft Reset").assertExists()
-            onNodeWithText("Filters").assertExists()
-            onNodeWithText("🔄\nShow all").assertDoesNotExist()
-            onNodeWithTag("softkey-F3").performClick()
-            runOnIdle { assertTrue(f.owner.diagnosticSnapshot().isNotEmpty()); assertEquals("unsent", f.terminal.prompt.text) }
-            onNodeWithTag("softkey-F8").performClick() // Wrap to realtime page.
-            onNodeWithTag("softkey-R6").assertIsNotSelected()
-            onNodeWithText("⌨\nTerminal").assertDoesNotExist()
         }
     }
 

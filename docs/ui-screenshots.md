@@ -7,6 +7,7 @@ Capture the welcome screen, Terminal, MDI and connection settings locally with
 
 ```bash
 gradle :app-desktop:test -PuiScreenshots \
+  --tests 'no.grblcommander.desktop.mode.mdi.MdiModeTest' \
   --tests 'no.grblcommander.desktop.mode.utils.terminal.TerminalTest' \
   --tests 'no.grblcommander.desktop.mode.utils.connection.*'
 ```
@@ -34,8 +35,15 @@ when changing visible UI.
 | `terminal-page-2` | Both second pages with a focused command draft |
 | `terminal-acknowledged` | Command acknowledged while simulated execution is Run |
 | `terminal-idle-first-letter` | Idle following Run and the first post-command keypress |
-| `mdi` | Local MDI buffer with the first pages |
-| `mdi-page-2` | Local MDI buffer with the second pages |
+| `mdi` | New-line draft and saved MDI line with the DRO placeholder and first keypad pages |
+| `mdi-page-2` | MDI line with an unsaved replacement and the second keypad pages |
+| `mdi-running` | Eight-line MDI program with active execution, last sent and edit selection on separate rows |
+| `mdi-running-markers-overlap` | Executing and last sent refer to the same row, with only the executing marker visible |
+| `mdi-running-display-off` | Running MDI program with all three display toggles off |
+| `mdi-held` | Controller Hold with Resume available and an unknown active line |
+| `mdi-reset-confirmation` | Soft Reset confirmation during an MDI run |
+| `mdi-rejected` | Controller rejection identifying the failed MDI line |
+| `mdi-start-blocked` | Idle controller with Cycle Start blocked by a required reset |
 | `connection-serial-defaults`, `connection-tcp-draft` | Serial defaults and retained TCP form |
 | `connection-port-discovery-*` | Loading, empty and failed serial discovery |
 | `connection-port-page-*`, `connection-port-single-page` | Six numbered device rows, paging/wrap and a partial final page; single-page bank |

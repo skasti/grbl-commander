@@ -5,7 +5,6 @@ import java.time.Duration
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import no.grblcommander.machine.session.GrblMachineSession
-import no.grblcommander.machine.session.RealtimeCommand
 import no.grblcommander.machine.transport.MachineTransport
 import kotlin.test.*
 
@@ -13,6 +12,8 @@ class OperationTest {
     private val endpoint = ControllerEndpoint.Tcp("localhost", 1234, noPostConnectActions())
 
     @Test fun acknowledgementAndPhysicalCompletionAreIndependent() = scenario { owner, transport ->
+        assertFailsWith<IllegalStateException> { owner.resumeFeedHold() }
+        assertTrue(transport.drainWrites().all { it == "?" })
         val source = mutableListOf("G0 X1", "G1 X2", "G1 X3")
         val run = owner.startOperation(source = Operation.Source("COMMAND"), sourceId = "draft-1", lines = source)
         assertEquals(Operation.Source("COMMAND"), run.source)
@@ -26,12 +27,14 @@ class OperationTest {
         val first = run.state.value.observedAt
         report(owner, transport, "<Run|Ln:1>")
         assertTrue(run.state.first { it.observedAt != first }.activeLineElapsed!! > Duration.ZERO)
+        report(owner, transport, "<Hold:1|Ln:1>")
+        assertFailsWith<IllegalStateException> { owner.resumeFeedHold() }
         report(owner, transport, "<Hold:0|Ln:1>")
         val held = run.state.first { it.phase == Operation.Phase.HELD }
         transport.emit("ok\n")
         run.state.first { it.reply == BufferState.Reply.Ok }
         assertTrue(transport.drainWrites().all { it == "?" })
-        owner.sendRealtime(RealtimeCommand.CYCLE_START)
+        owner.resumeFeedHold()
         assertEquals("~", transport.nextNonStatusWrite())
         report(owner, transport, "<Run|Ln:1>")
         assertEquals(held.activeLineElapsed, run.state.first { it.phase == Operation.Phase.RUNNING }.activeLineElapsed)
