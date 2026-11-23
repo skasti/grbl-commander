@@ -39,7 +39,7 @@ import no.grblcommander.machine.protocol.GrblProtocol
 import no.grblcommander.machine.session.MachineSnapshot.Connection
 import no.grblcommander.machine.session.RealtimeCommand
 
-private val executionBackground = Color(0xFF234834)
+private val executionBackground = Color(0xFF20372A)
 private val executionMarker = Color(0xFF93D6A3)
 private val sentMarker = Color(0xFF8BD7FF)
 
@@ -57,6 +57,9 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
     private var error by mutableStateOf<String?>(null)
     private val letters = KeyClusterState(Keymaps.code)
     private val numbers = KeyClusterState(Keymaps.numPlus)
+    private var autoFormat by mutableStateOf(true)
+    private var showExecutingLine by mutableStateOf(true)
+    private var showSentLine by mutableStateOf(true)
 
     private var operation by mutableStateOf<Operation?>(null)
     private var connectionState by mutableStateOf(connection.state.value)
@@ -71,6 +74,19 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
             action = { select((selected ?: lines.size) - 1) }),
         BottomSoftKeySlot.F6 to SoftKeyDefinition("↓\nNext", enabled = { selected != null },
             action = { selected?.let { select((it + 1).takeIf(lines.indices::contains)) } }),
+    )
+
+    override val rightKeys = mapOf(
+        RightSoftKeySlot.R5 to SoftKeyDefinition(
+            "💄\nFormat", action = { autoFormat = !autoFormat }, active = { autoFormat }, repeatable = false,
+        ),
+        RightSoftKeySlot.R6 to SoftKeyDefinition(
+            "・\nExecuting", action = { showExecutingLine = !showExecutingLine },
+            active = { showExecutingLine }, repeatable = false,
+        ),
+        RightSoftKeySlot.R7 to SoftKeyDefinition(
+            "↳\nSent", action = { showSentLine = !showSentLine }, active = { showSentLine }, repeatable = false,
+        ),
     )
 
     private val start = SoftKeyDefinition(
@@ -228,8 +244,8 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                         ) {
                             items(lines.size) { index ->
                                 val editing = selected == index
-                                val executing = executingLine == index + 1
-                                val sent = progress?.lastSentLineNumber == index + 1 &&
+                                val executing = showExecutingLine && executingLine == index + 1
+                                val sent = showSentLine && progress?.lastSentLineNumber == index + 1 &&
                                     run?.lines?.getOrNull(index) == lines[index]
                                 val background = when {
                                     editing -> MaterialTheme.colorScheme.secondaryContainer
@@ -244,16 +260,17 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                                     }
                                     .testTag("mdi-line-${index + 1}").padding(8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Box(Modifier.width(12.dp)) {
-                                        if (executing) Text(">", Modifier.testTag("mdi-executing-line"),
-                                            color = executionMarker, fontFamily = FontFamily.Monospace)
-                                    }
-                                    Box(Modifier.width(12.dp)) {
-                                        if (sent) Text("^", Modifier.testTag("mdi-sent-line"),
+                                    Box(Modifier.width(16.dp)) {
+                                        if (sent) Text("↳", Modifier.testTag("mdi-sent-line"),
                                             color = sentMarker, fontFamily = FontFamily.Monospace)
                                     }
+                                    Box(Modifier.width(16.dp)) {
+                                        if (executing) Text("・", Modifier.testTag("mdi-executing-line"),
+                                            color = executionMarker, fontFamily = FontFamily.Monospace)
+                                    }
                                     Text((index + 1).toString())
-                                    Text(formatBufferLine(lines[index]), fontFamily = FontFamily.Monospace)
+                                    val line = lines[index]
+                                    Text(if (autoFormat) formatBufferLine(line) else line, fontFamily = FontFamily.Monospace)
                                 }
                             }
                         }

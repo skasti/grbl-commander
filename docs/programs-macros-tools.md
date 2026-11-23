@@ -13,7 +13,8 @@ Enter on either keyboard appends the draft to the list. Each command must pass
 the session's [line validation](grbl-session.md#protocol-framing). A rejected
 draft stays in the input for correction. Saving a line is local. The list
 displays numeric G-code words with spaces, so `G1X100F500` appears as
-`G1 X100 F500`. The editor and execution still use the stored source text.
+`G1 X100 F500`. R5 (💄 Format) toggles this display formatting.
+The editor and execution use the stored source text.
 
 F5 selects the previous line, starting at the last saved line. F6 selects
 the next line. Selecting a row by touch or mouse also copies it into the
@@ -38,10 +39,12 @@ available when the controller reports Hold:0. F3 opens Soft Reset confirmation.
 A confirmed reset interrupts the operation. Starting another run requires an
 explicit Cycle Start.
 
-The active row has a green background and a green `>` marker. If it is also
-selected for editing, the purple selection background and green marker appear
-together. A light blue `^` marks the last sent block in a separate margin slot.
-It stays visible after completion while the row still matches the sent source.
+R6 toggles the active row's subtle green background and green `・` marker.
+If the row is also selected for editing, the purple selection background and
+green marker appear together. R7 toggles the light blue `↳` for the last sent
+block. The green marker is closer to the code. The sent marker stays visible
+after completion while its toggle is on and the row matches the sent source.
+All three toggles default to on and retain their state when switching modes.
 Status reports leave the edit selection and draft intact. The status
 line shows sampled execution progress when available, reports when the active
 line is unknown, and distinguishes a sent or accepted block from completion.

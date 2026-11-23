@@ -157,8 +157,8 @@ class MdiModeTest {
             val sent = hasTestTag("mdi-sent-line") and hasAnyAncestor(hasTestTag("mdi-line-5"))
             val executing = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-3"))
             waitUntil(timeoutMillis = 5_000) {
-                onAllNodes(sent and hasText("^"), useUnmergedTree = true).fetchSemanticsNodes().size == 1 &&
-                    onAllNodes(executing and hasText(">"), useUnmergedTree = true).fetchSemanticsNodes().size == 1
+                onAllNodes(sent and hasText("↳"), useUnmergedTree = true).fetchSemanticsNodes().size == 1 &&
+                    onAllNodes(executing and hasText("・"), useUnmergedTree = true).fetchSemanticsNodes().size == 1
             }
             onNodeWithTag("mdi-line-6").assertIsSelected()
             onNodeWithTag("mdi-input").assert(
@@ -168,6 +168,25 @@ class MdiModeTest {
             onNodeWithTag("keypad-NUM+-15").performClick()
             onNodeWithTag("mdi-line-6").assertTextContains("N60 G1 Y0")
             screenshot("mdi-running")
+
+            val formatKey = onNodeWithTag("softkey-R5")
+            val executingKey = onNodeWithTag("softkey-R6")
+            val sentKey = onNodeWithTag("softkey-R7")
+            formatKey.assertIsSelected().performClick().assertIsNotSelected()
+            onNodeWithTag("mdi-line-6").assertTextContains(program[5])
+            executingKey.assertIsSelected().performClick().assertIsNotSelected()
+            onNode(executing, useUnmergedTree = true).assertDoesNotExist()
+            onNode(sent, useUnmergedTree = true).assertTextEquals("↳")
+            sentKey.assertIsSelected().performClick().assertIsNotSelected()
+            onNode(sent, useUnmergedTree = true).assertDoesNotExist()
+            onNodeWithText("Executing line 3", substring = true).assertExists()
+            screenshot("mdi-running-display-off")
+            formatKey.performClick().assertIsSelected()
+            onNodeWithTag("mdi-line-6").assertTextContains("N60 G1 Y0")
+            executingKey.performClick().assertIsSelected()
+            onNode(executing, useUnmergedTree = true).assertTextEquals("・")
+            sentKey.performClick().assertIsSelected()
+            onNode(sent, useUnmergedTree = true).assertTextEquals("↳")
 
             onNodeWithTag("softkey-F2").performClick()
             assertEquals("!", fixture.nextCommand())
@@ -197,7 +216,7 @@ class MdiModeTest {
             fixture.report("<Idle>")
             waitUntilExactlyOneExists(hasText("Completed"), timeoutMillis = 5_000)
             val finalSent = hasTestTag("mdi-sent-line") and hasAnyAncestor(hasTestTag("mdi-line-8"))
-            onNode(finalSent, useUnmergedTree = true).assertTextEquals("^")
+            onNode(finalSent, useUnmergedTree = true).assertTextEquals("↳")
             assertTrue(fixture.transport.drainWrites().all { it == "?" })
         }
     }
