@@ -28,7 +28,8 @@ Unsupported commands, disconnected state and controller rejection are
 separate from a successful empty listing. Known media, directory and
 permission errors retain their numeric firmware codes. Listings use the
 [session's bounded response collector](grbl-session.md#alarms-and-command-correlation).
-An oversized response fails without returning a partial list.
+The collector accepts up to 256 information lines per request, including
+unsolicited messages. An oversized response fails without returning a partial list.
 
 `controllerStorageReadSupported` is false. The text dump has no payload
 framing, and the optional binary transfer temporarily owns the controller's
