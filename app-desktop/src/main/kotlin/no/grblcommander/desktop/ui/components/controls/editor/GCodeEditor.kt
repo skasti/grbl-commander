@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -49,11 +50,12 @@ fun GCodeEditor(
     val source = editor.source
     val selected = editor.selectedLine
     LaunchedEffect(editor, selected, source.size) {
-        focus.requestFocus()
         if (source.isNotEmpty()) list.scrollToItem(selected?.minus(1) ?: source.lastIndex)
     }
-    LaunchedEffect(editor, editor.keypadFocusRequest) {
-        if (editor.keypadFocusRequest != 0) focus.requestFocus()
+    LaunchedEffect(editor, selected, source.size, editor.keypadFocusRequest) {
+        // Let the text field lay out its updated draft before starting a focus session.
+        withFrameNanos { }
+        focus.requestFocus()
     }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
