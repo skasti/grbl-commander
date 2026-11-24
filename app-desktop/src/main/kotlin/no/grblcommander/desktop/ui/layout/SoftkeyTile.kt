@@ -56,11 +56,7 @@ internal fun SoftkeyTile(
             modifier = modifier
                 .testTag("softkey-${slot.shortcut}")
                 .semantics { selected = active }
-                .border(1.dp, if (active) ShellColors.accent else ShellColors.outline, RoundedCornerShape(6.dp))
-                .background(
-                    if (positive) Color(0xFF1B5E20) else if (active) ShellColors.header else ShellColors.key,
-                    androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
-                )
+                .softkeyFace(active, positive)
                 .clickable(enabled = enabled, role = Role.Button) {
                     activateSoftKey(currentStack, slot)
                 }
@@ -94,4 +90,16 @@ internal fun SoftkeyTile(
             }
         }
     }
+}
+
+/** The tile face is shared by shell softkeys and workspace indicators. */
+internal fun Modifier.softkeyFace(active: Boolean, positive: Boolean = false): Modifier {
+    val shape = RoundedCornerShape(6.dp)
+    val background = when {
+        positive -> Color(0xFF1B5E20)
+        active -> ShellColors.header
+        else -> ShellColors.key
+    }
+    return border(1.dp, if (active) ShellColors.accent else ShellColors.outline, shape)
+        .background(background, shape)
 }

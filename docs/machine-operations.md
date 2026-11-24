@@ -91,26 +91,26 @@ acknowledgment must follow the controller's actual protocol and state.
 ## Digital readout and work coordinates
 
 The read-only Compose `DigitalReadout` control in `ui.components.controls`
-takes a `DigitalReadoutState` from its caller. Axes appear in caller order,
-with the work coordinate emphasized and the machine coordinate alongside it.
-The state also carries the active WCS, units, current feed rate, spindle RPM,
-and feed, rapid and spindle override percentages. An axis can specify a
-different unit, such as degrees on a rotary axis.
+takes a `DigitalReadoutState` from its caller. It shows available work coordinate
+systems in caller order as square, one-grid-unit tiles. The active system uses
+the selected softkey style. The tiles carry selection semantics and are display
+only.
 
-Coordinates use aligned monospace digits and a decimal point, with three
-decimal places or four if any axis uses inches. Feed uses one decimal place
-and the supplied units per minute. Missing and non-finite readings appear as
-`—`. The caller supplies the availability state. Live and stale can both
-show supplied readings, with stale values muted and labeled. Disconnected
-and unavailable states show placeholders for readings while retaining supplied
-axis labels and unit metadata.
+Axes appear in caller order, two to a row when space permits. Each group
+contains an axis label, a prominent work coordinate, and its machine coordinate
+in smaller type and parentheses. The digits are aligned and use three decimal
+places, or four when the caller requests inch precision. Missing and non-finite
+values appear as `—`. Normal readings have no extra status label. Stale
+readings are muted and labeled. Disconnected and unavailable states show
+placeholders for coordinates and clear the WCS highlight.
 
-The caller sizes and places the control with its Compose modifier. The
-axis list scrolls when the available height is too small, with the column
-headings and telemetry still visible. Headless tests use deterministic data
-in an MDI-sized fixture. The [MDI workspace](programs-macros-tools.md#local-mdi-editor)
-uses a placeholder. Live DRO integration and persistent placement across modes
-are planned.
+The caller sizes and places the control with its Compose modifier. Narrow
+panels show one axis per row. The axis list scrolls when it exceeds the available
+height, with the WCS row and status still visible. The standalone MDI fixture
+uses the width of the CODE and NUM+ keypads and the space above them. The
+[production MDI workspace](programs-macros-tools.md#local-mdi-editor) uses a
+placeholder. Live DRO integration, placement across modes, and feed,
+spindle and override readouts are planned.
 
 ### Planned coordinate editing
 

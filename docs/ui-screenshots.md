@@ -45,7 +45,7 @@ when changing visible UI.
 | `mdi-reset-confirmation` | Soft Reset confirmation during an MDI run |
 | `mdi-rejected` | Controller rejection identifying the failed MDI line |
 | `mdi-start-blocked` | Idle controller with Cycle Start blocked by a required reset |
-| `dro-live`, `dro-stale`, `dro-disconnected`, `dro-unavailable` | Standalone DRO in the MDI footprint, including six axes, retained stale readings, missing values and unavailable states |
+| `dro-live`, `dro-stale`, `dro-disconnected`, `dro-unavailable` | Standalone DRO above the MDI keypads, including square WCS tiles, six axes, retained stale readings, missing values and unavailable states |
 | `connection-serial-defaults`, `connection-tcp-draft` | Serial defaults and retained TCP form |
 | `connection-port-discovery-*` | Loading, empty and failed serial discovery |
 | `connection-port-page-*`, `connection-port-single-page` | Six numbered device rows, paging/wrap and a partial final page; single-page bank |

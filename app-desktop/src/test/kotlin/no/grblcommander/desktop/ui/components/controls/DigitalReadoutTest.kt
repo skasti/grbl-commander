@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
@@ -29,25 +30,43 @@ import no.grblcommander.desktop.ui.runAtScreenshotSizes
 
 @OptIn(ExperimentalTestApi::class)
 class DigitalReadoutTest {
-    @Test fun `live readout fits six axes and telemetry in the MDI footprint`() = runAtScreenshotSizes { screenshot ->
+    @Test fun `live readout fits square WCS tiles and six axes above both keypads`() = runAtScreenshotSizes { screenshot ->
         setContent { ReadoutFixture(sampleReadout) }
-        val workspace = onNodeWithTag("readout-workspace").fetchSemanticsNode().boundsInRoot
         val panel = onNodeWithTag("readout-panel").fetchSemanticsNode().boundsInRoot
-        assertEquals(workspace.height * 0.40f, panel.height, absoluteTolerance = 1f)
-        assertEquals(panel.height * (4f / 3f), panel.width, absoluteTolerance = 1.5f)
+        val code = onNodeWithTag("keypad-CODE-0").fetchSemanticsNode().boundsInRoot
+        val number = onNodeWithTag("keypad-NUM+-3").fetchSemanticsNode().boundsInRoot
+        assertEquals(code.left, panel.left, absoluteTolerance = 1f)
+        assertEquals(number.right, panel.right, absoluteTolerance = 1f)
+        assertTrue(panel.bottom < code.top)
+
+        val tiles = sampleReadout.availableWorkCoordinateSystems.map { system ->
+            onNode(readoutText(system)).assertIsDisplayed().assertHasNoClickAction().apply {
+                if (system == "G54") assertIsSelected() else assertIsNotSelected()
+            }.fetchSemanticsNode().boundsInRoot
+        }
+        tiles.forEach {
+            assertEquals(code.width, it.width)
+            assertEquals(it.width, it.height)
+            assertEquals(tiles.first().top, it.top)
+        }
+        assertEquals(tiles.size, tiles.distinctBy { it.left }.size)
         listOf(
-            "DRO", "Live", "WCS G54", "Units mm", "Axis", "Work", "Machine",
-            "X", "Y", "Z", "A °", "B °", "C °",
-            "20.125", "120.125", "-15.000", "85.000", "5.125", "-42.000",
-            "270.000", "79.050", "0.000", "42.500", "-180.000", "-225.000",
-            "Feed 480.5 mm/min", "Spindle 12000 rpm", "Overrides",
-            "Feed 95%", "Rapid 50%", "Spindle 110%",
+            "X", "Y", "Z", "A", "B", "C",
+            "20.125", "(120.125)", "-15.000", "(85.000)", "5.125", "(-42.000)",
+            "270.000", "(79.050)", "0.000", "(42.500)", "-180.000", "(-225.000)",
         ).forEach { assertVisibleText(it) }
-        assertTrue(onNodeWithText("C °").fetchSemanticsNode().boundsInRoot.bottom <
-            onNodeWithText("Feed 480.5 mm/min").fetchSemanticsNode().boundsInRoot.top)
+        listOf("DRO", "Live", "Units mm", "Overrides").forEach { onNode(readoutText(it)).assertDoesNotExist() }
+        val axes = listOf("X", "Y", "Z", "A", "B", "C").map { axis ->
+            onNode(readoutText(axis)).fetchSemanticsNode().boundsInRoot
+        }
+        axes.chunked(2).forEach { (left, right) ->
+            assertEquals(left.top, right.top)
+            assertTrue(left.left < right.left)
+        }
+        assertTrue(axes[0].top < axes[2].top && axes[2].top < axes[4].top)
         assertEquals(
-            onNodeWithText("20.125").fetchSemanticsNode().boundsInRoot.right,
-            onNodeWithText("-15.000").fetchSemanticsNode().boundsInRoot.right,
+            onNode(readoutText("20.125")).fetchSemanticsNode().boundsInRoot.right,
+            onNode(readoutText("5.125")).fetchSemanticsNode().boundsInRoot.right,
         )
         screenshot("dro-live")
     }
@@ -55,54 +74,55 @@ class DigitalReadoutTest {
     @Test fun `stale readings are marked and gaps never become zero`() = runAtScreenshotSizes { screenshot ->
         val stale = sampleReadout.copy(
             availability = ReadoutAvailability.Stale,
-            units = ReadoutUnit.Inches,
-            workCoordinateSystem = "G59",
+            inchCoordinates = true,
+            activeWorkCoordinateSystem = "G59",
             axes = listOf(
                 ReadoutAxis("X", -0.00001, 1.23456),
                 ReadoutAxis("Y", null, -0.5),
                 ReadoutAxis("Z", 2.0, Double.NaN),
             ),
-            feedRate = 12.5,
-            spindleRpm = null,
-            rapidOverridePercent = null,
         )
         setContent { ReadoutFixture(stale) }
-        listOf("Stale", "WCS G59", "Units in", "0.0000", "1.2346", "-0.5000", "2.0000",
-            "Feed 12.5 in/min", "Spindle —", "Rapid —").forEach { assertVisibleText(it) }
-        onAllNodesWithText("—").assertCountEquals(2)
+        onNode(readoutText("G59")).assertIsSelected()
+        onNode(readoutText("G54")).assertIsNotSelected()
+        listOf("Stale", "0.0000", "(1.2346)", "(-0.5000)", "2.0000", "—", "(—)")
+            .forEach { assertVisibleText(it) }
         screenshot("dro-stale")
     }
 
     @Test fun `disconnected and unavailable states hide earlier readings`() = runAtScreenshotSizes { screenshot ->
         val state = mutableStateOf(sampleReadout.copy(availability = ReadoutAvailability.Disconnected))
         setContent { ReadoutFixture(state.value) }
-        listOf("Disconnected", "WCS —", "Units mm", "X", "C °", "Feed —", "Rapid —").forEach {
-            // Both the feed reading and its override use a placeholder.
-            onAllNodes(readoutText(it)).onFirst().assertIsDisplayed()
-        }
-        onAllNodesWithText("—").assertCountEquals(12)
-        onNodeWithText("20.125").assertDoesNotExist()
-        onNodeWithText("Spindle 12000 rpm").assertDoesNotExist()
+        listOf("Disconnected", "X", "C").forEach { assertVisibleText(it) }
+        onNode(readoutText("G54")).assertIsNotSelected()
+        onAllNodes(readoutText("—")).assertCountEquals(6)
+        onAllNodes(readoutText("(—)")).assertCountEquals(6)
+        onNode(readoutText("20.125")).assertDoesNotExist()
         screenshot("dro-disconnected")
 
         runOnIdle {
             state.value = DigitalReadoutState(emptyList(), ReadoutAvailability.Unavailable)
         }
-        listOf("Unavailable", "Units —", "No axes available").forEach { assertVisibleText(it) }
-        onNodeWithText("Disconnected").assertDoesNotExist()
-        onNode(readoutText("X")).assertDoesNotExist()
+        listOf("Unavailable", "No axes available").forEach { assertVisibleText(it) }
+        listOf("Disconnected", "G54", "X").forEach { onNode(readoutText(it)).assertDoesNotExist() }
         screenshot("dro-unavailable")
     }
 
-    @Test fun `axes scroll independently in a shorter host`() = runAtScreenshotSizes(capture = false) { _ ->
+    @Test fun `axes stack and scroll independently in a narrower host`() = runAtScreenshotSizes(capture = false) { _ ->
+        val state = sampleReadout.copy(availableWorkCoordinateSystems = listOf("G55", "G58"), activeWorkCoordinateSystem = "G58")
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
-                DigitalReadout(sampleReadout, Modifier.size(300.dp, 160.dp).testTag("readout-panel"))
+                DigitalReadout(state, Modifier.size(297.dp, 223.dp).testTag("readout-panel"))
             }
         }
-        onNodeWithText("C °").assertIsNotDisplayed().performScrollTo().assertIsDisplayed()
-        assertVisibleText("Work")
-        assertVisibleText("Feed 480.5 mm/min")
+        onNode(readoutText("G54")).assertDoesNotExist()
+        onNode(readoutText("G58")).assertIsSelected().assertIsDisplayed()
+        val x = onNode(readoutText("X")).fetchSemanticsNode().boundsInRoot
+        val y = onNode(readoutText("Y")).fetchSemanticsNode().boundsInRoot
+        assertEquals(x.left, y.left)
+        assertTrue(x.bottom < y.top)
+        onNode(readoutText("C")).assertIsNotDisplayed().performScrollTo().assertIsDisplayed()
+        onNode(readoutText("G58")).assertIsDisplayed()
     }
 
     private fun readoutText(value: String) = hasText(value) and hasAnyAncestor(hasTestTag("readout-panel"))
@@ -123,18 +143,13 @@ private val sampleReadout = DigitalReadoutState(
         ReadoutAxis("X", 20.125, 120.125),
         ReadoutAxis("Y", -15.0, 85.0),
         ReadoutAxis("Z", 5.125, -42.0),
-        ReadoutAxis("A", 270.0, 79.05, ReadoutUnit.Degrees),
-        ReadoutAxis("B", 0.0, 42.5, ReadoutUnit.Degrees),
-        ReadoutAxis("C", -180.0, -225.0, ReadoutUnit.Degrees),
+        ReadoutAxis("A", 270.0, 79.05),
+        ReadoutAxis("B", 0.0, 42.5),
+        ReadoutAxis("C", -180.0, -225.0),
     ),
     availability = ReadoutAvailability.Live,
-    workCoordinateSystem = "G54",
-    units = ReadoutUnit.Millimetres,
-    feedRate = 480.5,
-    spindleRpm = 12000,
-    feedOverridePercent = 95,
-    rapidOverridePercent = 50,
-    spindleOverridePercent = 110,
+    availableWorkCoordinateSystems = listOf("G54", "G55", "G56", "G57", "G58", "G59"),
+    activeWorkCoordinateSystem = "G54",
 )
 
 @Composable
@@ -151,28 +166,34 @@ private fun ReadoutFixture(state: DigitalReadoutState) {
     MaterialTheme(colorScheme = darkColorScheme()) {
         AppShell(ShellState("MDI", "", ""), { stack }) {
             Surface(Modifier.fillMaxSize()) {
-                BoxWithConstraints(Modifier.fillMaxSize().testTag("readout-workspace")) {
-                    val panelHeight = maxHeight * 0.40f
-                    Row(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        Column(Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
-                            Text("MDI buffer", style = MaterialTheme.typography.titleMedium)
-                            editor.Render(Modifier.weight(1f).fillMaxWidth())
-                        }
-                        Column(
-                            Modifier.fillMaxHeight(),
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            DigitalReadout(
-                                state,
-                                Modifier.size(panelHeight * (4f / 3f), panelHeight).testTag("readout-panel"),
-                            )
-                            val letters = remember { KeyClusterState(Keymaps.code) }
-                            val numbers = remember { KeyClusterState(Keymaps.numPlus) }
-                            Row(horizontalArrangement = Arrangement.spacedBy(LocalGridUnit.current)) {
-                                KeyCluster(letters, editor::onKeypadAction)
-                                KeyCluster(numbers, editor::onKeypadAction)
-                            }
+                val gridUnit = LocalGridUnit.current
+                val letters = remember { KeyClusterState(Keymaps.code) }
+                val numbers = remember { KeyClusterState(Keymaps.numPlus) }
+                val keypadWidth = with(LocalDensity.current) {
+                    val keyPixels = gridUnit.roundToPx()
+                    (letters.layout.widthInPixels(keyPixels) + numbers.layout.widthInPixels(keyPixels) + keyPixels).toDp()
+                }
+                Row(
+                    Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Column(Modifier.weight(1f).fillMaxHeight()) {
+                        Text("MDI buffer", style = MaterialTheme.typography.titleMedium)
+                        editor.Render(Modifier.weight(1f).fillMaxWidth())
+                    }
+                    Column(
+                        Modifier.width(keypadWidth).fillMaxHeight(),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        DigitalReadout(
+                            state,
+                            Modifier.weight(1f, fill = false).padding(bottom = 12.dp)
+                                .fillMaxWidth().testTag("readout-panel"),
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(gridUnit)) {
+                            KeyCluster(letters, editor::onKeypadAction)
+                            KeyCluster(numbers, editor::onKeypadAction)
                         }
                     }
                 }

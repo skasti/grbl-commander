@@ -2,6 +2,7 @@ package no.grblcommander.desktop.ui.components.controls
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,175 +10,196 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.math.BigDecimal
 import java.math.RoundingMode
+import no.grblcommander.desktop.ui.layout.LocalGridUnit
 import no.grblcommander.desktop.ui.layout.ShellColors
+import no.grblcommander.desktop.ui.layout.softkeyFace
 
 data class DigitalReadoutState(
     val axes: List<ReadoutAxis>,
     val availability: ReadoutAvailability,
-    val workCoordinateSystem: String? = null,
-    val units: ReadoutUnit? = null,
-    val feedRate: Double? = null,
-    val spindleRpm: Int? = null,
-    val feedOverridePercent: Int? = null,
-    val rapidOverridePercent: Int? = null,
-    val spindleOverridePercent: Int? = null,
+    val availableWorkCoordinateSystems: List<String> = emptyList(),
+    val activeWorkCoordinateSystem: String? = null,
+    val inchCoordinates: Boolean = false,
 )
 
-data class ReadoutAxis(
-    val label: String,
-    val work: Double?,
-    val machine: Double?,
-    val unit: ReadoutUnit? = null,
-)
+data class ReadoutAxis(val label: String, val work: Double?, val machine: Double?)
 
-enum class ReadoutAvailability(internal val label: String) {
-    Live("Live"),
-    Stale("Stale"),
-    Disconnected("Disconnected"),
-    Unavailable("Unavailable"),
-}
-
-enum class ReadoutUnit(internal val symbol: String) {
-    Millimetres("mm"),
-    Inches("in"),
-    Degrees("°"),
+enum class ReadoutAvailability {
+    Live, Stale, Disconnected, Unavailable,
 }
 
 private const val missingReading = "—"
 
-/** Presents observations supplied by the caller. The modifier controls panel placement and size. */
+/** Presents caller-supplied observations in a panel sized and placed by its host. */
 @Composable
 fun DigitalReadout(state: DigitalReadoutState, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(6.dp)
-    val availabilityColor = when (state.availability) {
-        ReadoutAvailability.Live -> ShellColors.accent
-        ReadoutAvailability.Stale -> MaterialTheme.colorScheme.tertiary
-        ReadoutAvailability.Disconnected -> MaterialTheme.colorScheme.error
-        ReadoutAvailability.Unavailable -> ShellColors.muted
-    }
     val showReadings = state.availability == ReadoutAvailability.Live ||
         state.availability == ReadoutAvailability.Stale
-    val hasInchCoordinates = state.units == ReadoutUnit.Inches || state.axes.any { it.unit == ReadoutUnit.Inches }
-    val coordinateDecimals = if (hasInchCoordinates) 4 else 3
     val workColor = if (state.availability == ReadoutAvailability.Live) ShellColors.text else ShellColors.muted
+    val decimals = if (state.inchCoordinates) 4 else 3
     BoxWithConstraints(
-        modifier.background(ShellColors.frame, shape).border(1.dp, ShellColors.outline, shape)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier.background(ShellColors.frame, shape)
+            .border(1.dp, ShellColors.outline, shape)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
-        val spacious = maxWidth >= 360.dp && (!constraints.hasBoundedHeight || maxHeight >= 245.dp)
-        val rowHeight = if (spacious) 28.dp else 19.dp
-        val workSize = if (spacious) 22.sp else 15.sp
-        val machineSize = if (spacious) 16.sp else 13.sp
-        Column(verticalArrangement = Arrangement.spacedBy(if (spacious) 3.dp else 1.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("DRO", color = ShellColors.text, style = MaterialTheme.typography.labelLarge)
-                Text(
-                    "WCS ${state.workCoordinateSystem.takeIf { showReadings } ?: missingReading}",
-                    modifier = Modifier.background(ShellColors.key, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                    color = if (state.availability == ReadoutAvailability.Live) ShellColors.accent else workColor,
-                    style = MaterialTheme.typography.labelLarge,
+        val panelWidth = if (constraints.hasBoundedWidth) maxWidth else 0.dp
+        val columns = if (panelWidth >= 450.dp) 2 else 1
+        val spacious = panelWidth >= 600.dp
+        val rowHeight = if (spacious) 54.dp else 43.dp
+        val workSize = when {
+            spacious -> 28.sp
+            state.inchCoordinates -> 18.sp
+            else -> 20.sp
+        }
+        val machineSize = if (spacious) 18.sp else 13.sp
+        Column(Modifier.fillMaxWidth()) {
+            if (state.availableWorkCoordinateSystems.isNotEmpty()) {
+                CoordinateSystems(
+                    state.availableWorkCoordinateSystems,
+                    state.activeWorkCoordinateSystem.takeIf { showReadings },
+                    panelWidth,
                 )
-                ReadoutLabel("Units ${state.units?.symbol ?: missingReading}")
-                Text(state.availability.label, color = availabilityColor, style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.height(8.dp))
             }
-            HorizontalDivider(color = ShellColors.outline)
-            ReadoutColumns {
-                ReadoutLabel("Axis", Modifier.weight(1f))
-                ReadoutLabel("Work", Modifier.weight(2f), TextAlign.End)
-                ReadoutLabel("Machine", Modifier.weight(2f), TextAlign.End)
-            }
-            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
-                if (state.axes.isEmpty()) ReadoutLabel("No axes available")
-                state.axes.forEach { axis ->
-                    val axisLabel = if (axis.unit != null && axis.unit != state.units) {
-                        "${axis.label} ${axis.unit.symbol}"
-                    } else {
-                        axis.label
-                    }
-                    ReadoutColumns(Modifier.heightIn(min = rowHeight)) {
-                        ReadoutLabel(axisLabel, Modifier.weight(1f))
-                        CoordinateText(
-                            formatReading(axis.work.takeIf { showReadings }, coordinateDecimals),
-                            workColor, workSize, Modifier.weight(2f),
-                        )
-                        CoordinateText(
-                            formatReading(axis.machine.takeIf { showReadings }, coordinateDecimals),
-                            ShellColors.muted, machineSize, Modifier.weight(2f),
-                        )
+            ReadoutStatus(state.availability)
+            if (state.axes.isEmpty()) {
+                Text(
+                    "No axes available",
+                    color = ShellColors.muted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else {
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                    state.axes.chunked(columns).forEach { row ->
+                        HorizontalDivider(color = ShellColors.outline)
+                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                            row.forEachIndexed { index, axis ->
+                                if (index > 0) {
+                                    VerticalDivider(Modifier.fillMaxHeight(), color = ShellColors.outline)
+                                }
+                                AxisCoordinates(
+                                    axis,
+                                    work = formatReading(axis.work.takeIf { showReadings }, decimals),
+                                    machine = "(${formatReading(axis.machine.takeIf { showReadings }, decimals)})",
+                                    workColor, workSize, machineSize,
+                                    Modifier.weight(1f).heightIn(min = rowHeight),
+                                )
+                            }
+                            if (row.size < columns) {
+                                VerticalDivider(Modifier.fillMaxHeight(), color = ShellColors.outline)
+                                Spacer(Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
-            }
-            HorizontalDivider(color = ShellColors.outline)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                val feed = formatReading(state.feedRate.takeIf { showReadings }, 1)
-                val feedUnit = state.units?.let { "${it.symbol}/min" }
-                val feedReading = if (feedUnit == null || feed == missingReading) feed else "$feed $feedUnit"
-                val spindle = state.spindleRpm.takeIf { showReadings }?.let { "$it rpm" } ?: missingReading
-                ReadoutLabel("Feed $feedReading")
-                ReadoutLabel("Spindle $spindle")
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                ReadoutLabel("Overrides")
-                ReadoutLabel("Feed ${formatOverride(state.feedOverridePercent.takeIf { showReadings })}")
-                ReadoutLabel("Rapid ${formatOverride(state.rapidOverridePercent.takeIf { showReadings })}")
-                ReadoutLabel("Spindle ${formatOverride(state.spindleOverridePercent.takeIf { showReadings })}")
             }
         }
     }
 }
 
 @Composable
-private fun CoordinateText(text: String, color: Color, size: TextUnit, modifier: Modifier) {
+private fun CoordinateSystems(systems: List<String>, activeSystem: String?, width: Dp) {
+    val size = LocalGridUnit.current
+    val gap = ((width - size * systems.size) / (systems.size - 1).coerceAtLeast(1))
+        .coerceIn(2.dp, size * .8f)
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()).widthIn(min = width),
+        horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
+    ) {
+        systems.forEach { system ->
+            val active = system == activeSystem
+            Box(
+                Modifier.size(size)
+                    .softkeyFace(active)
+                    .semantics(mergeDescendants = true) { selected = active },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    system,
+                    color = if (active) ShellColors.text else ShellColors.muted,
+                    fontSize = (size.value * .35f).sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadoutStatus(availability: ReadoutAvailability) {
+    val (label, color) = when (availability) {
+        ReadoutAvailability.Live -> return
+        ReadoutAvailability.Stale -> "Stale" to MaterialTheme.colorScheme.tertiary
+        ReadoutAvailability.Disconnected -> "Disconnected" to MaterialTheme.colorScheme.error
+        ReadoutAvailability.Unavailable -> "Unavailable" to ShellColors.muted
+    }
+    Text(
+        label,
+        Modifier.padding(bottom = 4.dp),
+        color = color,
+        style = MaterialTheme.typography.labelLarge,
+    )
+}
+
+@Composable
+private fun AxisCoordinates(
+    axis: ReadoutAxis,
+    work: String,
+    machine: String,
+    workColor: Color,
+    workSize: TextUnit,
+    machineSize: TextUnit,
+    modifier: Modifier,
+) {
+    Row(
+        modifier.padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.defaultMinSize(minWidth = 27.dp, minHeight = 27.dp)
+                .background(ShellColors.key, RoundedCornerShape(4.dp))
+                .padding(horizontal = 4.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(axis.label, color = ShellColors.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        }
+        CoordinateText(work, workColor, workSize, Modifier.weight(1.25f), FontWeight.Medium)
+        CoordinateText(machine, ShellColors.muted, machineSize, Modifier.weight(1f), FontWeight.Normal)
+    }
+}
+
+@Composable
+private fun CoordinateText(text: String, color: Color, size: TextUnit, modifier: Modifier, weight: FontWeight) {
     Text(
         text,
         modifier,
         color = color,
         fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Medium,
+        fontWeight = weight,
         fontSize = size,
-        lineHeight = size,
+        letterSpacing = 0.sp,
         textAlign = TextAlign.End,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-}
-
-@Composable
-private fun ReadoutColumns(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
-    Row(
-        modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        content = content,
-    )
-}
-
-@Composable
-private fun ReadoutLabel(text: String, modifier: Modifier = Modifier, textAlign: TextAlign = TextAlign.Start) {
-    Text(
-        text,
-        modifier,
-        color = ShellColors.muted,
-        style = MaterialTheme.typography.labelMedium,
-        textAlign = textAlign,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
@@ -187,5 +209,3 @@ private fun formatReading(value: Double?, decimals: Int): String =
     value?.takeIf { it.isFinite() }
         ?.let { BigDecimal.valueOf(it).setScale(decimals, RoundingMode.HALF_UP).toPlainString() }
         ?: missingReading
-
-private fun formatOverride(percent: Int?): String = percent?.let { "$it%" } ?: missingReading
