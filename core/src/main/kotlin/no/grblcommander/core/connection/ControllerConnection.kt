@@ -6,6 +6,7 @@ import java.util.Collections
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
@@ -80,7 +81,7 @@ class ControllerConnection(
         var run: OperationRun? = null
         var workflowTask: Job? = null
         var workflowEpoch = -1L
-        var lastManualReplySequence = -1L
+        var lastCommandReplySequence = -1L
         val observers = mutableListOf<Job>()
         var dropped = 0L
         var lastObservedSequence = 0L
@@ -341,7 +342,7 @@ class ControllerConnection(
             val snapshot = session.state.value
             if (!state.value.copy(snapshot = snapshot).canExecuteLine() ||
                 snapshot.status?.executionState != "Idle" || snapshot.alarmCode != null ||
-                snapshot.reportSequence <= entry.lastManualReplySequence) {
+                snapshot.reportSequence <= entry.lastCommandReplySequence) {
                 throw IOException("Starting an operation requires a fresh Idle controller and exclusive normal dispatch")
             }
             val operation = Operation(++nextOperationId, entry.id, source, sourceId, sourceLines)
@@ -464,7 +465,7 @@ class ControllerConnection(
             return entry.commands.executeLine(command, epoch)
         } finally {
             synchronized(gate) {
-                entry.lastManualReplySequence = entry.session.state.value.reportSequence
+                entry.lastCommandReplySequence = entry.session.state.value.reportSequence
                 release(entry, execution)
             }
         }
@@ -477,25 +478,26 @@ class ControllerConnection(
         work: suspend (suspend (String) -> CommandAcknowledgment) -> T,
     ): T {
         currentCoroutineContext().ensureActive()
-        val result = kotlinx.coroutines.CompletableDeferred<T>()
+        val result = CompletableDeferred<T>()
         val task = synchronized(gate) {
             val entry = activeSession()
             val epoch = entry.session.normalCommandEpoch
             val execution = context(entry.id)
             admit(entry, execution, admits)
-            val task = try { entry.session.prepareSessionTask {
-                try {
-                    result.complete(work { command ->
-                        currentCoroutineContext().ensureActive()
-                        synchronized(gate) {
-                            check(active === entry && state.value.dispatchOwner === execution && !state.value.resetPending)
-                        }
-                        entry.commands.executeLine(command, epoch)
-                    })
-                } catch (failure: Throwable) {
-                    result.completeExceptionally(failure)
+            val task = try {
+                entry.session.prepareSessionTask {
+                    try {
+                        result.complete(work { command ->
+                            currentCoroutineContext().ensureActive()
+                            synchronized(gate) {
+                                check(active === entry && state.value.dispatchOwner === execution && !state.value.resetPending)
+                            }
+                            entry.commands.executeLine(command, epoch)
+                        })
+                    } catch (failure: Throwable) {
+                        result.completeExceptionally(failure)
+                    }
                 }
-            }
             } catch (failure: Throwable) {
                 release(entry, execution)
                 throw failure
@@ -506,7 +508,7 @@ class ControllerConnection(
                 synchronized(gate) {
                     if (entry.workflowTask === task) {
                         entry.workflowTask = null
-                        entry.lastManualReplySequence = entry.session.state.value.reportSequence
+                        entry.lastCommandReplySequence = entry.session.state.value.reportSequence
                         release(entry, execution)
                     }
                 }
@@ -547,17 +549,17 @@ class ControllerConnection(
 
     suspend fun reset() {
         currentCoroutineContext().ensureActive()
-        val selected = synchronized(gate) {
+        val (selected, interruptedTask) = synchronized(gate) {
             val selected = activeSession()
             val connection = selected.session.state.value.connection
             if (connection != MachineSnapshot.Connection.CONNECTED) throw IOException("Session is $connection")
             if (state.value.resetPending) throw IOException("Reset already in progress")
             mutableState.value = state.value.copy(resetPending = true)
             interruptOperation(selected, "Controller reset requested")
-            selected
+            selected to selected.workflowTask
         }
         try {
-            selected.workflowTask?.cancelAndJoin()
+            interruptedTask?.cancelAndJoin()
             selected.commands.cancelBatch()
             selected.session.reset()
         } finally {

@@ -7,8 +7,8 @@ open class ExecutionContext internal constructor(
     internal val permitsHeldResume: Boolean = false,
     internal val permitsIdleStart: Boolean = false,
 ) {
-    internal class Manual(sessionId: Long) :
+    class Manual internal constructor(sessionId: Long) :
         ExecutionContext(sessionId, "manual command acknowledgment", true, true)
 
-    internal class PostConnect(sessionId: Long) : ExecutionContext(sessionId, "post-connect actions")
+    class PostConnect internal constructor(sessionId: Long) : ExecutionContext(sessionId, "post-connect actions")
 }
