@@ -78,7 +78,7 @@ class DigitalReadoutTest {
         setContent { ReadoutFixture(state.value) }
         listOf("Disconnected", "WCS —", "Units mm", "X", "C °", "Feed —", "Rapid —").forEach {
             // Both the feed reading and its override use a placeholder.
-            onAllNodesWithText(it).onFirst().assertIsDisplayed()
+            onAllNodes(readoutText(it)).onFirst().assertIsDisplayed()
         }
         onAllNodesWithText("—").assertCountEquals(12)
         onNodeWithText("20.125").assertDoesNotExist()
@@ -90,14 +90,14 @@ class DigitalReadoutTest {
         }
         listOf("Unavailable", "Units —", "No axes available").forEach { assertVisibleText(it) }
         onNodeWithText("Disconnected").assertDoesNotExist()
-        onNodeWithText("X").assertDoesNotExist()
+        onNode(readoutText("X")).assertDoesNotExist()
         screenshot("dro-unavailable")
     }
 
     @Test fun `axes scroll independently in a shorter host`() = runAtScreenshotSizes(capture = false) { _ ->
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
-                DigitalReadout(sampleReadout, Modifier.size(300.dp, 160.dp))
+                DigitalReadout(sampleReadout, Modifier.size(300.dp, 160.dp).testTag("readout-panel"))
             }
         }
         onNodeWithText("C °").assertIsNotDisplayed().performScrollTo().assertIsDisplayed()
@@ -105,12 +105,16 @@ class DigitalReadoutTest {
         assertVisibleText("Feed 480.5 mm/min")
     }
 
+    private fun readoutText(value: String) = hasText(value) and hasAnyAncestor(hasTestTag("readout-panel"))
+
     private fun ComposeUiTest.assertVisibleText(value: String) {
         val layouts = mutableListOf<TextLayoutResult>()
-        onNodeWithText(value).assertIsDisplayed().performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
-            it(layouts)
-        }
-        assertTrue(layouts.isNotEmpty() && layouts.none { it.hasVisualOverflow }, value)
+        val node = onNode(readoutText(value)).assertIsDisplayed()
+        node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val layout = layouts.single()
+        assertTrue(!layout.isLineEllipsized(0), "$value is ellipsized")
+        val bounds = node.fetchSemanticsNode().boundsInRoot
+        assertEquals(layout.size.height.toFloat(), bounds.height, absoluteTolerance = 1f, message = value)
     }
 }
 

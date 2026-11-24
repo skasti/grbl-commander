@@ -74,13 +74,14 @@ fun DigitalReadout(state: DigitalReadoutState, modifier: Modifier = Modifier) {
     val coordinateDecimals = if (hasInchCoordinates) 4 else 3
     val workColor = if (state.availability == ReadoutAvailability.Live) ShellColors.text else ShellColors.muted
     BoxWithConstraints(
-        modifier.background(ShellColors.frame, shape).border(1.dp, ShellColors.outline, shape).padding(8.dp),
+        modifier.background(ShellColors.frame, shape).border(1.dp, ShellColors.outline, shape)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
         val spacious = maxWidth >= 360.dp && (!constraints.hasBoundedHeight || maxHeight >= 245.dp)
-        val rowHeight = if (spacious) 28.dp else 20.dp
-        val workSize = if (spacious) 22.sp else 16.sp
+        val rowHeight = if (spacious) 28.dp else 19.dp
+        val workSize = if (spacious) 22.sp else 15.sp
         val machineSize = if (spacious) 16.sp else 13.sp
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(if (spacious) 3.dp else 1.dp)) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -90,7 +91,7 @@ fun DigitalReadout(state: DigitalReadoutState, modifier: Modifier = Modifier) {
                 Text(
                     "WCS ${state.workCoordinateSystem.takeIf { showReadings } ?: missingReading}",
                     modifier = Modifier.background(ShellColors.key, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                        .padding(horizontal = 6.dp, vertical = 1.dp),
                     color = if (state.availability == ReadoutAvailability.Live) ShellColors.accent else workColor,
                     style = MaterialTheme.typography.labelLarge,
                 )
