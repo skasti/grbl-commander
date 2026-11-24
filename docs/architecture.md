@@ -58,7 +58,7 @@ flowchart TD
 | An operator mode, screen, or feature-specific dialog | Keep the screen, local state, helpers and fixtures in its owning `mode.*` package. Util's connection and Terminal flows have separate owners. Use a shared mode package only if concrete flows are genuinely shared. Wire mode roots in `CommanderApp`. |
 | A reusable visual control | Use `ui.components.controls` or `ui.components.dialogs` for general input or dialog presentation. Accept UI state, data and callbacks. Keep session access, discovery and feature-specific decisions with the caller. Shared UI infrastructure stays independent of `mode.*`. |
 | A stack, softkey or layout contract | Keep routing, screen lifecycles, typed results and softkey binding in `ui.navigation`. Keep shell regions, tiles and workspace sizing in `ui.layout`. |
-| A state owner | Keep interaction and editing state in the screen. Move shared application state, workflows, validation and persistence policy into core. Obtain live machine facts from the session through the shared connection. |
+| A state owner | Keep feature interaction state in the screen and reusable input state in its control. Move shared application state, workflows, validation and persistence policy into core. Obtain live machine facts from the session through the shared connection. |
 | A protocol, storage or platform adapter | Put GRBL semantics, technical state, device I/O and storage adapters in infrastructure. Isolate native desktop concerns such as windowing and packaging at their integration boundary. Keep core portable and independent of Compose, native APIs and transport-specific libraries. |
 | A package or Gradle module | Extend the existing owner when responsibilities are cohesive. Create a package for a distinct, implemented responsibility. Add a Gradle module only for a concrete benefit such as dependency isolation, separate reuse or independent testing. |
 
@@ -107,7 +107,7 @@ when it forms part of the same contract and has no independent use.
 | --- | --- |
 | [Desktop UI layout](ui-layout.md) | Persistent shell, operator modes and supported interaction model |
 | [Screen navigation and softkeys](screen-stack.md) · [Dialogs](dialogs.md) | Retained stacks, input isolation, typed results, softkey placement, binding and paging, and dialog primitives |
-| [Workspace grid sizing](layout-grid-unit.md) · [Touch keypads](keypads.md) | Grid sizing, keymaps and editing |
+| [Workspace grid sizing](layout-grid-unit.md) · [Touch keypads](keypads.md) · [G-code editor](gcode-editor.md) | Grid sizing, keymaps and reusable editing |
 | [Controller connection and settings](controller-connection.md) | Core lifecycle, startup, persistence, polling, admission, traffic aggregation and the Util form |
 | [GRBL session](grbl-session.md) · [grblHAL alarms](grbl-alarms.md) | Transports, protocol, correlation, recovery, session events and firmware alarm details |
 | [Terminal and traffic diagnostics](terminal.md) | Operator console, traffic presentation and command recall |

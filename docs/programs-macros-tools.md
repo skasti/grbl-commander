@@ -8,22 +8,10 @@ and tool management remain planned.
 
 ## Local MDI editor
 
-MDI shows a numbered, read-only command list above a single-line input.
-Enter on either keyboard appends the draft to the list. Each command must pass
-the session's [line validation](grbl-session.md#protocol-framing). A rejected
-draft stays in the input for correction. Saving a line is local. The list
-displays numeric G-code words with spaces, so `G1X100F500` appears as
-`G1 X100 F500`. R5 (💄 Format) toggles this display formatting.
-The editor and execution use the stored source text.
-
-F5 selects the previous line, starting at the last saved line. F6 selects
-the next line. Selecting a row by touch or mouse also copies it into the
-input. Enter saves the replacement and returns to new-line mode. The
-unfinished new line and its caret or selection are restored. F6 from the last
-row, a second click on the selected row, and a click in empty buffer space
-also return to new-line mode. Switching modes preserves the
-buffer, selection, unfinished draft and keypad pages. The display numbers
-count rows from one, independently of any G-code line numbers.
+MDI uses the [G-code editor control](gcode-editor.md) with its default
+navigation and display softkeys. Its validator checks edits against the
+session's [line validation](grbl-session.md#protocol-framing). Saving a line is
+local. Switching modes preserves the buffer, editor state and keypad pages.
 
 The upper-right workspace contains a placeholder digital readout labeled
 `DRO`. Its height is 40% of the workspace height and its width follows a 4:3
@@ -44,19 +32,13 @@ available when the controller reports Hold:0. F3 opens Soft Reset confirmation.
 A confirmed reset interrupts the operation. Starting another run requires an
 explicit Cycle Start.
 
-R6 toggles the active row's subtle green background and green `•` marker.
-If the row is also selected for editing, the purple selection background and
-green marker appear together. R7 toggles the light blue `↳` for the last sent
-block. Both markers share the column next to the line numbers, and the executing
-marker takes precedence when both apply to the same row and both toggles are on.
-The sent marker stays visible after completion while its toggle is on and the row
-matches the sent source.
-All three toggles default to on and retain their state when switching modes.
-Status reports leave the edit selection and draft intact. The status
-line shows sampled execution progress when available, reports when the active
-line is unknown, and distinguishes a sent or accepted block from completion.
-It identifies a rejected line or reports an interrupted run with unknown
-completion.
+MDI supplies the editor's executing line from fresh controller observations.
+The last-sent marker stays available after completion while the row matches the
+sent source. Status reports leave the edit selection and draft intact. The
+status line shows sampled execution progress when available, reports when the
+active line is unknown, and distinguishes a sent or accepted block from
+completion. It identifies a rejected line or reports an interrupted run with
+unknown completion.
 
 ## Programs and G-code
 

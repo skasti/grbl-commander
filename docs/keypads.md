@@ -7,7 +7,7 @@ Shared renderers, keymaps and editing helpers live in desktop `ui.components.con
 ![MDI with CODE and NUM+ keypads, each with its own page control](https://raw.githubusercontent.com/skasti/grbl-commander/pr-assets/main/mdi/1024x720.png)
 
 `ui.components.controls.GCodeKeyboard` stacks the letter `KeyCluster` above the
-numeric cluster beside the Util Terminal console. The [MDI editor](programs-macros-tools.md#local-mdi-editor)
+numeric cluster beside the Util Terminal console. The [MDI workspace](programs-macros-tools.md#local-mdi-editor)
 places the same clusters side by side.
 Each cluster has independent retained
 `KeyClusterState`, a square grid and one page-count/Next control below it, wrapping
@@ -105,8 +105,9 @@ supplementary Unicode code point. An explicit edit finalizes IME composition.
 Enter always invokes the supplied binding rather than inserting text implicitly.
 Physical keyboard, mouse selection, paste and touch remain Compose input behavior.
 [Terminal submission](terminal.md#console-and-prompt) is an example of a
-screen-owned Enter binding. MDI binds Enter to saving a line in the [local MDI editor](programs-macros-tools.md#local-mdi-editor). No keyboard control communicates with a
-session/transport or triggers realtime/motion controls.
+screen-owned Enter binding. MDI routes keypad intentions to the shared
+[G-code editor input](gcode-editor.md#source-and-input). Keypad renderers emit
+intentions only.
 
 ## Connection field keymaps
 
