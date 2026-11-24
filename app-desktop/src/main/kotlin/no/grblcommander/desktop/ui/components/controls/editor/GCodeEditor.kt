@@ -2,11 +2,12 @@ package no.grblcommander.desktop.ui.components.controls.editor
 
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
+import kotlinx.collections.immutable.toPersistentList
 import no.grblcommander.desktop.ui.components.controls.KeypadAction
 import no.grblcommander.desktop.ui.components.controls.editWithKeypad
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
@@ -23,8 +24,11 @@ class GCodeEditor(
     initialSource: List<String> = emptyList(),
     private val validate: (String) -> String? = Companion::validateGrblLine,
 ) {
-    private val lines = mutableStateListOf<String>().apply { addAll(initialSource) }
-    val source: List<String> get() = lines.toList()
+    // Compare snapshot identities so edits deep in the list skip a full prefix comparison.
+    private var lines by mutableStateOf(initialSource.toPersistentList(), referentialEqualityPolicy())
+
+    /** Observable immutable snapshot. Reading it is constant time. */
+    val source: List<String> get() = lines
 
     var readOnly by mutableStateOf(false)
     var selectedLine by mutableStateOf<Int?>(null)
@@ -62,9 +66,7 @@ class GCodeEditor(
 
     /** Loads source from the first row and clears the row selection, draft and validation feedback. */
     fun replaceSource(source: List<String>) {
-        val replacement = source.toList()
-        lines.clear()
-        lines.addAll(replacement)
+        lines = source.toPersistentList()
         selectedLine = null
         newLineDraft = TextFieldValue()
         updateDraft(TextFieldValue())
@@ -113,11 +115,12 @@ class GCodeEditor(
 
         val line = selectedLine
         if (line == null) {
-            lines.add(text)
+            lines = lines.adding(text)
             updateDraft(TextFieldValue())
             listState.requestScrollToItem(lines.lastIndex)
         } else {
-            lines[line - 1] = text
+            val index = line - 1
+            if (lines[index] != text) lines = lines.replacingAt(index, text)
             selectLine(null)
         }
     }

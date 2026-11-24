@@ -318,6 +318,59 @@ class GCodeEditorTest {
         }
     }
 
+    @Test fun `large source stays immutable and renders edits and status lazily`() {
+        val rowCount = 100_000
+        val decorations = mutableStateOf(GCodeLineDecorations())
+        editorTest(decorations = { decorations.value }) { editor ->
+            val loaded = MutableList(rowCount) { "G0 X${it + 1}" }
+            val original = runOnIdle {
+                editor.replaceSource(loaded)
+                loaded[0] = "M2"
+                editor.source
+            }
+            assertFalse(original is MutableList<*>)
+            assertEquals(rowCount, original.size)
+            onNodeWithTag("gcode-line-1").assertIsDisplayed().assertTextContains("G0 X1")
+            onNodeWithTag("gcode-line-$rowCount").assertDoesNotExist()
+
+            runOnIdle { decorations.value = GCodeLineDecorations(sentLine = 1) }
+            onNodeWithTag("gcode-sent-line", useUnmergedTree = true).assertExists()
+            runOnIdle {
+                assertSame(original, editor.source)
+                editor.selectLine(rowCount)
+            }
+
+            val row = onNodeWithTag("gcode-line-$rowCount")
+            val input = onNodeWithTag("gcode-input")
+            row.assertIsDisplayed().assertIsSelected()
+            input.performKeyInput { pressKey(Key.Enter) }
+            runOnIdle {
+                assertSame(original, editor.source)
+                editor.selectLine(rowCount)
+            }
+
+            input.performTextReplacement("G1 X25")
+            runOnIdle { assertSame(original, editor.source) }
+            input.performKeyInput { pressKey(Key.Enter) }
+            row.assertTextContains("G1 X25")
+            val edited = runOnIdle { editor.source }
+            assertNotSame(original, edited)
+            assertEquals("G0 X$rowCount", original[rowCount - 1])
+            assertEquals("G1 X25", edited[rowCount - 1])
+
+            input.performTextInput("M2")
+            input.performKeyInput { pressKey(Key.Enter) }
+            onNodeWithTag("gcode-line-${rowCount + 1}").assertIsDisplayed().assertTextContains("M2")
+            runOnIdle {
+                assertEquals(rowCount, edited.size)
+                assertEquals(rowCount + 1, editor.source.size)
+                editor.replaceSource(edited)
+                assertSame(edited, editor.source)
+            }
+            onNodeWithTag("gcode-line-1").assertIsDisplayed()
+        }
+    }
+
     @Test fun `typed default banks remain stable when a consumer composes its own bindings`() {
         val editor = GCodeEditor()
         val previous = editor.softKeys.previousLine

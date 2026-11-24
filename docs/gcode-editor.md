@@ -10,9 +10,16 @@ within the owner's workspace. Row numbers start at one and are independent of G-
 
 Initialize the state with source lines or call `replaceSource(lines)` to load a
 different source. Both operations preserve each line verbatim, including blank
-lines and blocks that the caller's edit validator might reject. `source` returns
-an observable, immutable snapshot of saved lines. Replacing source clears the
-row selection, drafts and validation feedback and preserves the display toggles
+lines and blocks that the caller's edit validator might reject. Reading
+`source` returns the current immutable snapshot in constant time and registers
+a Compose state read. A retained snapshot keeps its original contents after an
+edit. The persistent list supports indexed reads and shares storage between
+versions on append and single-line replacement. Initializing or replacing
+source converts an ordinary list in one pass and reuses an existing persistent
+snapshot. The lazy view indexes and formats rows as they are composed.
+
+Replacing source clears the row selection, drafts and validation feedback and
+preserves the display toggles
 and read-only setting. The viewport starts at the first row when source is
 initialized or replaced.
 Each editor retains its scroll position, selection, draft and caret while its
