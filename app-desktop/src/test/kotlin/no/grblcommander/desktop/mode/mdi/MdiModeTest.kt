@@ -105,7 +105,7 @@ class MdiModeTest {
                     onAllNodes(executing and hasText("•"), useUnmergedTree = true).fetchSemanticsNodes().size == 1
             }
             onNodeWithTag("gcode-line-6").assertIsSelected()
-            onNodeWithTag("gcode-input").assert(
+            onNodeWithTag("gcode-input").assert(hasSetTextAction().not()).assert(
                 SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(program[5])),
             )
             onNodeWithTag("keypad-NUM+-8").performClick()
@@ -163,6 +163,10 @@ class MdiModeTest {
             waitUntilExactlyOneExists(hasText("Completed"), timeoutMillis = 5_000)
             val finalSent = hasTestTag("gcode-sent-line") and hasAnyAncestor(hasTestTag("gcode-line-8"))
             onNode(finalSent, useUnmergedTree = true).assertTextEquals("↳")
+            onNodeWithTag("gcode-line-8").performClick()
+            val input = onNodeWithTag("gcode-input").performTextReplacement("N80 M30")
+            input.performKeyInput { pressKey(Key.Enter) }
+            onNode(finalSent, useUnmergedTree = true).assertDoesNotExist()
             assertTrue(fixture.transport.drainWrites().all { it == "?" })
         }
     }

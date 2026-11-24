@@ -138,6 +138,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
         SideEffect {
             connectionState = currentConnection
             now = time
+            editor.readOnly = operation?.state?.value?.isActive() == true
         }
         val compositionScope = rememberCoroutineScope()
         DisposableEffect(compositionScope) {
@@ -148,7 +149,6 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
         val progress = run?.state?.collectAsState(context = Dispatchers.Main)?.value
         val editingLocked = progress?.isActive() == true
         val executingLine = progress?.executingLineNumber?.takeUnless { currentConnection.reportIsStale(time) }
-        SideEffect { editor.readOnly = run?.state?.value?.isActive() == true }
         val sentLine = progress?.lastSentLineNumber?.takeIf { line ->
             val index = line - 1
             val sentSource = run?.lines?.getOrNull(index)
