@@ -34,6 +34,11 @@ class MdiModeTest {
                 assertEquals(null, state.copy(activeExecution = null).executingLineFor(run, sample, at))
                 assertEquals(null, state.copy(activeExecution = other).executingLineFor(run, sample, at))
                 assertEquals(null, state.executingLineFor(run, sample, at.plusSeconds(4)))
+                ControllerFixture().use { postConnect ->
+                    runBlocking { postConnect.owner.connect(no.grblcommander.core.connection.ControllerEndpoint.Tcp("localhost", 4321)) }
+                    val actions = checkNotNull(postConnect.owner.state.value.activeExecution)
+                    assertEquals(null, state.copy(activeExecution = actions).executingLineFor(run, sample, at))
+                }
             }
         }
     }

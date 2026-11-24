@@ -83,6 +83,7 @@ class ManualCommandAdmissionTest {
                 assertFailsWith<IllegalArgumentException> { owner.executeLine("G0 X1\nG0 X2") }
                 val command = async { owner.executeLine("G4 P1") }
                 assertEquals("G4 P1\n", transport.nextNonStatusWrite())
+                assertIs<ExecutionContext.Manual>(owner.state.value.activeExecution)
                 assertTrue(owner.state.value.manualCommandPending)
                 assertFailsWith<IOException> { owner.executeLine("G0 X2") }
                 owner.sendRealtime(RealtimeCommand.FEED_HOLD)
