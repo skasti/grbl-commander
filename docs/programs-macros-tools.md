@@ -21,8 +21,8 @@ editor, with one grid unit between them.
 
 F1 starts the saved buffer when the shared connection admits a new operation.
 MDI shows the condition blocking Cycle Start when a new run is unavailable.
-The unfinished input remains in the editor. While the run is active, the input
-is read-only and the operator can still browse the saved rows. MDI starts one
+During an active run, MDI shows the saved rows in the editor's
+[read-only mode](gcode-editor.md#source-and-input). MDI starts one
 [core operation](machine-operations.md#line-based-operations) from the saved
 lines and displays the result of that run across mode changes.
 

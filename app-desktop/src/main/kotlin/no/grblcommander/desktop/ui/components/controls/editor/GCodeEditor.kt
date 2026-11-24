@@ -99,7 +99,8 @@ class GCodeEditor(
     fun toggleSentLine() { showSentLine = !showSentLine }
 
     fun onKeypadAction(action: KeypadAction) {
-        if (!readOnly) editWithKeypad(input, action, ::edit, ::commit)
+        if (readOnly) return
+        editWithKeypad(input, action, ::edit, ::commit)
         keypadFocusRequest++
     }
 

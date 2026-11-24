@@ -47,11 +47,7 @@ fun GCodeEditor.Render(
     val focus = remember { FocusRequester() }
     val lines = source
     val selected = selectedLine
-    LaunchedEffect(selected, lines.size, keypadFocusRequest) {
-        // Let the text field lay out its updated draft before starting a focus session.
-        withFrameNanos { }
-        focus.requestFocus()
-    }
+    val editable = !readOnly
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         LazyColumn(
@@ -73,7 +69,7 @@ fun GCodeEditor.Render(
                     Modifier.fillMaxWidth().background(background)
                         .selectable(selected = editing) {
                             selectLine(if (editing) null else lineNumber)
-                            focus.requestFocus()
+                            if (editable) focus.requestFocus()
                         }
                         .testTag("gcode-line-$lineNumber").padding(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -94,24 +90,30 @@ fun GCodeEditor.Render(
                 }
             }
         }
-        OutlinedTextField(
-            value = input,
-            onValueChange = ::edit,
-            singleLine = true,
-            readOnly = readOnly,
-            label = { Text(selected?.let { "Edit line $it" } ?: "New line") },
-            isError = error != null,
-            supportingText = error?.let { message -> { Text(message) } },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { commit() }),
-            modifier = Modifier.fillMaxWidth().testTag("gcode-input").focusRequester(focus)
-                .onPreviewKeyEvent { event ->
-                    if (event.key != Key.Enter && event.key != Key.NumPadEnter) false
-                    else {
-                        if (event.type == KeyEventType.KeyUp) commit()
-                        true
-                    }
-                },
-        )
+        if (editable) {
+            LaunchedEffect(selected, lines.size, keypadFocusRequest) {
+                // Let the text field lay out its updated draft before starting a focus session.
+                withFrameNanos { }
+                focus.requestFocus()
+            }
+            OutlinedTextField(
+                value = input,
+                onValueChange = ::edit,
+                singleLine = true,
+                label = { Text(selected?.let { "Edit line $it" } ?: "New line") },
+                isError = error != null,
+                supportingText = error?.let { message -> { Text(message) } },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { commit() }),
+                modifier = Modifier.fillMaxWidth().testTag("gcode-input").focusRequester(focus)
+                    .onPreviewKeyEvent { event ->
+                        if (event.key != Key.Enter && event.key != Key.NumPadEnter) false
+                        else {
+                            if (event.type == KeyEventType.KeyUp) commit()
+                            true
+                        }
+                    },
+            )
+        }
     }
 }

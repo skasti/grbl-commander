@@ -149,53 +149,75 @@ class GCodeEditorTest {
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
     }
 
-    @Test fun `read-only inspection blocks edits and supports explicit source replacement`() = editorTest(
-        clipboardText = "unfinished",
+    @Test fun `read-only mode expands the list and restores drafts and carets`() = editorTest(
+        initialSource = List(40) { "X${it + 1}" },
+        clipboardText = "G X1",
     ) { editor ->
-        val original = listOf("G1X10", "", "%", "#1=12  ", "!")
         val input = onNodeWithTag("gcode-input")
-        runOnIdle { editor.replaceSource(original) }
+        val buffer = onNodeWithTag("gcode-buffer")
+        val editableHeight = buffer.fetchSemanticsNode().boundsInRoot.height
         input.paste()
-        input.assert(SemanticsMatcher.expectValue(
-            SemanticsProperties.EditableText, AnnotatedString("unfinished"),
-        ))
-        onNodeWithTag("gcode-line-1").performClick()
-        input.performTextReplacement("unedited source")
-        runOnIdle { editor.readOnly = true }
+        input.performKeyInput { pressKey(Key.Home); pressKey(Key.DirectionRight) }
+        onNodeWithTag("gcode-line-1").performClick().assertIsSelected()
+        input.performTextReplacement("G1 X20")
+        input.performKeyInput { pressKey(Key.Home); pressKey(Key.DirectionRight) }
 
-        input.assertIsFocused().assert(hasSetTextAction().not())
-        input.performKeyInput {
-            pressKey(Key.G)
-            pressKey(Key.Enter)
-        }
-        input.paste()
+        runOnIdle { editor.readOnly = true }
+        input.assertDoesNotExist()
+        assertTrue(buffer.fetchSemanticsNode().boundsInRoot.height > editableHeight)
+        onNodeWithTag("gcode-line-1").assertIsSelected()
         onNodeWithTag("keypad-CODE-2").performClick()
         onNodeWithTag("keypad-NUM+-15").performClick()
-        input.assert(SemanticsMatcher.expectValue(
-            SemanticsProperties.EditableText, AnnotatedString("unedited source"),
-        ))
         runOnIdle {
             editor.onKeypadAction(KeypadAction.Backspace)
-            assertEquals("unedited source", editor.input.text)
-            assertEquals(original, editor.source)
+            assertEquals("X1", editor.source.first())
         }
-        onNodeWithTag("gcode-line-3").performClick().assertIsSelected()
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("%")))
 
-        val replacement = mutableListOf("  (header) ", "#2 = 3")
+        runOnIdle { editor.readOnly = false }
+        onNodeWithTag("gcode-line-1").assertIsSelected()
+        input.assertIsFocused()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G1 X20")))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(1)))
+        onNodeWithTag("gcode-line-1").performClick().assertIsNotSelected()
+        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G X1")))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(1)))
+        assertEquals(editableHeight, buffer.fetchSemanticsNode().boundsInRoot.height)
+    }
+
+    @Test fun `read-only inspection supports scrolling navigation and source replacement`() = editorTest(
+        initialSource = List(40) { "X${it + 1}" },
+    ) { editor ->
+        val input = onNodeWithTag("gcode-input")
+        runOnIdle { editor.readOnly = true }
+        input.assertDoesNotExist()
+        val otherInput = onNodeWithTag("other-input").performClick().assertIsFocused()
+
+        onNodeWithTag("gcode-buffer").performScrollToIndex(14)
+        onNodeWithTag("gcode-line-15").assertIsDisplayed().performClick().assertIsSelected()
+        runOnIdle { editor.softKeys.previousLine.action?.invoke() }
+        onNodeWithTag("gcode-line-14").assertIsDisplayed().assertIsSelected()
+        runOnIdle { editor.softKeys.nextLine.action?.invoke() }
+        onNodeWithTag("gcode-line-15").assertIsDisplayed().assertIsSelected()
+        otherInput.assertIsFocused()
+
+        val replacement = mutableListOf("  (header) ", "#2 = 3", "", "%", "!")
         runOnIdle {
             editor.replaceSource(replacement)
             replacement.clear()
-            assertEquals(listOf("  (header) ", "#2 = 3"), editor.source)
+            assertEquals(listOf("  (header) ", "#2 = 3", "", "%", "!"), editor.source)
             assertNull(editor.selectedLine)
         }
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
+        onNodeWithTag("gcode-line-1").assertIsDisplayed().assertIsNotSelected()
+        input.assertDoesNotExist()
+
         runOnIdle { editor.readOnly = false }
+        input.assertIsFocused()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
         input.performTextInput("M2")
         input.performKeyInput { pressKey(Key.NumPadEnter) }
         input.performTextInput("G90")
         onNodeWithTag("keypad-NUM+-15").performClick()
-        runOnIdle { assertEquals(listOf("  (header) ", "#2 = 3", "M2", "G90"), editor.source) }
+        runOnIdle { assertEquals(listOf("  (header) ", "#2 = 3", "", "%", "!", "M2", "G90"), editor.source) }
     }
 
     private fun SemanticsNodeInteraction.paste() = performKeyInput {

@@ -2,9 +2,9 @@
 
 The owner retains a `ui.components.controls.editor.GCodeEditor` instance for
 source, viewport position, editing actions and softkeys. The Compose extension
-`editor.Render(...)` displays its numbered source list and single-line input
-within the owner's workspace. Row numbers start at one and are independent of G-code
-`N` words.
+`editor.Render(...)` displays the numbered source list within the owner's
+workspace and adds a single-line input when editing. Row numbers start at one
+and are independent of G-code `N` words.
 
 ## Source and input
 
@@ -36,15 +36,18 @@ into the input with the caret at the end. Selecting it again, tapping
 empty list space, moving past the last row, or saving a replacement returns to
 the unfinished new-line draft and restores its caret or selection. Browsing
 another row discards an unsaved replacement. Selecting a row brings it into view
-and focuses the input. Returning to new-line mode and appending a line bring
-the end of the source into view.
+and focuses the input when editing. Returning to new-line mode and appending
+a line bring the end of the source into view.
 
 An owner wires independently placed [keypad clusters](keypads.md#editing-and-input)
-to `editor::onKeypadAction`. Keypad input returns focus to the text field.
-Physical Enter, numpad Enter and keypad Enter use the same commit action.
-`readOnly` blocks text entry, paste, keypad edits and commits while leaving
-row inspection, navigation, display toggles and caller-driven source or marker
-updates available.
+to `editor::onKeypadAction`. Keypad input returns focus to the text field
+when editing. Physical Enter, numpad Enter and keypad Enter use the same
+commit action.
+`readOnly` hides the input and gives its space to the source list. Keypad edits
+and commits are blocked. Selection, navigation, scrolling, formatting, line
+markers and caller-driven source updates remain available. Changing `readOnly`
+preserves the current draft, caret and selected row. Returning to editing
+shows and focuses the input with its retained draft and caret.
 
 ## Actions and default softkeys
 

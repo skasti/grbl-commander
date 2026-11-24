@@ -37,7 +37,7 @@ when changing visible UI.
 | `terminal-idle-first-letter` | Idle following Run and the first post-command keypress |
 | `mdi` | New-line draft and saved MDI line with the DRO placeholder and first keypad pages |
 | `mdi-page-2` | MDI line with an unsaved replacement and the second keypad pages |
-| `mdi-running` | Eight-line MDI program with active execution, last sent and edit selection on separate rows |
+| `mdi-running` | Expanded read-only MDI list with active execution, last sent and edit selection on separate rows |
 | `mdi-running-markers-overlap` | Executing and last sent refer to the same row, with only the executing marker visible |
 | `mdi-running-display-off` | Running MDI program with all three display toggles off |
 | `mdi-held` | Controller Hold with Resume available and an unknown active line |
