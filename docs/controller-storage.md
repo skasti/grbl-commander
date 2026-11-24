@@ -10,7 +10,7 @@ FatFs (typically SD mounted at `/`) and LittleFS (often `/littlefs`).
 | --- | --- |
 | `$FI` | Reports `[FS:<driver>@<mount path>]`, with optional ` size <bytes>, free <bytes>` before the closing bracket. A mounted root does not establish that a particular operation is available. |
 | `$PWD`, `$CWD=<path>` | Reports `[CWD:<path>]` or sets the shared working directory. The plugin returns error 63 when changing directory fails. |
-| `$F+` | With no argument, lists visible files of all types. `[FILE:<path>\|SIZE:<bytes>]` may end in `\|UNUSABLE]` for a filename the plugin rejects. Hierarchical mode (`$650` bit 0) lists immediate children and uses `SIZE:-1` for directories. Recursive mode lists paths with a depth limit and omits empty directories. The file report has no modification time. |
+| `$F+` | With no argument, lists visible files of all types. `[FILE:<path>\|SIZE:<bytes>]` may end in `\|UNUSABLE]` for a filename the plugin rejects. Hierarchical mode (`$650` bit 2) lists immediate children and uses `SIZE:-1` for directories. Recursive mode lists paths with a depth limit and omits empty directories. The file report has no modification time. |
 | `$FM`, `$FU` | SD mount and unmount commands perform explicit media operations. Filesystem discovery uses the existing mounts. |
 | `$F=<path>`, `$F+=<path>` | Arguments can start controller-side execution. The browsing sequence uses only the argument-free form of `$F+` and uses `$CWD` for navigation. |
 | `$F<=<filename>` | Dumps file data onto the normal output stream with normalized line endings and a trailing line terminator. There is no payload framing to distinguish a file line containing `ok`, `error:n` or a status-looking string from live protocol messages. |
