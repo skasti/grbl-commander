@@ -166,8 +166,10 @@ class GCodeEditorTest {
         input.assertDoesNotExist()
         assertTrue(buffer.fetchSemanticsNode().boundsInRoot.height > editableHeight)
         onNodeWithTag("gcode-line-1").assertIsSelected()
+        val otherInput = onNodeWithTag("other-input").performClick().assertIsFocused()
         onNodeWithTag("keypad-CODE-2").performClick()
         onNodeWithTag("keypad-NUM+-15").performClick()
+        otherInput.assertIsFocused()
         runOnIdle {
             editor.onKeypadAction(KeypadAction.Backspace)
             assertEquals("X1", editor.source.first())
@@ -178,7 +180,9 @@ class GCodeEditorTest {
         input.assertIsFocused()
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G1 X20")))
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(1)))
-        onNodeWithTag("gcode-line-1").performClick().assertIsNotSelected()
+        onNodeWithTag("gcode-line-1").performClick()
+        runOnIdle { assertNull(editor.selectedLine) }
+        onNodeWithTag("gcode-line-40").assertIsDisplayed()
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G X1")))
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(1)))
         assertEquals(editableHeight, buffer.fetchSemanticsNode().boundsInRoot.height)
@@ -190,7 +194,6 @@ class GCodeEditorTest {
         val input = onNodeWithTag("gcode-input")
         runOnIdle { editor.readOnly = true }
         input.assertDoesNotExist()
-        val otherInput = onNodeWithTag("other-input").performClick().assertIsFocused()
 
         onNodeWithTag("gcode-buffer").performScrollToIndex(14)
         onNodeWithTag("gcode-line-15").assertIsDisplayed().performClick().assertIsSelected()
@@ -198,7 +201,7 @@ class GCodeEditorTest {
         onNodeWithTag("gcode-line-14").assertIsDisplayed().assertIsSelected()
         runOnIdle { editor.softKeys.nextLine.action?.invoke() }
         onNodeWithTag("gcode-line-15").assertIsDisplayed().assertIsSelected()
-        otherInput.assertIsFocused()
+        input.assertDoesNotExist()
 
         val replacement = mutableListOf("  (header) ", "#2 = 3", "", "%", "!")
         runOnIdle {
