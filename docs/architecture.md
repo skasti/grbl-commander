@@ -111,5 +111,5 @@ when it forms part of the same contract and has no independent use.
 | [Controller connection and settings](controller-connection.md) | Core lifecycle, startup, persistence, polling, admission, traffic aggregation and the Util form |
 | [GRBL session](grbl-session.md) · [grblHAL alarms](grbl-alarms.md) | Transports, protocol, correlation, recovery, session events and firmware alarm details |
 | [Terminal and traffic diagnostics](terminal.md) | Operator console, traffic presentation and command recall |
-| [Machine operations](machine-operations.md) · [Planned programs, macros and tools](programs-macros-tools.md) | Operation lifecycle and progress, planned jogging/DRO, analysis, controller macros and tools |
+| [Machine operations](machine-operations.md) · [Planned programs, macros and tools](programs-macros-tools.md) | Operation lifecycle and progress, DRO presentation, planned jogging, analysis, controller macros and tools |
 | [Building and testing](testing.md) · [UI screenshots](ui-screenshots.md) · [Release process](releases.md) | Verification commands and coverage, visual review and native packaging |

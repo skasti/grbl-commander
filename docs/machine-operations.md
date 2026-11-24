@@ -90,13 +90,32 @@ acknowledgment must follow the controller's actual protocol and state.
 
 ## Digital readout and work coordinates
 
-The planned DRO should remain visible in most operating contexts.
+The read-only Compose `DigitalReadout` control in `ui.components.controls`
+takes a `DigitalReadoutState` from its caller. Axes appear in caller order,
+with the work coordinate emphasized and the machine coordinate alongside it.
+The state also carries the active WCS, units, current feed rate, spindle RPM,
+and feed, rapid and spindle override percentages. An axis can specify a
+different unit, such as degrees on a rotary axis.
 
-It should display the position of every available axis in both machine coordinates and
-the active work coordinate system.
+Coordinates use aligned monospace digits and a decimal point, with three
+decimal places or four if any axis uses inches. Feed uses one decimal place
+and the supplied units per minute. Missing and non-finite readings appear as
+`—`. The caller supplies the availability state. Live and stale can both
+show supplied readings, with stale values muted and labeled. Disconnected
+and unavailable states show placeholders for readings while retaining supplied
+axis labels and unit metadata.
 
-Where permitted, coordinates can be edited through context-sensitive actions,
-including:
+The caller sizes and places the control with its Compose modifier. The
+axis list scrolls when the available height is too small, with the column
+headings and telemetry still visible. Headless tests use deterministic data
+in an MDI-sized fixture. The [MDI workspace](programs-macros-tools.md#local-mdi-editor)
+uses a placeholder. Live DRO integration and persistent placement across modes
+are planned.
+
+### Planned coordinate editing
+
+Where permitted, operators will be able to edit coordinates through
+context-sensitive actions such as
 
 - Set to zero.
 - Set to a specified value.
@@ -120,10 +139,10 @@ Machine coordinates are read-only during normal operation.
 | Util | Further diagnostics |
 | Tool management | Dedicated mode or a workspace accessible from Program and Macros |
 
-Candidate shared components include a G-code editor, unit-aware controls, DRO
-and coordinate editor, macro parameter dialogs, tool table and inventory views,
-program block navigation and toolpath viewer. Add shared components when actual
-workflows establish their contracts.
+Candidate shared components include unit-aware controls, a coordinate editor,
+macro parameter dialogs, tool table and inventory views, program block navigation
+and a toolpath viewer. Add shared components when actual workflows establish
+their contracts.
 
 See [Programs, macros and tools](programs-macros-tools.md) for program execution,
 controller-hosted workflows and implementation priorities.

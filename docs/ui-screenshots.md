@@ -2,12 +2,13 @@
 
 ## Local capture
 
-Capture the welcome screen, Terminal, MDI and connection settings locally with
+Capture the welcome screen, Terminal, MDI, DRO and connection settings locally with
 [JDK 21 and Gradle 9.8.2](testing.md#prerequisites):
 
 ```bash
 gradle :app-desktop:test -PuiScreenshots \
   --tests 'no.grblcommander.desktop.mode.mdi.MdiModeTest' \
+  --tests 'no.grblcommander.desktop.ui.components.controls.DigitalReadoutTest' \
   --tests 'no.grblcommander.desktop.mode.utils.terminal.TerminalTest' \
   --tests 'no.grblcommander.desktop.mode.utils.connection.*'
 ```
@@ -44,6 +45,7 @@ when changing visible UI.
 | `mdi-reset-confirmation` | Soft Reset confirmation during an MDI run |
 | `mdi-rejected` | Controller rejection identifying the failed MDI line |
 | `mdi-start-blocked` | Idle controller with Cycle Start blocked by a required reset |
+| `dro-live`, `dro-stale`, `dro-disconnected`, `dro-unavailable` | Standalone DRO in the MDI footprint, including six axes, retained stale readings, missing values and unavailable states |
 | `connection-serial-defaults`, `connection-tcp-draft` | Serial defaults and retained TCP form |
 | `connection-port-discovery-*` | Loading, empty and failed serial discovery |
 | `connection-port-page-*`, `connection-port-single-page` | Six numbered device rows, paging/wrap and a partial final page; single-page bank |
