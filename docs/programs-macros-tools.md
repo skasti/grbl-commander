@@ -3,8 +3,9 @@
 This guide defines requirements for program handling, execution,
 controller-side macros and tools. MDI supports local editing and execution.
 The [Program navigation example](screen-stack.md#runnable-example) uses
-in-memory files. Program file access, analysis, toolpaths, macro workflows
-and tool management remain planned.
+in-memory files. The [controller storage backend](controller-storage.md)
+exposes mount and directory discovery to core consumers. Program file opening,
+analysis, toolpaths, macro workflows and tool management remain planned.
 
 ## Local MDI editor
 

@@ -18,6 +18,8 @@ data class ControllerConnectionState(
     val operation: Operation? = null,
     /** A run owns normal dispatch, including while it waits for controller completion. */
     val operationPending: Boolean = false,
+    /** Storage owns normal dispatch across working-directory changes and listing. */
+    val storagePending: Boolean = false,
 ) {
     fun canExecuteLine(now: Instant = Instant.now()): Boolean = commandBlockReason(now) == null
 
@@ -30,6 +32,7 @@ data class ControllerConnectionState(
         postConnectPending -> "Waiting for post-connect actions to finish."
         manualCommandPending -> "Waiting for the manual command acknowledgment."
         operationPending -> "A machine operation still owns the command stream."
+        storagePending -> "Waiting for controller storage access to finish."
         reportIsStale(now) -> "Waiting for a fresh controller status report."
         snapshot.status?.executionState?.substringBefore(':') !in setOf("Idle", "Alarm", "Check") ->
             "Controller is in ${snapshot.status?.executionState ?: "an unknown state"}."
@@ -37,7 +40,7 @@ data class ControllerConnectionState(
     }
 
     /** Explicit start/resume follows controller state, independently of command acknowledgment. */
-    fun canCycleStart(now: Instant = Instant.now()): Boolean = !closing && !resetPending && !postConnectPending &&
+    fun canCycleStart(now: Instant = Instant.now()): Boolean = !closing && !resetPending && !postConnectPending && !storagePending &&
         !reportIsStale(now) && (snapshot.status?.executionState == "Hold:0" ||
             (!operationPending && snapshot.status?.executionState == "Idle")) &&
         snapshot.alarmCode == null && !snapshot.resetInProgress && !snapshot.resetRequired &&
