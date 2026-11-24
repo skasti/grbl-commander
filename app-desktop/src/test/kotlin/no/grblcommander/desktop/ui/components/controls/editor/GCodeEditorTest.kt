@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.Clipboard
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.text.AnnotatedString
@@ -240,10 +241,12 @@ class GCodeEditorTest {
         }
     }
 
-    @Test fun `navigation scrolls and touch input restores focus`() = editorTest(
+    @Test fun `loading starts at the top and navigation and append scroll on demand`() = editorTest(
         initialSource = List(40) { "X$it" },
     ) { editor ->
-        onNodeWithTag("gcode-line-40").assertIsDisplayed()
+        onNodeWithTag("gcode-line-1").assertIsDisplayed()
+        runOnIdle { editor.selectLine(25) }
+        onNodeWithTag("gcode-line-25").assertIsDisplayed().assertIsSelected()
         runOnIdle { editor.selectLine(1) }
         onNodeWithTag("gcode-line-1").assertIsDisplayed().assertIsSelected()
         val input = onNodeWithTag("gcode-input").assertIsFocused()
@@ -254,6 +257,65 @@ class GCodeEditorTest {
         )
         runOnIdle { editor.selectLine(null) }
         onNodeWithTag("gcode-line-40").assertIsDisplayed()
+
+        runOnIdle { editor.replaceSource(List(40) { "Y$it" }) }
+        onNodeWithTag("gcode-line-1").assertIsDisplayed().assertTextContains("Y0")
+        input.performTextInput("M2")
+        input.performKeyInput { pressKey(Key.Enter) }
+        onNodeWithTag("gcode-line-41").assertIsDisplayed().assertTextContains("M2")
+    }
+
+    @Test fun `switching editor instances retains independent viewports selections drafts and carets`() = runComposeUiTest {
+        val first = GCodeEditor(List(60) { "X$it" })
+        val second = GCodeEditor(List(60) { "Y$it" })
+        val active = mutableStateOf<GCodeEditor?>(first)
+        setContent {
+            MaterialTheme {
+                active.value?.Render(Modifier.requiredSize(400.dp, 300.dp))
+            }
+        }
+        val input = onNodeWithTag("gcode-input")
+        val buffer = onNodeWithTag("gcode-buffer")
+
+        runOnIdle { first.selectLine(12) }
+        input.performTextReplacement("G1 X12")
+        input.performKeyInput { pressKey(Key.Home); pressKey(Key.DirectionRight) }
+        buffer.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 9f) }
+        runOnIdle {
+            assertEquals(11, first.listState.firstVisibleItemIndex)
+            assertEquals(9, first.listState.firstVisibleItemScrollOffset)
+            active.value = second
+        }
+
+        onNodeWithTag("gcode-line-1").assertIsDisplayed()
+        runOnIdle { second.selectLine(32) }
+        input.performTextReplacement("G0 Y32")
+        input.performKeyInput { pressKey(Key.End); pressKey(Key.DirectionLeft) }
+        buffer.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 15f) }
+        runOnIdle {
+            assertEquals(31, second.listState.firstVisibleItemIndex)
+            assertEquals(15, second.listState.firstVisibleItemScrollOffset)
+            active.value = first
+        }
+
+        onNodeWithTag("gcode-line-12").assertIsDisplayed().assertIsSelected()
+        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G1 X12")))
+        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(1)))
+        runOnIdle {
+            assertEquals(11, first.listState.firstVisibleItemIndex)
+            assertEquals(9, first.listState.firstVisibleItemScrollOffset)
+            active.value = null
+        }
+        buffer.assertDoesNotExist()
+        runOnIdle { active.value = second }
+
+        onNodeWithTag("gcode-line-32").assertIsDisplayed().assertIsSelected()
+        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G0 Y32")))
+        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(5)))
+        runOnIdle {
+            assertEquals(31, second.listState.firstVisibleItemIndex)
+            assertEquals(15, second.listState.firstVisibleItemScrollOffset)
+        }
     }
 
     @Test fun `typed default banks remain stable when a consumer composes its own bindings`() {

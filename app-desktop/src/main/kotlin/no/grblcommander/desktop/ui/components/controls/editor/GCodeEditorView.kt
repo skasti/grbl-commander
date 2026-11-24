@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -13,6 +12,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -43,15 +43,11 @@ private fun formatLine(line: String): String =
 fun GCodeEditor.Render(
     modifier: Modifier = Modifier,
     decorations: GCodeLineDecorations = GCodeLineDecorations(),
-) {
+) = key(this) {
     val focus = remember { FocusRequester() }
-    val list = rememberLazyListState()
     val lines = source
     val selected = selectedLine
-    LaunchedEffect(this, selected, lines.size) {
-        if (lines.isNotEmpty()) list.scrollToItem(selected?.minus(1) ?: lines.lastIndex)
-    }
-    LaunchedEffect(this, selected, lines.size, keypadFocusRequest) {
+    LaunchedEffect(selected, lines.size, keypadFocusRequest) {
         // Let the text field lay out its updated draft before starting a focus session.
         withFrameNanos { }
         focus.requestFocus()
@@ -61,7 +57,7 @@ fun GCodeEditor.Render(
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth().testTag("gcode-buffer")
                 .pointerInput(this@Render) { detectTapGestures { selectLine(null) } },
-            state = list,
+            state = listState,
         ) {
             items(lines.size) { index ->
                 val lineNumber = index + 1

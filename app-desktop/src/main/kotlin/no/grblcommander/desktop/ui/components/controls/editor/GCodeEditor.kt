@@ -1,5 +1,6 @@
 package no.grblcommander.desktop.ui.components.controls.editor
 
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +36,8 @@ class GCodeEditor(
     var showSentLine by mutableStateOf(true)
         private set
 
+    internal val listState = LazyListState()
+
     internal var input by mutableStateOf(TextFieldValue())
         private set
     internal var error by mutableStateOf<String?>(null)
@@ -57,7 +60,7 @@ class GCodeEditor(
         RightSoftKeySlot.R7 to softKeys.sent,
     )
 
-    /** Replaces all source and clears the row selection, draft and validation feedback. */
+    /** Loads source from the first row and clears the row selection, draft and validation feedback. */
     fun replaceSource(source: List<String>) {
         val replacement = source.toList()
         lines.clear()
@@ -65,6 +68,7 @@ class GCodeEditor(
         selectedLine = null
         newLineDraft = TextFieldValue()
         updateDraft(TextFieldValue())
+        listState.requestScrollToItem(0)
     }
 
     /** Selects a one-based source line, or restores the new-line draft when passed null. */
@@ -76,6 +80,7 @@ class GCodeEditor(
             val text = lines[lineNumber - 1]
             TextFieldValue(text, TextRange(text.length))
         })
+        listState.requestScrollToItem(lineNumber?.minus(1) ?: lines.lastIndex)
     }
 
     fun previousLine() {
@@ -110,6 +115,7 @@ class GCodeEditor(
         if (line == null) {
             lines.add(text)
             updateDraft(TextFieldValue())
+            listState.requestScrollToItem(lines.lastIndex)
         } else {
             lines[line - 1] = text
             selectLine(null)

@@ -1,7 +1,7 @@
 # G-code editor control
 
 The owner retains a `ui.components.controls.editor.GCodeEditor` instance for
-source, editing actions and softkeys. The Compose extension `editor.Render(...)`
+source, viewport position, editing actions and softkeys. The Compose extension `editor.Render(...)`
 displays its numbered source list and single-line input within the owner's
 workspace. Row numbers start at one and are independent of G-code
 `N` words.
@@ -13,7 +13,10 @@ different source. Both operations preserve each line verbatim, including blank
 lines and blocks that the caller's edit validator might reject. `source` returns
 an observable, immutable snapshot of saved lines. Replacing source clears the
 row selection, drafts and validation feedback and preserves the display toggles
-and read-only setting.
+and read-only setting. Initial and replacement source opens at the first row.
+Each editor retains its scroll position, selection, draft and caret while its
+view is absent. An owner can switch between editor instances at the same
+rendering site by retaining one instance per source.
 
 Enter appends the new-line draft or replaces the selected row. The default
 validator checks [GRBL line framing](grbl-session.md#protocol-framing). A caller
@@ -24,8 +27,9 @@ the draft stays available for correction. Selecting a row loads its source
 into the input with the caret at the end. Selecting it again, tapping
 empty list space, moving past the last row, or saving a replacement returns to
 the unfinished new-line draft and restores its caret or selection. Browsing
-another row discards an unsaved replacement. The editor focuses the input and
-scrolls to the selected row, or the end of the source when no row is selected.
+another row discards an unsaved replacement. Selecting a row brings it into view
+and focuses the input. Returning to new-line mode and appending a line bring
+the end of the source into view.
 
 An owner wires independently placed [keypad clusters](keypads.md#editing-and-input)
 to `editor::onKeypadAction`. Keypad input returns focus to the text field.
