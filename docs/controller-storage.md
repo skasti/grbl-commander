@@ -8,7 +8,7 @@ FatFs (typically SD mounted at `/`) and LittleFS (often `/littlefs`).
 
 | Command | Observed protocol |
 | --- | --- |
-| `$FI` | Reports `[FS:<driver>@<mount path>]`, with optional ` size <bytes>, free <bytes>` before the closing bracket. A mounted root does not establish that a particular operation is available. |
+| `$FI` | Reports `[FS:<driver>@<mount path>]`, with optional ` size <quantity>, free <quantity>` before the closing bracket. Capacity and free space can be rounded, for example `7.45 GB`. A mounted root does not establish that a particular operation is available. |
 | `$PWD`, `$CWD=<path>` | Reports `[CWD:<path>]` or sets the shared working directory. The plugin returns error 63 when changing directory fails. |
 | `$F+` | With no argument, lists visible files of all types. `[FILE:<path>\|SIZE:<bytes>]` may end in `\|UNUSABLE]` for a filename the plugin rejects. Hierarchical mode (`$650` bit 2) lists immediate children and uses `SIZE:-1` for directories. Recursive mode lists paths with a depth limit and omits empty directories. The file report has no modification time. |
 | `$FM`, `$FU` | SD mount and unmount commands perform explicit media operations. Filesystem discovery uses the existing mounts. |

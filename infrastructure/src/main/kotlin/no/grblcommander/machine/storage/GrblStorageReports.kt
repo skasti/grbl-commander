@@ -4,18 +4,16 @@ import java.io.IOException
 
 /** Records emitted by the optional grblHAL filesystem stream plugin. */
 object GrblStorageReports {
-    data class Mount(val driver: String, val path: String, val capacityBytes: Long?, val freeBytes: Long?)
+    data class Mount(val driver: String, val path: String, val capacity: String?, val freeSpace: String?)
     data class Entry(val path: String, val sizeBytes: Long?, val directory: Boolean, val usable: Boolean)
 
-    private val mount = Regex("""\[FS:([^@]+)@(/.*?)(?: size (\d+), free (\d+))?\]""")
+    private val mount = Regex("""\[FS:([^@]+)@(/.*?)(?: size (\d+(?:\.\d+)? [KMG]?B), free (\d+(?:\.\d+)? [KMG]?B))?\]""")
     private val entry = Regex("""\[FILE:(.+)\|SIZE:(-1|\d+)(\|UNUSABLE)?\]""")
 
     fun mounts(lines: List<String>): List<Mount> = records(lines, "[FS:").map { line ->
         val (driver, path, capacity, free) = mount.matchEntire(line)?.destructured ?: malformed(line)
-        val bytes = capacity.takeIf(String::isNotEmpty)?.let { size(it, line) }
-        val freeBytes = free.takeIf(String::isNotEmpty)?.let { size(it, line) }
-        if (bytes != null && freeBytes != null && freeBytes > bytes) malformed(line)
-        Mount(driver, path.trimEnd('/').ifEmpty { "/" }, bytes, freeBytes)
+        Mount(driver, path.trimEnd('/').ifEmpty { "/" },
+            capacity.takeIf(String::isNotEmpty), free.takeIf(String::isNotEmpty))
     }
 
     fun workingDirectory(lines: List<String>): String {

@@ -10,10 +10,10 @@ class GrblStorageReportsTest {
     fun `mounts report optional capacity and working directory`() {
         assertEquals(
             listOf(
-                GrblStorageReports.Mount("fatfs", "/", 8_000_000_000, 6_000_000_000),
+                GrblStorageReports.Mount("fatfs", "/", "7.45 GB", "5.59 GB"),
                 GrblStorageReports.Mount("littlefs", "/littlefs", null, null),
             ),
-            GrblStorageReports.mounts(listOf("[FS:fatfs@/ size 8000000000, free 6000000000]", "[FS:littlefs@/littlefs]")),
+            GrblStorageReports.mounts(listOf("[FS:fatfs@/ size 7.45 GB, free 5.59 GB]", "[FS:littlefs@/littlefs]")),
         )
         assertEquals("/littlefs", GrblStorageReports.workingDirectory(listOf("[CWD:/littlefs/]")))
     }
