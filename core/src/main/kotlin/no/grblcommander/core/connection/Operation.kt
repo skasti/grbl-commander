@@ -9,11 +9,11 @@ import kotlinx.coroutines.flow.asStateFlow
 /** A single request for machine work. The handle retains its outcome across reconnects. */
 class Operation internal constructor(
     val id: Long,
-    val sessionId: Long,
+    sessionId: Long,
     val source: Source,
     val sourceId: String,
     lines: List<String>,
-) {
+) : ExecutionContext(sessionId, "machine operation", permitsHeldResume = true) {
     val lines: List<String> = Collections.unmodifiableList(lines.toList())
 
     /** Identifies the workflow that supplied the operation. */

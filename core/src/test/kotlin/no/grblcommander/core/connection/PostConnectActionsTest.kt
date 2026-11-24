@@ -73,6 +73,8 @@ class PostConnectActionsTest {
         try {
             owner.connect(endpoint)
             assertEquals("\$I\n", first.transport.nextNonStatusWrite())
+            assertIs<ExecutionContext.PostConnect>(owner.state.value.activeExecution)
+            assertSame(owner.state.value.dispatchOwner, owner.state.value.activeExecution)
             postConnectJob = first.job.await()
             val disconnecting = async { owner.disconnect() }
             first.cleaningUp.await()
@@ -93,6 +95,7 @@ class PostConnectActionsTest {
             assertTrue(first.job.await().isCompleted)
             assertTrue(replacementCreated.isCompleted)
             assertEquals(Connection.CONNECTED, owner.state.value.snapshot.connection)
+            assertNull(owner.state.value.activeExecution)
             assertEquals(replacement, owner.state.value.endpoint)
             assertEquals(1, second.connectCount)
             assertTrue(first.transport.drainWrites().all { it == "?" })
@@ -305,7 +308,10 @@ class PostConnectActionsTest {
             assertTrue(owner.state.value.postConnectResults.first().contains("error:3"))
             assertTrue(owner.state.value.snapshot.normalCommandsSynchronized)
             assertFalse(owner.state.value.postConnectPending)
-            assertTrue(owner.diagnosticSnapshot().any { it.event.text.contains("error:3") })
+            // Traffic aggregation has its own collector and can follow task completion.
+            withTimeout(2_000) {
+                while (owner.diagnosticSnapshot().none { it.event.text.contains("error:3") }) yield()
+            }
         } finally { owner.close(); owner.awaitClosed() }
     }
     @Test fun timeoutPreservesConnectionAndStatus() = scenario {

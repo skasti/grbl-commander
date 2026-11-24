@@ -18,6 +18,31 @@ import no.grblcommander.desktop.ui.runAtScreenshotSizes
 
 @OptIn(ExperimentalTestApi::class)
 class MdiModeTest {
+    @Test fun `retained observations require the exact active handle even for identical MDI runs`() {
+        ControllerFixture().use { first ->
+            ControllerFixture().use { second ->
+                first.connect()
+                second.connect()
+                val lines = listOf("N1 G0 X0")
+                val run = first.owner.startOperation(Operation.Source.MDI, "draft", lines)
+                val other = second.owner.startOperation(Operation.Source.MDI, "draft", lines)
+                val state = first.owner.state.value
+                val at = checkNotNull(state.snapshot.reportedAt)
+                val sample = Operation.Progress(executingLineNumber = 1, observedAt = at,
+                    activeLineElapsed = java.time.Duration.ofSeconds(2))
+                assertEquals(1, state.executingLineFor(run, sample, at))
+                assertEquals(null, state.copy(activeExecution = null).executingLineFor(run, sample, at))
+                assertEquals(null, state.copy(activeExecution = other).executingLineFor(run, sample, at))
+                assertEquals(null, state.executingLineFor(run, sample, at.plusSeconds(4)))
+                ControllerFixture().use { postConnect ->
+                    runBlocking { postConnect.owner.connect(no.grblcommander.core.connection.ControllerEndpoint.Tcp("localhost", 4321)) }
+                    val actions = checkNotNull(postConnect.owner.state.value.activeExecution)
+                    assertEquals(null, state.copy(activeExecution = actions).executingLineFor(run, sample, at))
+                }
+            }
+        }
+    }
+
     @Test fun `MDI workspace places its editor, DRO and keypad pages`() = runAtScreenshotSizes { screenshot ->
         ControllerFixture().use { fixture ->
             fixture.connect()

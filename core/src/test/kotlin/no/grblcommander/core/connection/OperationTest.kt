@@ -17,6 +17,7 @@ class OperationTest {
         val source = mutableListOf("G0 X1", "G1 X2", "G1 X3")
         val run = owner.startOperation(source = Operation.Source("COMMAND"), sourceId = "draft-1", lines = source)
         assertEquals(Operation.Source("COMMAND"), run.source)
+        assertSame(run, owner.state.value.activeExecution)
         assertEquals("draft-1", run.sourceId)
         source[0] = "G0 X99"
         assertEquals("G0 X1", run.lines.first())
@@ -53,6 +54,8 @@ class OperationTest {
         report(owner, transport, "<Idle>")
         run.state.first { it.phase == Operation.Phase.COMPLETED }
         owner.state.first { !it.operationPending }
+        assertNull(owner.state.value.activeExecution)
+        assertSame(run, owner.state.value.operation)
         assertNull(run.state.value.executingLineNumber)
     }
 

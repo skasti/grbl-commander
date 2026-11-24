@@ -31,7 +31,8 @@ available when the controller reports Hold:0. F3 opens Soft Reset confirmation.
 A confirmed reset interrupts the operation. Starting another run requires an
 explicit Cycle Start.
 
-MDI supplies the editor's executing line from fresh controller observations.
+MDI displays the executing line and sampled elapsed time only for a fresh, mapped
+observation of the exact run started by this MDI screen.
 The last-sent marker stays available after completion while the row matches the
 sent source. Status reports leave the edit selection and draft intact. The
 status line shows sampled execution progress when available, reports when the

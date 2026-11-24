@@ -54,7 +54,7 @@ class ManualCommandAdmissionTest {
         val held = idle.copy(snapshot = idle.snapshot.copy(status = idle.snapshot.status!!.copy(executionState = "Hold:0")))
         assertFalse(held.canExecuteLine(now))
         assertTrue(held.canCycleStart(now))
-        assertTrue(held.copy(manualCommandPending = true).canCycleStart(now))
+        assertTrue(held.copy(dispatchOwner = ExecutionContext.Manual(1)).canCycleStart(now))
         for (snapshot in listOf(
             held.snapshot.copy(normalCommandsSynchronized = false), held.snapshot.copy(resetInProgress = true),
             held.snapshot.copy(resetRequired = true), held.snapshot.copy(alarmCode = 1),
@@ -64,7 +64,7 @@ class ManualCommandAdmissionTest {
             }.toTypedArray(),
             held.snapshot.copy(status = null),
         )) assertFalse(held.copy(snapshot = snapshot).canCycleStart(now))
-        assertFalse(idle.copy(manualCommandPending = true).canExecuteLine(now))
+        assertFalse(idle.copy(dispatchOwner = ExecutionContext.Manual(1)).canExecuteLine(now))
         assertFalse(idle.copy(closing = true).canExecuteLine(now))
         assertFalse(idle.copy(resetPending = true).canExecuteLine(now))
         assertFalse(held.copy(resetPending = true).canCycleStart(now))
@@ -83,6 +83,7 @@ class ManualCommandAdmissionTest {
                 assertFailsWith<IllegalArgumentException> { owner.executeLine("G0 X1\nG0 X2") }
                 val command = async { owner.executeLine("G4 P1") }
                 assertEquals("G4 P1\n", transport.nextNonStatusWrite())
+                assertIs<ExecutionContext.Manual>(owner.state.value.activeExecution)
                 assertTrue(owner.state.value.manualCommandPending)
                 assertFailsWith<IOException> { owner.executeLine("G0 X2") }
                 owner.sendRealtime(RealtimeCommand.FEED_HOLD)
