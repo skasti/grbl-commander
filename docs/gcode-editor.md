@@ -1,0 +1,74 @@
+# G-code editor control
+
+The owner retains a `ui.components.controls.editor.GCodeEditor` instance for
+source, viewport position, editing actions and softkeys. The Compose extension
+`editor.Render(...)` displays the numbered source list within the owner's
+workspace and adds a single-line input when editing. Row numbers start at one
+and are independent of G-code `N` words.
+
+## Source and input
+
+Initialize the state with source lines or call `replaceSource(lines)` to load a
+different source. Both operations preserve each line verbatim, including blank
+lines and blocks that the caller's edit validator might reject. Reading
+`source` returns the current immutable snapshot in constant time and registers
+a Compose state read. A retained snapshot keeps its original contents after an
+edit. The persistent list supports indexed reads and shares storage between
+versions on append and single-line replacement. Initializing or replacing
+source converts an ordinary list in one pass and reuses an existing persistent
+snapshot. The lazy view indexes and formats rows as they are composed.
+
+Replacing source clears the row selection, drafts and validation feedback and
+preserves the display toggles
+and read-only setting. The viewport starts at the first row when source is
+initialized or replaced.
+Each editor retains its scroll position, selection, draft and caret while its
+view is absent. An owner can switch between editor instances at the same
+rendering site by retaining one instance per source.
+
+Enter appends the new-line draft or replaces the selected row. The default
+validator checks [GRBL line framing](grbl-session.md#protocol-framing). A caller
+can supply a `validate` callback to replace that policy, or call
+`GCodeEditor.validateGrblLine(line)` from the callback and check additional
+rules when it returns null. A validation message appears under the input and
+the draft stays available for correction. Selecting a row loads its source
+into the input with the caret at the end. Selecting it again, tapping
+empty list space, moving past the last row, or saving a replacement returns to
+the unfinished new-line draft and restores its caret or selection. Browsing
+another row discards an unsaved replacement. Selecting a row brings it into view
+and focuses the input when editing. Returning to new-line mode and appending
+a line bring the end of the source into view.
+
+An owner wires independently placed [keypad clusters](keypads.md#editing-and-input)
+to `editor::onKeypadAction`. Keypad input returns focus to the text field
+when editing. Physical Enter, numpad Enter and keypad Enter use the same
+commit action.
+`readOnly` hides the input and gives its space to the source list. Keypad edits
+and commits are blocked. Selection, navigation, scrolling, formatting, line
+markers and caller-driven source updates remain available. Changing `readOnly`
+preserves the current draft, caret and selected row. Returning to editing
+shows and focuses the input with its retained draft and caret.
+
+## Actions and default softkeys
+
+The owner can call the editor actions directly, bind individual definitions
+from `editor.softKeys`, or compose the default `editor.bottomKeys` and
+`editor.rightKeys` maps into its final bindings. Definitions stay stable and
+read current editor state through the existing
+[softkey predicates](screen-stack.md#screen-owned-softkey-contract). The screen
+owns composition, collision precedence and navigation lifecycle.
+
+| Slot | Action | Behavior |
+| --- | --- | --- |
+| F5 | Previous | Selects the preceding row, starting at the last saved row when there is no selection. Enabled when a previous row exists. |
+| F6 | Next | Selects the following row or returns to new-line mode after the last row. Enabled while a row is selected. |
+| R5 | Format | Adds display spacing between numeric words, for example `G1X10` appears as `G1 X10`. The source and input retain their text. |
+| R6 | Executing | Shows the executing row's green marker and background. A selected row retains its selection background. |
+| R7 | Sent | Shows the last-sent row's blue marker. |
+
+Navigation softkeys repeat. The three display toggles default to on and act
+once per press. The caller supplies resolved one-based positions through
+`GCodeLineDecorations`. The executing and sent markers share a gutter column.
+When both are visible on the same row, the executing marker takes precedence.
+The first gutter column is reserved for breakpoint markers. The caller owns
+execution progress, source matching and stale-status interpretation.

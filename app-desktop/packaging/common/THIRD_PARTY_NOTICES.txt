@@ -15,6 +15,8 @@ Principal runtime components
 
 * Kotlin standard library — Apache License 2.0
   https://github.com/JetBrains/kotlin
+* Kotlin Immutable Collections — Apache License 2.0
+  https://github.com/Kotlin/kotlinx.collections.immutable
 * Kotlin Coroutines — Apache License 2.0
   https://github.com/Kotlin/kotlinx.coroutines
 * Compose Multiplatform (Desktop, Material 3, resources) and AndroidX

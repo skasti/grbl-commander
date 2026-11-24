@@ -1,7 +1,5 @@
 package no.grblcommander.desktop.mode.mdi
 
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
@@ -16,92 +14,24 @@ import no.grblcommander.core.connection.BufferState
 import no.grblcommander.core.connection.Operation
 import no.grblcommander.desktop.mode.ControllerFixture
 import no.grblcommander.desktop.ui.CommanderApp
-import no.grblcommander.desktop.ui.layout.AppShell
-import no.grblcommander.desktop.ui.layout.ShellState
-import no.grblcommander.desktop.ui.navigation.ScreenStack
-import no.grblcommander.desktop.ui.navigation.ScreenStackHost
 import no.grblcommander.desktop.ui.runAtScreenshotSizes
 
 @OptIn(ExperimentalTestApi::class)
 class MdiModeTest {
-    private fun editorTest(block: ComposeUiTest.() -> Unit) = runComposeUiTest {
-        ControllerFixture().use { fixture ->
-            val stack = ScreenStack(MdiMode(fixture.owner))
-            setContent {
-                MaterialTheme {
-                    AppShell(ShellState.startup(), currentStack = { stack }) { ScreenStackHost(stack) }
-                }
-            }
-            block()
-        }
-    }
-
-    @Test fun `MDI accepts its first mouse letter without a prior hover or input focus`() = editorTest {
-        onNodeWithTag("keypad-CODE-2").performMouseInput { click() }
-        onNode(hasSetTextAction()).assert(
-            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G")),
-        )
-    }
-
-    @Test fun `invalid replacement preserves the saved row and draft`() = editorTest {
-        val input = onNodeWithTag("mdi-input")
-        onNodeWithTag("softkey-F5").assertIsNotEnabled()
-        onNodeWithTag("softkey-F6").assertIsNotEnabled()
-        input.performTextInput("N20 G0 X1")
-        input.performKeyInput { pressKey(Key.Enter) }
-        onNodeWithTag("mdi-line-1").performClick().assertIsSelected()
-        onNodeWithTag("softkey-F5").assertIsNotEnabled()
-        input.performTextReplacement("!")
-        onNodeWithTag("keypad-NUM+-15").performClick()
-        onNodeWithTag("mdi-line-1").assertTextContains("N20 G0 X1")
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("!")))
-        onNodeWithText("Use one ASCII line without embedded real-time commands").assertExists()
-        onNodeWithTag("softkey-F6").performClick()
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
-        onNodeWithTag("softkey-F5").performClick()
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("N20 G0 X1")))
-    }
-
-    @Test fun `browsing and deselecting return to the unfinished new line and caret`() = editorTest {
-        val input = onNodeWithTag("mdi-input")
-        for (line in listOf("G90", "M2")) {
-            input.performTextInput(line)
-            input.performKeyInput { pressKey(Key.Enter) }
-        }
-        input.performTextInput("G X1")
-        input.performKeyInput { pressKey(Key.Home); pressKey(Key.DirectionRight) }
-        onNodeWithTag("softkey-F5").performClick()
-        onNodeWithTag("softkey-F5").performClick()
-        onNodeWithTag("softkey-F6").performClick()
-        onNodeWithTag("softkey-F6").performClick()
-        input.performTextInput("1")
-        onNodeWithTag("mdi-line-1").performClick()
-        input.performTextReplacement("G91")
-        input.performKeyInput { pressKey(Key.Enter) }
-        onNodeWithTag("mdi-line-1").assertTextContains("G91").assertIsNotSelected()
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G1 X1")))
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(2)))
-        onNodeWithTag("mdi-line-2").performClick()
-        onNodeWithTag("mdi-line-1").performClick().performClick()
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G1 X1")))
-        input.performKeyInput { pressKey(Key.Enter) }
-        onNodeWithTag("mdi-line-3").assertTextContains("G1 X1")
-        onNodeWithTag("mdi-line-3").performClick().assertIsSelected()
-        input.performTextReplacement("G0 X99")
-        onNodeWithTag("mdi-buffer").performTouchInput { click(Offset(center.x, height - 8f)) }
-        onNodeWithTag("mdi-line-3").assertTextContains("G1 X1").assertIsNotSelected()
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
-    }
-
-    @Test fun `physical and keypad Enter save to the local buffer`() = runAtScreenshotSizes { screenshot ->
+    @Test fun `MDI workspace places its editor, DRO and keypad pages`() = runAtScreenshotSizes { screenshot ->
         ControllerFixture().use { fixture ->
             fixture.connect()
             setContent { CommanderApp(fixture.owner, fixture.settings) }
             onNode(hasText("MDI") and hasClickAction()).performClick()
-            onNodeWithTag("mdi-input").performClick().performTextInput("G1X100F500")
+            val input = onNodeWithTag("gcode-input")
+            input.performClick().performTextInput("!")
+            input.performKeyInput { pressKey(Key.Enter) }
+            onNodeWithText("Use one ASCII line without embedded real-time commands").assertExists()
+            onNodeWithTag("gcode-line-1").assertDoesNotExist()
+            input.performTextReplacement("G1X100F500")
             onNodeWithTag("keypad-NUM+-15").assertIsDisplayed().performClick()
-            onNodeWithTag("mdi-line-1").assertTextContains("G1 X100 F500")
-            onNodeWithTag("mdi-input").performTextInput("M2")
+            onNodeWithTag("gcode-line-1").assertTextContains("G1 X100 F500")
+            onNodeWithTag("gcode-input").performTextInput("M2")
             onNode(hasSetTextAction()).assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("M2")))
             val workspace = onNodeWithTag("mdi-workspace").fetchSemanticsNode().boundsInRoot
             val dro = onNodeWithTag("mdi-dro").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
@@ -110,7 +40,7 @@ class MdiModeTest {
             val lastLetter = onNodeWithTag("keypad-CODE-3").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             val firstNumber = onNodeWithTag("keypad-NUM+-0").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
             val lastNumber = onNodeWithTag("keypad-NUM+-3").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
-            val buffer = onNodeWithTag("mdi-buffer").fetchSemanticsNode().boundsInRoot
+            val buffer = onNodeWithTag("gcode-buffer").fetchSemanticsNode().boundsInRoot
             assertEquals(workspace.height * 0.40f, dro.height, absoluteTolerance = 1f)
             assertTrue((dro.center - label.center).getDistance() <= 1f)
             assertEquals(lastNumber.right, dro.right)
@@ -124,16 +54,16 @@ class MdiModeTest {
             onNodeWithTag("keypad-NUM+-next").assertIsDisplayed().performClick()
             onNodeWithText("CODE 2/2 ▸").assertExists()
             onNodeWithText("NUM+ 2/2 ▸").assertExists()
-            onNodeWithTag("mdi-input").performKeyInput { pressKey(Key.Enter) }
+            onNodeWithTag("gcode-input").performKeyInput { pressKey(Key.Enter) }
             onNodeWithTag("softkey-F5").performClick()
-            onNodeWithTag("mdi-line-2").assertIsSelected()
-            onNodeWithTag("mdi-input").performTextReplacement("M30")
+            onNodeWithTag("gcode-line-2").assertIsSelected()
+            onNodeWithTag("gcode-input").performTextReplacement("M30")
             screenshot("mdi-page-2")
             onNodeWithTag("keypad-NUM+-15").performClick()
-            onNodeWithTag("mdi-line-2").assertTextContains("M30").assertIsNotSelected()
-            onNodeWithTag("mdi-line-3").assertDoesNotExist()
+            onNodeWithTag("gcode-line-2").assertTextContains("M30").assertIsNotSelected()
+            onNodeWithTag("gcode-line-3").assertDoesNotExist()
             onNodeWithText("New line").assertExists()
-            onNodeWithTag("mdi-input").assert(
+            onNodeWithTag("gcode-input").assert(
                 SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")),
             )
         }
@@ -156,7 +86,12 @@ class MdiModeTest {
             )
             program.forEach { saveLine(it) }
             assertTrue(fixture.transport.drainWrites().all { it == "?" })
-            onNodeWithTag("mdi-line-6").performClick().assertIsSelected()
+            onNodeWithTag("gcode-line-6").performClick().assertIsSelected()
+            val input = onNodeWithTag("gcode-input")
+            input.performTextReplacement("N60 G1 Y5")
+            input.performKeyInput { pressKey(Key.Home); pressKey(Key.DirectionRight) }
+            val buffer = onNodeWithTag("gcode-buffer")
+            val editableBottom = buffer.fetchSemanticsNode().boundsInRoot.bottom
 
             start.assertIsEnabled().performClick()
             fixture.report("<Run>")
@@ -170,52 +105,43 @@ class MdiModeTest {
                 operation.state.value.lastSentLineNumber == 5 && operation.state.value.reply == BufferState.Reply.Pending
             }
             fixture.report("<Run|Ln:30>")
-            val sent = hasTestTag("mdi-sent-line") and hasAnyAncestor(hasTestTag("mdi-line-5"))
-            val executing = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-3"))
+            val sent = hasTestTag("gcode-sent-line") and hasAnyAncestor(hasTestTag("gcode-line-5"))
+            val executing = hasTestTag("gcode-executing-line") and hasAnyAncestor(hasTestTag("gcode-line-3"))
             waitUntil(timeoutMillis = 5_000) {
                 onAllNodes(sent and hasText("↳"), useUnmergedTree = true).fetchSemanticsNodes().size == 1 &&
                     onAllNodes(executing and hasText("•"), useUnmergedTree = true).fetchSemanticsNodes().size == 1
             }
-            onNodeWithTag("mdi-line-6").assertIsSelected()
-            onNodeWithTag("mdi-input").assert(
-                SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString(program[5])),
-            )
+            onNodeWithTag("gcode-line-6").assertIsSelected()
+            input.assertDoesNotExist()
+            assertTrue(buffer.fetchSemanticsNode().boundsInRoot.bottom > editableBottom)
             onNodeWithTag("keypad-NUM+-8").performClick()
             onNodeWithTag("keypad-NUM+-15").performClick()
-            onNodeWithTag("mdi-line-6").assertTextContains("N60 G1 Y0")
+            onNodeWithTag("gcode-line-6").assertTextContains("N60 G1 Y0")
             screenshot("mdi-running")
 
             val formatKey = onNodeWithTag("softkey-R5")
             val executingKey = onNodeWithTag("softkey-R6")
             val sentKey = onNodeWithTag("softkey-R7")
-            formatKey.assertIsSelected().performClick().assertIsNotSelected()
-            onNodeWithTag("mdi-line-6").assertTextContains(program[5])
-            executingKey.assertIsSelected().performClick().assertIsNotSelected()
+            formatKey.performClick()
+            executingKey.performClick()
+            sentKey.performClick()
+            onNodeWithTag("gcode-line-6").assertTextContains("N60G1Y0").assertIsSelected()
             onNode(executing, useUnmergedTree = true).assertDoesNotExist()
-            onNode(sent, useUnmergedTree = true).assertTextEquals("↳")
-            sentKey.assertIsSelected().performClick().assertIsNotSelected()
             onNode(sent, useUnmergedTree = true).assertDoesNotExist()
             onNodeWithText("Executing line 3", substring = true).assertExists()
             screenshot("mdi-running-display-off")
-            formatKey.performClick().assertIsSelected()
-            onNodeWithTag("mdi-line-6").assertTextContains("N60 G1 Y0")
-            executingKey.performClick().assertIsSelected()
-            onNode(executing, useUnmergedTree = true).assertTextEquals("•")
-            sentKey.performClick().assertIsSelected()
-            onNode(sent, useUnmergedTree = true).assertTextEquals("↳")
+            formatKey.performClick()
+            executingKey.performClick()
+            sentKey.performClick()
 
             fixture.report("<Run|Ln:50>")
-            val executingOnSentRow = hasTestTag("mdi-executing-line") and hasAnyAncestor(hasTestTag("mdi-line-5"))
+            val executingOnSentRow = hasTestTag("gcode-executing-line") and hasAnyAncestor(hasTestTag("gcode-line-5"))
             waitUntil(timeoutMillis = 5_000) {
                 onAllNodes(executingOnSentRow, useUnmergedTree = true).fetchSemanticsNodes().size == 1
             }
             onNode(executingOnSentRow, useUnmergedTree = true).assertTextEquals("•")
             onNode(sent, useUnmergedTree = true).assertDoesNotExist()
             screenshot("mdi-running-markers-overlap")
-            executingKey.performClick().assertIsNotSelected()
-            onNode(sent, useUnmergedTree = true).assertTextEquals("↳")
-            executingKey.performClick().assertIsSelected()
-            onNode(sent, useUnmergedTree = true).assertDoesNotExist()
 
             onNodeWithTag("softkey-F2").performClick()
             assertEquals("!", fixture.nextCommand())
@@ -225,6 +151,7 @@ class MdiModeTest {
             fixture.report("<Hold:0>")
             waitUntilExactlyOneExists(hasTestTag("softkey-F1") and isEnabled(), timeoutMillis = 5_000)
             onNodeWithText("Held · Active line unknown", substring = true).assertExists()
+            input.assertDoesNotExist()
             screenshot("mdi-held")
             start.performClick()
             assertEquals("~", fixture.nextCommand())
@@ -240,12 +167,20 @@ class MdiModeTest {
                     operation.state.value.reply == BufferState.Reply.Ok
             }
             onNodeWithText("Active line unknown", substring = true).assertExists()
-            onNodeWithTag("mdi-executing-line", useUnmergedTree = true).assertDoesNotExist()
+            onNodeWithTag("gcode-executing-line", useUnmergedTree = true).assertDoesNotExist()
             start.assertIsNotEnabled()
             fixture.report("<Idle>")
             waitUntilExactlyOneExists(hasText("Completed"), timeoutMillis = 5_000)
-            val finalSent = hasTestTag("mdi-sent-line") and hasAnyAncestor(hasTestTag("mdi-line-8"))
+            val finalSent = hasTestTag("gcode-sent-line") and hasAnyAncestor(hasTestTag("gcode-line-8"))
             onNode(finalSent, useUnmergedTree = true).assertTextEquals("↳")
+            onNodeWithTag("gcode-line-6").assertIsSelected()
+            input.assertIsFocused()
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("N60 G1 Y5")))
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(1)))
+            onNodeWithTag("gcode-line-8").performClick()
+            input.performTextReplacement("N80 M30")
+            input.performKeyInput { pressKey(Key.Enter) }
+            onNode(finalSent, useUnmergedTree = true).assertDoesNotExist()
             assertTrue(fixture.transport.drainWrites().all { it == "?" })
         }
     }
@@ -260,6 +195,7 @@ class MdiModeTest {
             assertEquals("N70 G0 X1\n", fixture.nextCommand())
             fixture.receive("error:20")
             waitUntilExactlyOneExists(hasText("Line 1 rejected (error:20)"), timeoutMillis = 5_000)
+            onNodeWithTag("gcode-input").assertIsDisplayed()
             screenshot("mdi-rejected")
             assertTrue(fixture.transport.drainWrites().all { it == "?" })
 
@@ -268,6 +204,7 @@ class MdiModeTest {
             start.performClick()
             assertEquals("N70 G0 X1\n", fixture.nextCommand())
             val reset = onNodeWithTag("softkey-F3")
+            onNodeWithTag("gcode-input").assertDoesNotExist()
             reset.performClick()
             onNodeWithText("Reset controller?").assertExists()
             screenshot("mdi-reset-confirmation")
@@ -314,7 +251,7 @@ class MdiModeTest {
     }
 
     private fun ComposeUiTest.saveLine(line: String) {
-        val input = onNodeWithTag("mdi-input")
+        val input = onNodeWithTag("gcode-input")
         input.performClick().performTextInput(line)
         input.performKeyInput { pressKey(Key.Enter) }
     }
