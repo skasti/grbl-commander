@@ -3,18 +3,22 @@ package no.grblcommander.desktop.ui.components.controls.editor
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import java.awt.datatransfer.StringSelection
 import kotlin.test.*
 import no.grblcommander.desktop.ui.components.controls.KeyCluster
 import no.grblcommander.desktop.ui.components.controls.KeyClusterState
@@ -30,20 +34,33 @@ class GCodeEditorTest {
     private fun editorTest(
         initialSource: List<String> = emptyList(),
         decorations: () -> GCodeLineDecorations = { GCodeLineDecorations() },
+        clipboardText: String? = null,
         block: ComposeUiTest.(GCodeEditorState) -> Unit,
     ) = runComposeUiTest {
         val editor = GCodeEditorState(initialSource) { if (it == "!") "Invalid line" else null }
+        val clipboard = object : Clipboard {
+            override val nativeClipboard = java.awt.datatransfer.Clipboard("G-code editor test").apply {
+                clipboardText?.let { setContents(StringSelection(it), null) }
+            }
+            override suspend fun getClipEntry() = nativeClipboard.getContents(null)?.let(::ClipEntry)
+            override suspend fun setClipEntry(clipEntry: ClipEntry?) {
+                nativeClipboard.setContents(clipEntry?.nativeClipEntry as? java.awt.datatransfer.Transferable
+                    ?: StringSelection(""), null)
+            }
+        }
         setContent {
-            MaterialTheme {
-                Row(Modifier.requiredSize(880.dp, 440.dp)) {
-                    GCodeEditor(editor, Modifier.weight(1f).fillMaxHeight(), decorations())
-                    Column(Modifier.width(500.dp)) {
-                        OutlinedTextField("", {}, Modifier.testTag("other-input"))
-                        val letters = remember { KeyClusterState(Keymaps.code) }
-                        val numbers = remember { KeyClusterState(Keymaps.numPlus) }
-                        Row(horizontalArrangement = Arrangement.spacedBy(LocalGridUnit.current)) {
-                            KeyCluster(letters, editor::onKeypadAction)
-                            KeyCluster(numbers, editor::onKeypadAction)
+            CompositionLocalProvider(LocalClipboard provides clipboard) {
+                MaterialTheme {
+                    Row(Modifier.requiredSize(880.dp, 440.dp)) {
+                        GCodeEditor(editor, Modifier.weight(1f).fillMaxHeight(), decorations())
+                        Column(Modifier.width(500.dp)) {
+                            OutlinedTextField("", {}, Modifier.testTag("other-input"))
+                            val letters = remember { KeyClusterState(Keymaps.code) }
+                            val numbers = remember { KeyClusterState(Keymaps.numPlus) }
+                            Row(horizontalArrangement = Arrangement.spacedBy(LocalGridUnit.current)) {
+                                KeyCluster(letters, editor::onKeypadAction)
+                                KeyCluster(numbers, editor::onKeypadAction)
+                            }
                         }
                     }
                 }
@@ -109,25 +126,32 @@ class GCodeEditorTest {
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
     }
 
-    @Test fun `read-only inspection blocks edits and supports explicit source replacement`() = editorTest { editor ->
+    @Test fun `read-only inspection blocks edits and supports explicit source replacement`() = editorTest(
+        clipboardText = "unfinished",
+    ) { editor ->
         val original = listOf("G1X10", "", "%", "#1=12  ", "!")
         val input = onNodeWithTag("gcode-input")
         runOnIdle { editor.replaceSource(original) }
-        input.performTextInput("unfinished")
+        input.paste()
+        input.assert(SemanticsMatcher.expectValue(
+            SemanticsProperties.EditableText, AnnotatedString("unfinished"),
+        ))
         onNodeWithTag("gcode-line-1").performClick()
         input.performTextReplacement("unedited source")
         runOnIdle { editor.readOnly = true }
 
         input.assertIsFocused().assert(hasSetTextAction().not())
-        input.performKeyInput { pressKey(Key.G); pressKey(Key.Enter) }
+        input.performKeyInput {
+            pressKey(Key.G)
+            pressKey(Key.Enter)
+        }
+        input.paste()
         onNodeWithTag("keypad-CODE-2").performClick()
         onNodeWithTag("keypad-NUM+-15").performClick()
         input.assert(SemanticsMatcher.expectValue(
             SemanticsProperties.EditableText, AnnotatedString("unedited source"),
         ))
         runOnIdle {
-            // The same callback handles physical input and paste.
-            editor.edit(TextFieldValue("paste"))
             editor.onKeypadAction(KeypadAction.Backspace)
             assertEquals("unedited source", editor.input.text)
             assertEquals(original, editor.source)
@@ -149,6 +173,12 @@ class GCodeEditorTest {
         input.performTextInput("G90")
         onNodeWithTag("keypad-NUM+-15").performClick()
         runOnIdle { assertEquals(listOf("  (header) ", "#2 = 3", "M2", "G90"), editor.source) }
+    }
+
+    private fun SemanticsNodeInteraction.paste() = performKeyInput {
+        keyDown(Key.CtrlLeft)
+        pressKey(Key.V)
+        keyUp(Key.CtrlLeft)
     }
 
     @Test fun `formatting is display only and marker toggles share their actions`() {

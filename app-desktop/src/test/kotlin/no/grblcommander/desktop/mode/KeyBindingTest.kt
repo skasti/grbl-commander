@@ -55,14 +55,14 @@ class KeyBindingTest {
             onNodeWithTag("keypad-NUM+-next").performClick()
             runOnIdle { active = mdi }
             onNodeWithTag("terminal-prompt").assertDoesNotExist()
-            onNodeWithTag("mdi-input").performClick().performTextInput("G0 X999")
-            onNodeWithTag("mdi-input").performKeyInput { pressKey(Key.Enter) }
+            onNodeWithTag("gcode-input").performClick().performTextInput("G0 X999")
+            onNodeWithTag("gcode-input").performKeyInput { pressKey(Key.Enter) }
             assertTrue(f.owner.diagnosticSnapshot().none { it.event.category == CommunicationEvent.Category.COMMAND })
             runBlocking { repeat(300) { f.transport.emit("[EXT:$it]\n") } }
             waitUntil(timeoutMillis = 5_000) { f.owner.diagnosticSnapshot().any { it.event.text == "[EXT:299]" } }
             waitUntil(timeoutMillis = 5_000) { f.terminal.history.any { it.event.text == "[EXT:299]" } }
             onNodeWithTag("softkey-F5").performClick()
-            onNodeWithTag("mdi-input").performTextReplacement("unfinished")
+            onNodeWithTag("gcode-input").performTextReplacement("unfinished")
             runOnIdle { active = f.util }
             onNodeWithText("CODE 2/2 ▸").assertExists()
             onNodeWithText("NUM+ 2/2 ▸").assertExists()
@@ -93,8 +93,8 @@ class KeyBindingTest {
             onNodeWithTag("softkey-R6").assertIsNotSelected()
             onNodeWithText("⌨\nTerminal").assertDoesNotExist()
             runOnIdle { active = mdi }
-            onNodeWithTag("mdi-line-1").assertIsSelected()
-            onNodeWithTag("mdi-input").assertPromptText("unfinished")
+            onNodeWithTag("gcode-line-1").assertIsSelected()
+            onNodeWithTag("gcode-input").assertPromptText("unfinished")
         }
     }
 
