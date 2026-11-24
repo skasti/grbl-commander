@@ -11,7 +11,8 @@ boundary in `:core`. `Main` in `:app-desktop` creates one connection owner and
 one `ControllerSettings` instance above the window/mode stacks, passes them into
 presentation, and owns [application shutdown](#settings-startup-and-shutdown).
 `CommanderApp` supplies the same connection owner to every retained mode
-through `LocalControllerConnection`.
+through `LocalControllerConnection`. The same owner coordinates
+[controller storage requests](controller-storage.md#application-api).
 
 `ControllerEndpoint.Tcp(host, port)` and `ControllerEndpoint.Serial(configuration)`
 select `TcpTransport` and `SerialTransport` through a small factory. Serial uses

@@ -110,6 +110,7 @@ when it forms part of the same contract and has no independent use.
 | [Workspace grid sizing](layout-grid-unit.md) · [Touch keypads](keypads.md) · [G-code editor](gcode-editor.md) | Grid sizing, keymaps and reusable editing |
 | [Controller connection and settings](controller-connection.md) | Core lifecycle, startup, persistence, polling, admission, traffic aggregation and the Util form |
 | [GRBL session](grbl-session.md) · [grblHAL alarms](grbl-alarms.md) | Transports, protocol, correlation, recovery, session events and firmware alarm details |
+| [grblHAL controller storage](controller-storage.md) | Mounted roots, directory browsing, session admission and transfer limits |
 | [Terminal and traffic diagnostics](terminal.md) | Operator console, traffic presentation and command recall |
 | [Machine operations](machine-operations.md) · [Planned programs, macros and tools](programs-macros-tools.md) | Operation lifecycle and progress, planned jogging/DRO, analysis, controller macros and tools |
 | [Building and testing](testing.md) · [UI screenshots](ui-screenshots.md) · [Release process](releases.md) | Verification commands and coverage, visual review and native packaging |
