@@ -8,17 +8,18 @@ data class ControllerConnectionState(
     val endpoint: ControllerEndpoint? = null,
     val snapshot: MachineSnapshot = MachineSnapshot(),
     val closing: Boolean = false,
-    /** Owns the manual line slot until acknowledgment; not proof of motion. */
-    val manualCommandPending: Boolean = false,
-    val postConnectPending: Boolean = false,
+    val dispatchOwner: ExecutionContext? = null,
+    val activeExecution: ExecutionContext? = dispatchOwner,
     /** Results are diagnostics; successful acknowledgment does not imply motion completion. */
     val postConnectResults: List<String> = emptyList(),
     /** Covers the interval before the session starts its reset handshake. */
     val resetPending: Boolean = false,
     val operation: Operation? = null,
-    /** A run owns normal dispatch, including while it waits for controller completion. */
-    val operationPending: Boolean = false,
 ) {
+    val manualCommandPending get() = dispatchOwner is ExecutionContext.Manual
+    val postConnectPending get() = dispatchOwner is ExecutionContext.PostConnect
+    val operationPending get() = dispatchOwner is Operation
+
     fun canExecuteLine(now: Instant = Instant.now()): Boolean = commandBlockReason(now) == null
 
     fun commandBlockReason(now: Instant = Instant.now()): String? = when {
@@ -27,9 +28,7 @@ data class ControllerConnectionState(
         resetPending || snapshot.resetInProgress -> "Controller reset is in progress."
         snapshot.resetRequired -> "Controller reset is required before sending commands."
         !snapshot.normalCommandsSynchronized -> "Waiting for command responses to synchronize."
-        postConnectPending -> "Waiting for post-connect actions to finish."
-        manualCommandPending -> "Waiting for the manual command acknowledgment."
-        operationPending -> "A machine operation still owns the command stream."
+        dispatchOwner != null -> "Waiting for ${dispatchOwner.description} to finish."
         reportIsStale(now) -> "Waiting for a fresh controller status report."
         snapshot.status?.executionState?.substringBefore(':') !in setOf("Idle", "Alarm", "Check") ->
             "Controller is in ${snapshot.status?.executionState ?: "an unknown state"}."
@@ -37,9 +36,9 @@ data class ControllerConnectionState(
     }
 
     /** Explicit start/resume follows controller state, independently of command acknowledgment. */
-    fun canCycleStart(now: Instant = Instant.now()): Boolean = !closing && !resetPending && !postConnectPending &&
-        !reportIsStale(now) && (snapshot.status?.executionState == "Hold:0" ||
-            (!operationPending && snapshot.status?.executionState == "Idle")) &&
+    fun canCycleStart(now: Instant = Instant.now()): Boolean = !closing && !resetPending &&
+        !reportIsStale(now) && ((dispatchOwner?.permitsHeldResume != false && snapshot.status?.executionState == "Hold:0") ||
+            (dispatchOwner?.permitsIdleStart != false && snapshot.status?.executionState == "Idle")) &&
         snapshot.alarmCode == null && !snapshot.resetInProgress && !snapshot.resetRequired &&
         snapshot.normalCommandsSynchronized
 
