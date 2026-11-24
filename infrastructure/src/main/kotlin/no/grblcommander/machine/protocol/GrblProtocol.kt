@@ -50,13 +50,17 @@ object GrblProtocol {
         return ControllerStatus(parts[0], machine, work, offset, Collections.unmodifiableMap(fields))
     }
 
-    /** Reject embedded lines and real-time bytes which firmware executes out of band. */
-    fun encodeCommand(command: String): ByteArray {
-        require(command.isNotBlank()) { "Command must not be blank" }
-        require(command.length <= 120) { "Command exceeds conservative GRBL line capacity (120 bytes)" }
-        require(command.all { it.code in 32..126 && it !in "?!~" }) {
+    /** Returns a framing error for a command that cannot be sent as an ordinary GRBL line. */
+    fun commandValidationError(command: String): String? = when {
+        command.isBlank() -> "Command must not be blank"
+        command.length > 120 -> "Command exceeds conservative GRBL line capacity (120 bytes)"
+        command.any { it.code !in 32..126 || it in "?!~" } ->
             "Use one ASCII line without embedded real-time commands"
-        }
+        else -> null
+    }
+
+    fun encodeCommand(command: String): ByteArray {
+        commandValidationError(command)?.let { throw IllegalArgumentException(it) }
         return (command + "\n").toByteArray(Charsets.US_ASCII)
     }
 }

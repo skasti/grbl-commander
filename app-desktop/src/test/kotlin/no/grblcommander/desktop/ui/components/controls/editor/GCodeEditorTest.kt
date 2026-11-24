@@ -17,6 +17,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import java.awt.datatransfer.StringSelection
 import kotlin.test.*
@@ -37,7 +38,7 @@ class GCodeEditorTest {
         clipboardText: String? = null,
         block: ComposeUiTest.(GCodeEditorState) -> Unit,
     ) = runComposeUiTest {
-        val editor = GCodeEditorState(initialSource) { if (it == "!") "Invalid line" else null }
+        val editor = GCodeEditorState(initialSource)
         val clipboard = object : Clipboard {
             override val nativeClipboard = java.awt.datatransfer.Clipboard("G-code editor test").apply {
                 clipboardText?.let { setContents(StringSelection(it), null) }
@@ -88,11 +89,32 @@ class GCodeEditorTest {
         onNodeWithTag("keypad-NUM+-15").performClick()
         onNodeWithTag("gcode-line-1").assertTextContains("N20 G0 X1")
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("!")))
-        onNodeWithText("Invalid line").assertExists()
+        onNodeWithText("Use one ASCII line without embedded real-time commands").assertExists()
         runOnIdle { editor.softKeys.nextLine.action?.invoke() }
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
         runOnIdle { editor.softKeys.previousLine.action?.invoke() }
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("N20 G0 X1")))
+    }
+
+    @Test fun `a custom validator can replace or extend GRBL framing validation`() {
+        val permissive = GCodeEditorState(validate = { null })
+        permissive.edit(TextFieldValue("(Is this line required?)"))
+        permissive.commit()
+        assertEquals(listOf("(Is this line required?)"), permissive.source)
+
+        val extended = GCodeEditorState(validate = { line ->
+            GCodeEditorState.validateGrblLine(line) ?: if (line == "M2") "Program end is reserved" else null
+        })
+        extended.edit(TextFieldValue("?"))
+        extended.commit()
+        assertEquals("Use one ASCII line without embedded real-time commands", extended.error)
+        extended.edit(TextFieldValue("M2"))
+        extended.commit()
+        assertEquals("Program end is reserved", extended.error)
+        assertTrue(extended.source.isEmpty())
+        extended.edit(TextFieldValue("G90"))
+        extended.commit()
+        assertEquals(listOf("G90"), extended.source)
     }
 
     @Test fun `browsing and deselecting return to the unfinished new line and caret`() = editorTest { editor ->

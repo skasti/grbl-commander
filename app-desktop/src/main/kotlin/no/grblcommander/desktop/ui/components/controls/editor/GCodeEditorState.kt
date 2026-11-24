@@ -10,14 +10,17 @@ import no.grblcommander.desktop.ui.components.controls.KeypadAction
 import no.grblcommander.desktop.ui.components.controls.editWithKeypad
 import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
 import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
+import no.grblcommander.machine.protocol.GrblProtocol
 
 /**
  * Local editor state. [validate] returns an error message for a rejected user edit.
+ * By default it checks GRBL line framing. Custom validators can call [validateGrblLine]
+ * before applying additional constraints.
  * Caller-supplied source bypasses edit validation and is stored verbatim.
  */
 class GCodeEditorState(
     initialSource: List<String> = emptyList(),
-    private val validate: (String) -> String? = { null },
+    private val validate: (String) -> String? = Companion::validateGrblLine,
 ) {
     private val lines = mutableStateListOf<String>().apply { addAll(initialSource) }
     val source: List<String> get() = lines.toList()
@@ -116,5 +119,9 @@ class GCodeEditorState(
     private fun updateDraft(value: TextFieldValue) {
         input = value
         error = null
+    }
+
+    companion object {
+        fun validateGrblLine(line: String): String? = GrblProtocol.commandValidationError(line)
     }
 }

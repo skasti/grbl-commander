@@ -29,19 +29,11 @@ import no.grblcommander.desktop.ui.components.controls.editor.GCodeLineDecoratio
 import no.grblcommander.desktop.ui.layout.LocalGridUnit
 import no.grblcommander.desktop.ui.layout.ShellColors
 import no.grblcommander.desktop.ui.navigation.*
-import no.grblcommander.machine.protocol.GrblProtocol
 import no.grblcommander.machine.session.MachineSnapshot.Connection
 import no.grblcommander.machine.session.RealtimeCommand
 
 class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit) {
-    private val editor = GCodeEditorState(validate = { line ->
-        try {
-            GrblProtocol.encodeCommand(line)
-            null
-        } catch (failure: IllegalArgumentException) {
-            failure.message ?: "Invalid MDI command"
-        }
-    })
+    private val editor = GCodeEditorState()
     private val letters = KeyClusterState(Keymaps.code)
     private val numbers = KeyClusterState(Keymaps.numPlus)
 

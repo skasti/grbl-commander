@@ -14,10 +14,13 @@ an observable, immutable snapshot of saved lines. Replacing source clears the
 row selection, drafts and validation feedback and preserves the display toggles
 and read-only setting.
 
-Enter appends the new-line draft or replaces the selected row. An optional
-validator returns a message for a rejected edit. The message appears under the
-input and the draft stays available for correction. Selecting a row loads its
-source into the input with the caret at the end. Selecting it again, tapping
+Enter appends the new-line draft or replaces the selected row. The default
+validator checks [GRBL line framing](grbl-session.md#protocol-framing). A caller
+can supply a `validate` callback to replace that policy, or call
+`GCodeEditorState.validateGrblLine(line)` from the callback and check additional
+rules when it returns null. A validation message appears under the input and
+the draft stays available for correction. Selecting a row loads its source
+into the input with the caret at the end. Selecting it again, tapping
 empty list space, moving past the last row, or saving a replacement returns to
 the unfinished new-line draft and restores its caret or selection. Browsing
 another row discards an unsaved replacement. The editor focuses the input and

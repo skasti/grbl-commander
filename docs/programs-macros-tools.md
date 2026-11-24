@@ -9,9 +9,8 @@ and tool management remain planned.
 ## Local MDI editor
 
 MDI uses the [G-code editor control](gcode-editor.md) with its default
-navigation and display softkeys. Its validator checks edits against the
-session's [line validation](grbl-session.md#protocol-framing). Saving a line is
-local. Switching modes preserves the buffer, editor state and keypad pages.
+line validation, navigation and display softkeys. Saving a line is local.
+Switching modes preserves the buffer, editor state and keypad pages.
 
 The upper-right workspace contains a placeholder digital readout labeled
 `DRO`. Its height is 40% of the workspace height and its width follows a 4:3
