@@ -22,7 +22,8 @@ class MdiModeTest {
             fixture.connect()
             setContent { CommanderApp(fixture.owner, fixture.settings) }
             onNode(hasText("MDI") and hasClickAction()).performClick()
-            val input = onNodeWithTag("gcode-input").performClick().performTextInput("!")
+            val input = onNodeWithTag("gcode-input")
+            input.performClick().performTextInput("!")
             input.performKeyInput { pressKey(Key.Enter) }
             onNodeWithText("Use one ASCII line without embedded real-time commands").assertExists()
             onNodeWithTag("gcode-line-1").assertDoesNotExist()
@@ -164,7 +165,8 @@ class MdiModeTest {
             val finalSent = hasTestTag("gcode-sent-line") and hasAnyAncestor(hasTestTag("gcode-line-8"))
             onNode(finalSent, useUnmergedTree = true).assertTextEquals("↳")
             onNodeWithTag("gcode-line-8").performClick()
-            val input = onNodeWithTag("gcode-input").performTextReplacement("N80 M30")
+            val input = onNodeWithTag("gcode-input")
+            input.performTextReplacement("N80 M30")
             input.performKeyInput { pressKey(Key.Enter) }
             onNode(finalSent, useUnmergedTree = true).assertDoesNotExist()
             assertTrue(fixture.transport.drainWrites().all { it == "?" })

@@ -61,7 +61,7 @@ class GCodeEditorState(
         lines.addAll(replacement)
         selectedLine = null
         newLineDraft = TextFieldValue()
-        setInput(TextFieldValue())
+        updateDraft(TextFieldValue())
     }
 
     /** Selects a one-based source line, or restores the new-line draft when passed null. */
@@ -69,7 +69,7 @@ class GCodeEditorState(
         if (lineNumber == selectedLine || (lineNumber != null && lineNumber !in 1..lines.size)) return
         if (selectedLine == null) newLineDraft = input
         selectedLine = lineNumber
-        setInput(if (lineNumber == null) newLineDraft else {
+        updateDraft(if (lineNumber == null) newLineDraft else {
             val text = lines[lineNumber - 1]
             TextFieldValue(text, TextRange(text.length))
         })
@@ -94,7 +94,7 @@ class GCodeEditorState(
     }
 
     internal fun edit(value: TextFieldValue) {
-        if (!readOnly) setInput(value)
+        if (!readOnly) updateDraft(value)
     }
 
     internal fun commit() {
@@ -106,14 +106,14 @@ class GCodeEditorState(
         val line = selectedLine
         if (line == null) {
             lines.add(text)
-            setInput(TextFieldValue())
+            updateDraft(TextFieldValue())
         } else {
             lines[line - 1] = text
             selectLine(null)
         }
     }
 
-    private fun setInput(value: TextFieldValue) {
+    private fun updateDraft(value: TextFieldValue) {
         input = value
         error = null
     }

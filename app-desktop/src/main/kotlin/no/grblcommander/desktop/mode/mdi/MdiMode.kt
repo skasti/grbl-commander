@@ -151,7 +151,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
         val executingLine = progress?.executingLineNumber?.takeUnless { currentConnection.reportIsStale(time) }
         val sentLine = progress?.lastSentLineNumber?.takeIf { line ->
             val index = line - 1
-            val sentSource = run?.lines?.getOrNull(index)
+            val sentSource = run.lines.getOrNull(index)
             sentSource != null && sentSource == editor.source.getOrNull(index)
         }
         Surface(Modifier.fillMaxSize()) {
