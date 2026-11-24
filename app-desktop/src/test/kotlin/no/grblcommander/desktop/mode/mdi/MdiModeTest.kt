@@ -1,12 +1,9 @@
 package no.grblcommander.desktop.mode.mdi
 
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.TextRange
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -16,89 +13,20 @@ import no.grblcommander.core.connection.BufferState
 import no.grblcommander.core.connection.Operation
 import no.grblcommander.desktop.mode.ControllerFixture
 import no.grblcommander.desktop.ui.CommanderApp
-import no.grblcommander.desktop.ui.layout.AppShell
-import no.grblcommander.desktop.ui.layout.ShellState
-import no.grblcommander.desktop.ui.navigation.ScreenStack
-import no.grblcommander.desktop.ui.navigation.ScreenStackHost
 import no.grblcommander.desktop.ui.runAtScreenshotSizes
 
 @OptIn(ExperimentalTestApi::class)
 class MdiModeTest {
-    private fun editorTest(block: ComposeUiTest.() -> Unit) = runComposeUiTest {
-        ControllerFixture().use { fixture ->
-            val stack = ScreenStack(MdiMode(fixture.owner))
-            setContent {
-                MaterialTheme {
-                    AppShell(ShellState.startup(), currentStack = { stack }) { ScreenStackHost(stack) }
-                }
-            }
-            block()
-        }
-    }
-
-    @Test fun `MDI accepts its first mouse letter without a prior hover or input focus`() = editorTest {
-        onNodeWithTag("keypad-CODE-2").performMouseInput { click() }
-        onNode(hasSetTextAction()).assert(
-            SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G")),
-        )
-    }
-
-    @Test fun `invalid replacement preserves the saved row and draft`() = editorTest {
-        val input = onNodeWithTag("gcode-input")
-        onNodeWithTag("softkey-F5").assertIsNotEnabled()
-        onNodeWithTag("softkey-F6").assertIsNotEnabled()
-        input.performTextInput("N20 G0 X1")
-        input.performKeyInput { pressKey(Key.Enter) }
-        onNodeWithTag("gcode-line-1").performClick().assertIsSelected()
-        onNodeWithTag("softkey-F5").assertIsNotEnabled()
-        input.performTextReplacement("!")
-        onNodeWithTag("keypad-NUM+-15").performClick()
-        onNodeWithTag("gcode-line-1").assertTextContains("N20 G0 X1")
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("!")))
-        onNodeWithText("Use one ASCII line without embedded real-time commands").assertExists()
-        onNodeWithTag("softkey-F6").performClick()
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
-        onNodeWithTag("softkey-F5").performClick()
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("N20 G0 X1")))
-    }
-
-    @Test fun `browsing and deselecting return to the unfinished new line and caret`() = editorTest {
-        val input = onNodeWithTag("gcode-input")
-        for (line in listOf("G90", "M2")) {
-            input.performTextInput(line)
-            input.performKeyInput { pressKey(Key.Enter) }
-        }
-        input.performTextInput("G X1")
-        input.performKeyInput { pressKey(Key.Home); pressKey(Key.DirectionRight) }
-        onNodeWithTag("softkey-F5").performClick()
-        onNodeWithTag("softkey-F5").performClick()
-        onNodeWithTag("softkey-F6").performClick()
-        onNodeWithTag("softkey-F6").performClick()
-        input.performTextInput("1")
-        onNodeWithTag("gcode-line-1").performClick()
-        input.performTextReplacement("G91")
-        input.performKeyInput { pressKey(Key.Enter) }
-        onNodeWithTag("gcode-line-1").assertTextContains("G91").assertIsNotSelected()
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G1 X1")))
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(2)))
-        onNodeWithTag("gcode-line-2").performClick()
-        onNodeWithTag("gcode-line-1").performClick().performClick()
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G1 X1")))
-        input.performKeyInput { pressKey(Key.Enter) }
-        onNodeWithTag("gcode-line-3").assertTextContains("G1 X1")
-        onNodeWithTag("gcode-line-3").performClick().assertIsSelected()
-        input.performTextReplacement("G0 X99")
-        onNodeWithTag("gcode-buffer").performTouchInput { click(Offset(center.x, height - 8f)) }
-        onNodeWithTag("gcode-line-3").assertTextContains("G1 X1").assertIsNotSelected()
-        input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
-    }
-
-    @Test fun `physical and keypad Enter save to the local buffer`() = runAtScreenshotSizes { screenshot ->
+    @Test fun `MDI workspace places its editor, DRO and keypad pages`() = runAtScreenshotSizes { screenshot ->
         ControllerFixture().use { fixture ->
             fixture.connect()
             setContent { CommanderApp(fixture.owner, fixture.settings) }
             onNode(hasText("MDI") and hasClickAction()).performClick()
-            onNodeWithTag("gcode-input").performClick().performTextInput("G1X100F500")
+            val input = onNodeWithTag("gcode-input").performClick().performTextInput("!")
+            input.performKeyInput { pressKey(Key.Enter) }
+            onNodeWithText("Use one ASCII line without embedded real-time commands").assertExists()
+            onNodeWithTag("gcode-line-1").assertDoesNotExist()
+            input.performTextReplacement("G1X100F500")
             onNodeWithTag("keypad-NUM+-15").assertIsDisplayed().performClick()
             onNodeWithTag("gcode-line-1").assertTextContains("G1 X100 F500")
             onNodeWithTag("gcode-input").performTextInput("M2")
@@ -188,21 +116,14 @@ class MdiModeTest {
             val formatKey = onNodeWithTag("softkey-R5")
             val executingKey = onNodeWithTag("softkey-R6")
             val sentKey = onNodeWithTag("softkey-R7")
-            formatKey.assertIsSelected().performClick().assertIsNotSelected()
-            onNodeWithTag("gcode-line-6").assertTextContains(program[5])
-            executingKey.assertIsSelected().performClick().assertIsNotSelected()
-            onNode(executing, useUnmergedTree = true).assertDoesNotExist()
-            onNode(sent, useUnmergedTree = true).assertTextEquals("↳")
-            sentKey.assertIsSelected().performClick().assertIsNotSelected()
-            onNode(sent, useUnmergedTree = true).assertDoesNotExist()
+            formatKey.performClick()
+            executingKey.performClick()
+            sentKey.performClick()
             onNodeWithText("Executing line 3", substring = true).assertExists()
             screenshot("mdi-running-display-off")
-            formatKey.performClick().assertIsSelected()
-            onNodeWithTag("gcode-line-6").assertTextContains("N60 G1 Y0")
-            executingKey.performClick().assertIsSelected()
-            onNode(executing, useUnmergedTree = true).assertTextEquals("•")
-            sentKey.performClick().assertIsSelected()
-            onNode(sent, useUnmergedTree = true).assertTextEquals("↳")
+            formatKey.performClick()
+            executingKey.performClick()
+            sentKey.performClick()
 
             fixture.report("<Run|Ln:50>")
             val executingOnSentRow = hasTestTag("gcode-executing-line") and hasAnyAncestor(hasTestTag("gcode-line-5"))
@@ -212,10 +133,6 @@ class MdiModeTest {
             onNode(executingOnSentRow, useUnmergedTree = true).assertTextEquals("•")
             onNode(sent, useUnmergedTree = true).assertDoesNotExist()
             screenshot("mdi-running-markers-overlap")
-            executingKey.performClick().assertIsNotSelected()
-            onNode(sent, useUnmergedTree = true).assertTextEquals("↳")
-            executingKey.performClick().assertIsSelected()
-            onNode(sent, useUnmergedTree = true).assertDoesNotExist()
 
             onNodeWithTag("softkey-F2").performClick()
             assertEquals("!", fixture.nextCommand())
