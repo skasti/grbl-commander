@@ -24,8 +24,8 @@ import no.grblcommander.desktop.ui.components.controls.KeyCluster
 import no.grblcommander.desktop.ui.components.controls.KeyClusterState
 import no.grblcommander.desktop.ui.components.controls.Keymaps
 import no.grblcommander.desktop.ui.components.controls.editor.GCodeEditor
-import no.grblcommander.desktop.ui.components.controls.editor.GCodeEditorState
 import no.grblcommander.desktop.ui.components.controls.editor.GCodeLineDecorations
+import no.grblcommander.desktop.ui.components.controls.editor.Render
 import no.grblcommander.desktop.ui.layout.LocalGridUnit
 import no.grblcommander.desktop.ui.layout.ShellColors
 import no.grblcommander.desktop.ui.navigation.*
@@ -33,7 +33,7 @@ import no.grblcommander.machine.session.MachineSnapshot.Connection
 import no.grblcommander.machine.session.RealtimeCommand
 
 class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit) {
-    private val editor = GCodeEditorState()
+    private val editor = GCodeEditor()
     private val letters = KeyClusterState(Keymaps.code)
     private val numbers = KeyClusterState(Keymaps.numPlus)
 
@@ -164,8 +164,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
                             }
                         }
                         controlError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                        GCodeEditor(
-                            editor,
+                        editor.Render(
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                             decorations = GCodeLineDecorations(executingLine, sentLine),
                         )

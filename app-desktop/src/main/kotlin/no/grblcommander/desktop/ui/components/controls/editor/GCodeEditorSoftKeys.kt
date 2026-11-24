@@ -2,7 +2,7 @@ package no.grblcommander.desktop.ui.components.controls.editor
 
 import no.grblcommander.desktop.ui.navigation.SoftKeyDefinition
 
-class GCodeEditorSoftKeys internal constructor(editor: GCodeEditorState) {
+class GCodeEditorSoftKeys internal constructor(editor: GCodeEditor) {
     val previousLine = SoftKeyDefinition(
         "↑\nPrevious", action = editor::previousLine, enabled = { editor.canSelectPrevious },
     )

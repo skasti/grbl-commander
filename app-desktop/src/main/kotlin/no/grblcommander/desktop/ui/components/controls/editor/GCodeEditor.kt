@@ -1,122 +1,127 @@
 package no.grblcommander.desktop.ui.components.controls.editor
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.*
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import no.grblcommander.desktop.ui.components.controls.KeypadAction
+import no.grblcommander.desktop.ui.components.controls.editWithKeypad
+import no.grblcommander.desktop.ui.navigation.BottomSoftKeySlot
+import no.grblcommander.desktop.ui.navigation.RightSoftKeySlot
+import no.grblcommander.machine.protocol.GrblProtocol
 
-/** One-based source positions resolved by the caller. */
-data class GCodeLineDecorations(val executingLine: Int? = null, val sentLine: Int? = null)
-
-private val executionBackground = Color(0xFF20372A)
-private val executionMarker = Color(0xFF93D6A3)
-private val sentMarker = Color(0xFF8BD7FF)
-
-private val numericWord = Regex("""[A-Za-z][+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)""")
-private val numericBlock = Regex(""" *(?:${numericWord.pattern} *)+""")
-
-private fun formatLine(line: String): String =
-    if (numericBlock.matches(line)) numericWord.findAll(line).joinToString(" ") { it.value } else line
-
-@Composable
-fun GCodeEditor(
-    editor: GCodeEditorState,
-    modifier: Modifier = Modifier,
-    decorations: GCodeLineDecorations = GCodeLineDecorations(),
+/**
+ * Local editor state. [validate] returns an error message for a rejected user edit.
+ * By default it checks GRBL line framing. Custom validators can call [validateGrblLine]
+ * before applying additional constraints.
+ * Caller-supplied source bypasses edit validation and is stored verbatim.
+ */
+class GCodeEditor(
+    initialSource: List<String> = emptyList(),
+    private val validate: (String) -> String? = Companion::validateGrblLine,
 ) {
-    val focus = remember { FocusRequester() }
-    val list = rememberLazyListState()
-    val source = editor.source
-    val selected = editor.selectedLine
-    LaunchedEffect(editor, selected, source.size) {
-        if (source.isNotEmpty()) list.scrollToItem(selected?.minus(1) ?: source.lastIndex)
-    }
-    LaunchedEffect(editor, selected, source.size, editor.keypadFocusRequest) {
-        // Let the text field lay out its updated draft before starting a focus session.
-        withFrameNanos { }
-        focus.requestFocus()
+    private val lines = mutableStateListOf<String>().apply { addAll(initialSource) }
+    val source: List<String> get() = lines.toList()
+
+    var readOnly by mutableStateOf(false)
+    var selectedLine by mutableStateOf<Int?>(null)
+        private set
+    var autoFormat by mutableStateOf(true)
+        private set
+    var showExecutingLine by mutableStateOf(true)
+        private set
+    var showSentLine by mutableStateOf(true)
+        private set
+
+    internal var input by mutableStateOf(TextFieldValue())
+        private set
+    internal var error by mutableStateOf<String?>(null)
+        private set
+    internal var keypadFocusRequest by mutableStateOf(0)
+        private set
+    private var newLineDraft = TextFieldValue()
+
+    val canSelectPrevious get() = (selectedLine ?: (lines.size + 1)) > 1
+    val canSelectNext get() = selectedLine != null
+
+    val softKeys = GCodeEditorSoftKeys(this)
+    val bottomKeys = mapOf(
+        BottomSoftKeySlot.F5 to softKeys.previousLine,
+        BottomSoftKeySlot.F6 to softKeys.nextLine,
+    )
+    val rightKeys = mapOf(
+        RightSoftKeySlot.R5 to softKeys.format,
+        RightSoftKeySlot.R6 to softKeys.executing,
+        RightSoftKeySlot.R7 to softKeys.sent,
+    )
+
+    /** Replaces all source and clears the row selection, draft and validation feedback. */
+    fun replaceSource(source: List<String>) {
+        val replacement = source.toList()
+        lines.clear()
+        lines.addAll(replacement)
+        selectedLine = null
+        newLineDraft = TextFieldValue()
+        updateDraft(TextFieldValue())
     }
 
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        LazyColumn(
-            modifier = Modifier.weight(1f).fillMaxWidth().testTag("gcode-buffer")
-                .pointerInput(editor) { detectTapGestures { editor.selectLine(null) } },
-            state = list,
-        ) {
-            items(source.size) { index ->
-                val lineNumber = index + 1
-                val editing = selected == lineNumber
-                val executing = editor.showExecutingLine && decorations.executingLine == lineNumber
-                val sent = editor.showSentLine && decorations.sentLine == lineNumber
-                val background = when {
-                    editing -> MaterialTheme.colorScheme.secondaryContainer
-                    executing -> executionBackground
-                    else -> Color.Transparent
-                }
-                Row(
-                    Modifier.fillMaxWidth().background(background)
-                        .selectable(selected = editing) {
-                            editor.selectLine(if (editing) null else lineNumber)
-                            focus.requestFocus()
-                        }
-                        .testTag("gcode-line-$lineNumber").padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    // Reserve the first column for future breakpoint markers.
-                    Spacer(Modifier.width(16.dp))
-                    Box(Modifier.width(16.dp)) {
-                        when {
-                            executing -> Text("•", Modifier.testTag("gcode-executing-line"),
-                                color = executionMarker, fontFamily = FontFamily.Monospace)
-                            sent -> Text("↳", Modifier.testTag("gcode-sent-line"),
-                                color = sentMarker, fontFamily = FontFamily.Monospace)
-                        }
-                    }
-                    Text(lineNumber.toString())
-                    val line = source[index]
-                    Text(if (editor.autoFormat) formatLine(line) else line, fontFamily = FontFamily.Monospace)
-                }
-            }
+    /** Selects a one-based source line, or restores the new-line draft when passed null. */
+    fun selectLine(lineNumber: Int?) {
+        if (lineNumber == selectedLine || (lineNumber != null && lineNumber !in 1..lines.size)) return
+        if (selectedLine == null) newLineDraft = input
+        selectedLine = lineNumber
+        updateDraft(if (lineNumber == null) newLineDraft else {
+            val text = lines[lineNumber - 1]
+            TextFieldValue(text, TextRange(text.length))
+        })
+    }
+
+    fun previousLine() {
+        if (canSelectPrevious) selectLine(selectedLine?.minus(1) ?: lines.size)
+    }
+
+    fun nextLine() {
+        val line = selectedLine ?: return
+        selectLine((line + 1).takeIf { it <= lines.size })
+    }
+
+    fun toggleFormat() { autoFormat = !autoFormat }
+    fun toggleExecutingLine() { showExecutingLine = !showExecutingLine }
+    fun toggleSentLine() { showSentLine = !showSentLine }
+
+    fun onKeypadAction(action: KeypadAction) {
+        if (!readOnly) editWithKeypad(input, action, ::edit, ::commit)
+        keypadFocusRequest++
+    }
+
+    internal fun edit(value: TextFieldValue) {
+        if (!readOnly) updateDraft(value)
+    }
+
+    internal fun commit() {
+        if (readOnly) return
+        val text = input.text
+        error = validate(text)
+        if (error != null) return
+
+        val line = selectedLine
+        if (line == null) {
+            lines.add(text)
+            updateDraft(TextFieldValue())
+        } else {
+            lines[line - 1] = text
+            selectLine(null)
         }
-        OutlinedTextField(
-            value = editor.input,
-            onValueChange = editor::edit,
-            singleLine = true,
-            readOnly = editor.readOnly,
-            label = { Text(selected?.let { "Edit line $it" } ?: "New line") },
-            isError = editor.error != null,
-            supportingText = editor.error?.let { message -> { Text(message) } },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { editor.commit() }),
-            modifier = Modifier.fillMaxWidth().testTag("gcode-input").focusRequester(focus)
-                .onPreviewKeyEvent { event ->
-                    if (event.key != Key.Enter && event.key != Key.NumPadEnter) false
-                    else {
-                        if (event.type == KeyEventType.KeyUp) editor.commit()
-                        true
-                    }
-                },
-        )
+    }
+
+    private fun updateDraft(value: TextFieldValue) {
+        input = value
+        error = null
+    }
+
+    companion object {
+        fun validateGrblLine(line: String): String? = GrblProtocol.commandValidationError(line)
     }
 }

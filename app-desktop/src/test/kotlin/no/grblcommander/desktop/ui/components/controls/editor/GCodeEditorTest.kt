@@ -36,9 +36,9 @@ class GCodeEditorTest {
         initialSource: List<String> = emptyList(),
         decorations: () -> GCodeLineDecorations = { GCodeLineDecorations() },
         clipboardText: String? = null,
-        block: ComposeUiTest.(GCodeEditorState) -> Unit,
+        block: ComposeUiTest.(GCodeEditor) -> Unit,
     ) = runComposeUiTest {
-        val editor = GCodeEditorState(initialSource)
+        val editor = GCodeEditor(initialSource)
         val clipboard = object : Clipboard {
             override val nativeClipboard = java.awt.datatransfer.Clipboard("G-code editor test").apply {
                 clipboardText?.let { setContents(StringSelection(it), null) }
@@ -53,7 +53,7 @@ class GCodeEditorTest {
             CompositionLocalProvider(LocalClipboard provides clipboard) {
                 MaterialTheme {
                     Row(Modifier.requiredSize(880.dp, 440.dp)) {
-                        GCodeEditor(editor, Modifier.weight(1f).fillMaxHeight(), decorations())
+                        editor.Render(Modifier.weight(1f).fillMaxHeight(), decorations())
                         Column(Modifier.width(500.dp)) {
                             OutlinedTextField("", {}, Modifier.testTag("other-input"))
                             val letters = remember { KeyClusterState(Keymaps.code) }
@@ -97,13 +97,13 @@ class GCodeEditorTest {
     }
 
     @Test fun `a custom validator can replace or extend GRBL framing validation`() {
-        val permissive = GCodeEditorState(validate = { null })
+        val permissive = GCodeEditor(validate = { null })
         permissive.edit(TextFieldValue("(Is this line required?)"))
         permissive.commit()
         assertEquals(listOf("(Is this line required?)"), permissive.source)
 
-        val extended = GCodeEditorState(validate = { line ->
-            GCodeEditorState.validateGrblLine(line) ?: if (line == "M2") "Program end is reserved" else null
+        val extended = GCodeEditor(validate = { line ->
+            GCodeEditor.validateGrblLine(line) ?: if (line == "M2") "Program end is reserved" else null
         })
         extended.edit(TextFieldValue("?"))
         extended.commit()
@@ -257,7 +257,7 @@ class GCodeEditorTest {
     }
 
     @Test fun `typed default banks remain stable when a consumer composes its own bindings`() {
-        val editor = GCodeEditorState()
+        val editor = GCodeEditor()
         val previous = editor.softKeys.previousLine
         val next = editor.softKeys.nextLine
         assertEquals(setOf(BottomSoftKeySlot.F5, BottomSoftKeySlot.F6), editor.bottomKeys.keys)

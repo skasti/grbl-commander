@@ -1,8 +1,9 @@
 # G-code editor control
 
-`ui.components.controls.editor.GCodeEditor` displays a numbered source list and a
-single-line input. The owner retains a `GCodeEditorState` and supplies the editor's
-workspace constraints. Row numbers start at one and are independent of G-code
+The owner retains a `ui.components.controls.editor.GCodeEditor` instance for
+source, editing actions and softkeys. The Compose extension `editor.Render(...)`
+displays its numbered source list and single-line input within the owner's
+workspace. Row numbers start at one and are independent of G-code
 `N` words.
 
 ## Source and input
@@ -17,7 +18,7 @@ and read-only setting.
 Enter appends the new-line draft or replaces the selected row. The default
 validator checks [GRBL line framing](grbl-session.md#protocol-framing). A caller
 can supply a `validate` callback to replace that policy, or call
-`GCodeEditorState.validateGrblLine(line)` from the callback and check additional
+`GCodeEditor.validateGrblLine(line)` from the callback and check additional
 rules when it returns null. A validation message appears under the input and
 the draft stays available for correction. Selecting a row loads its source
 into the input with the caret at the end. Selecting it again, tapping
