@@ -19,6 +19,8 @@ import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.CommandCorrelationException
 import no.grblcommander.machine.session.RealtimeCommand
 import no.grblcommander.machine.session.MachineSnapshot.Connection
+import no.grblcommander.machine.storage.GrblStorageBrowser
+import no.grblcommander.machine.storage.GrblStorageReports
 import no.grblcommander.machine.transport.TcpTransport
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -31,12 +33,13 @@ import kotlin.test.assertFailsWith
 class GrblHalSimulatorTest {
     @TempDir lateinit var directory: Path
 
-    private class Simulator(directory: Path) : AutoCloseable {
+    private class Simulator(directory: Path, storage: Path? = null) : AutoCloseable {
         val port = ServerSocket(0).use { it.localPort }
         val log = directory.resolve("simulator.log")
-        val process: Process = ProcessBuilder(
-            System.getProperty("grblhal.simulator"), "-p", port.toString(), "-n",
-        ).directory(directory.toFile())
+        val process: Process = ProcessBuilder(buildList {
+            addAll(listOf(System.getProperty("grblhal.simulator"), "-p", port.toString(), "-n"))
+            if (storage != null) addAll(listOf("-d", storage.toString()))
+        }).directory(directory.toFile())
             .redirectErrorStream(true)
             .redirectOutput(log.toFile())
             .start()
@@ -176,6 +179,39 @@ class GrblHalSimulatorTest {
                 } finally { simulator.close() }
             }
             assertFalse(simulator.process.isAlive)
+        }
+    }
+
+    @Test fun browsesMountedVfsOverTcp() = runBlocking<Unit> {
+        val storage = Files.createDirectory(directory.resolve("storage"))
+        Files.writeString(storage.resolve("readme.dat"), "hello")
+
+        Simulator(directory, storage).use { simulator ->
+            withTimeout(20_000) {
+                val session = simulator.connect(this)
+                try {
+                    val browser = GrblStorageBrowser(session::executeLine)
+                    assertTrue(browser.mounts().any { it.path == "/" && it.driver == "PosixFs" })
+                    val rootFile = browser.list("/").entries.single()
+                    assertEquals("/readme.dat", rootFile.path)
+                    assertEquals(5L, rootFile.sizeBytes)
+
+                    // The simulator's recursive VFS traversal can fail when the root already contains nested files.
+                    val jobs = Files.createDirectory(storage.resolve("jobs"))
+                    Files.createDirectory(jobs.resolve("empty"))
+                    Files.writeString(jobs.resolve("notes.dat"), "abc")
+                    val nested = browser.list("/jobs")
+                    assertTrue(nested.mayOmitEmptyDirectories)
+                    val nestedFile = nested.entries.single()
+                    assertEquals("/jobs/notes.dat", nestedFile.path)
+                    assertEquals(3L, nestedFile.sizeBytes)
+                    assertEquals("/", GrblStorageReports.workingDirectory(session.executeLine("\$PWD").responseLines))
+                    assertTrue(session.executeLine("\$G").accepted)
+                } finally {
+                    session.close()
+                    withContext(NonCancellable) { session.awaitClosed() }
+                }
+            }
         }
     }
 

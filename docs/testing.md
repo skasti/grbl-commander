@@ -62,7 +62,8 @@ binary is missing. Each test process gets an isolated working directory/EEPROM,
 uses `-p <port>` for raw TCP and waits for readiness with a deadline. Bounded
 graceful or forced cleanup runs in `finally`, including on assertion failures.
 Tests cover `$I`, parsed `?` status, `$G`, command rejection, peer disconnection,
-process cleanup and [alarm recovery](grbl-alarms.md#verification-coverage). Linux CI runs this as a
+process cleanup, [controller storage through the simulator's VFS mount](controller-storage.md#verification)
+and [alarm recovery](grbl-alarms.md#verification-coverage). Linux CI runs this as a
 separate job. Physical serial ports, virtual-PTY simulator
 integration and controller hardware are outside the automated coverage.
 The upstream simulator is experimental with approximately real-time timing;

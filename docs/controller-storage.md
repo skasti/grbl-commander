@@ -44,7 +44,12 @@ filesystem integration can validate common path and metadata needs.
 Protocol fixtures are based on the pinned upstream source. The in-memory
 session tests exercise mount reports, nested and recursive listings, unsupported
 commands, missing media, cancellation, reset, reconnect and dispatch exclusion.
-Filesystem plugin behavior over physical serial and TCP remains unverified.
+The [pinned grblHAL simulator](testing.md#grblhal-simulator-integration)
+exercises mount discovery, root and nested file listing, file size, and CWD
+restoration over TCP using its PosixFs mount. In this build, the simulator
+rejects the `$650` query as unavailable. Its recursive root listing can return
+error 62 when it encounters files in subdirectories. Fixtures cover
+hierarchical listing. Physical FatFs and LittleFS mounts remain unverified.
 
 ## Firmware protocol
 
