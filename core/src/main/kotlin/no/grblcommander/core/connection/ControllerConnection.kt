@@ -5,6 +5,7 @@ import java.io.IOException
 import java.util.Collections
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -36,6 +37,10 @@ import no.grblcommander.machine.session.MachineSession
 import no.grblcommander.machine.session.MachineSnapshot
 import no.grblcommander.machine.session.RealtimeCommand
 import no.grblcommander.machine.protocol.GrblProtocol
+import no.grblcommander.machine.storage.ControllerStorageException
+import no.grblcommander.machine.storage.ControllerStorageException.Kind
+import no.grblcommander.machine.storage.GrblStorageBrowser
+import no.grblcommander.machine.storage.GrblStorageReports
 
 /** App-lifetime command boundary. Screens never receive a transport or replace its session. */
 class ControllerConnection(
@@ -79,6 +84,9 @@ class ControllerConnection(
         val commands = CommandBuffer(session)
         var run: OperationRun? = null
         var lastManualReplySequence = -1L
+        var storageTask: Job? = null
+        var cycleStartsInFlight = 0
+        var lastCycleStartSequence = -1L
         val observers = mutableListOf<Job>()
         var dropped = 0L
         var lastObservedSequence = 0L
@@ -306,7 +314,7 @@ class ControllerConnection(
                     // Retain the last observation, but not the session's technical close reason.
                     snapshot = old.session.state.value.copy(connection = if (closed) MachineSnapshot.Connection.CLOSED
                         else MachineSnapshot.Connection.DISCONNECTED, failure = null),
-                    closing = false, manualCommandPending = false, postConnectPending = false, resetPending = false, operationPending = false,
+                    closing = false, manualCommandPending = false, postConnectPending = false, resetPending = false, operationPending = false, storagePending = false,
                 )
             }
         }
@@ -451,6 +459,90 @@ class ControllerConnection(
             }
         } }
     }
+
+    /** Mounted VFS roots reported by the currently connected controller. */
+    suspend fun discoverStorage(): List<GrblStorageReports.Mount> = browseStorage { mounts() }
+
+    /** Lists immediate children of an absolute VFS path on the current controller. */
+    suspend fun listStorage(path: String): GrblStorageBrowser.Directory = browseStorage { list(path) }
+
+    /** The line session cannot safely receive an unframed file dump or a binary transfer. */
+    val controllerStorageReadSupported: Boolean get() = false
+
+    private suspend fun <T> browseStorage(request: suspend GrblStorageBrowser.() -> T): T {
+        currentCoroutineContext().ensureActive()
+        val result = CompletableDeferred<T>()
+        val (entry, task) = synchronized(gate) {
+            val entry = active ?: throw ControllerStorageException(Kind.DISCONNECTED, "No controller connected")
+            val snapshot = entry.session.state.value
+            checkStorageState(entry, snapshot)
+            val admission = state.value.copy(snapshot = snapshot)
+            val reason = admission.commandBlockReason()
+            if (reason != null || entry.cycleStartsInFlight != 0 ||
+                snapshot.reportSequence <= maxOf(entry.lastManualReplySequence, entry.lastCycleStartSequence)
+            ) {
+                throw ControllerStorageException(Kind.BUSY, reason ?: "Waiting for controller status after command")
+            }
+            val epoch = entry.session.normalCommandEpoch
+            val task = entry.session.prepareSessionTask {
+                try {
+                    val browser = GrblStorageBrowser { line ->
+                        synchronized(gate) { checkStorageState(entry, entry.session.state.value) }
+                        entry.session.executeLine(line, epoch)
+                    }
+                    val value = browser.request()
+                    synchronized(gate) { checkStorageState(entry, entry.session.state.value) }
+                    result.complete(value)
+                } catch (error: Exception) {
+                    result.completeExceptionally(error)
+                }
+            }
+            entry.storageTask = task
+            mutableState.value = admission.copy(storagePending = true)
+            task.invokeOnCompletion { error ->
+                synchronized(gate) {
+                    if (active === entry && entry.storageTask === task) {
+                        entry.storageTask = null
+                        mutableState.value = state.value.copy(storagePending = false)
+                    }
+                }
+                if (!result.isCompleted) result.completeExceptionally(
+                    error ?: ControllerStorageException(Kind.DISCONNECTED, "Storage session ended"),
+                )
+            }
+            entry to task
+        }
+        try {
+            task.start()
+            task.join()
+            synchronized(gate) { checkStorageSession(entry, entry.session.state.value) }
+            return result.await()
+        } finally {
+            withContext(NonCancellable) { task.cancelAndJoin() }
+        }
+    }
+
+    /** Called under gate before transmission and after receiving a result. */
+    private fun checkStorageSession(entry: Active, snapshot: MachineSnapshot) {
+        if (active !== entry || closed || !owner.isActive || state.value.closing ||
+            snapshot.connection != MachineSnapshot.Connection.CONNECTED
+        ) {
+            throw ControllerStorageException(Kind.DISCONNECTED, "Controller session disconnected")
+        }
+    }
+
+    private fun checkStorageState(entry: Active, snapshot: MachineSnapshot) {
+        checkStorageSession(entry, snapshot)
+        val status = snapshot.status
+        if (state.value.resetPending || snapshot.resetInProgress || snapshot.resetRequired ||
+            !snapshot.normalCommandsSynchronized || snapshot.alarmCode != null ||
+            status?.executionState != "Idle" || "SD" in status.fields ||
+            ControllerConnectionState(snapshot = snapshot).reportIsStale()
+        ) {
+            throw ControllerStorageException(Kind.BUSY, "Controller storage requires a fresh, synchronized Idle state without an SD job")
+        }
+    }
+
     suspend fun sendRealtime(command: RealtimeCommand) {
         if (command == RealtimeCommand.SOFT_RESET) return reset()
         if (command == RealtimeCommand.CYCLE_START) return cycleStart(requireHold = false)
@@ -462,29 +554,39 @@ class ControllerConnection(
 
     private suspend fun cycleStart(requireHold: Boolean) {
         val selected = synchronized(gate) {
-            val current = activeSession().session
+            val entry = activeSession()
+            val current = entry.session
             val observed = state.value.copy(snapshot = current.state.value)
             check(observed.canCycleStart() && (!requireHold || observed.snapshot.status?.executionState == "Hold:0")) {
                 if (requireHold) "Resume requires a fresh synchronized Hold:0 report"
                 else "Cycle Start requires a fresh synchronized Idle or Hold:0 report without an alarm or reset"
             }
-            current
+            entry.cycleStartsInFlight++
+            entry
         }
-        selected.sendRealtime(RealtimeCommand.CYCLE_START)
+        try {
+            selected.session.sendRealtime(RealtimeCommand.CYCLE_START)
+        } finally {
+            synchronized(gate) {
+                selected.cycleStartsInFlight--
+                selected.lastCycleStartSequence = selected.session.state.value.reportSequence
+            }
+        }
     }
 
     suspend fun reset() {
         currentCoroutineContext().ensureActive()
-        val selected = synchronized(gate) {
+        val (selected, storageTask) = synchronized(gate) {
             val selected = activeSession()
             val connection = selected.session.state.value.connection
             if (connection != MachineSnapshot.Connection.CONNECTED) throw IOException("Session is $connection")
             if (state.value.resetPending) throw IOException("Reset already in progress")
             mutableState.value = state.value.copy(resetPending = true)
             interruptOperation(selected, "Controller reset requested")
-            selected
+            selected to selected.storageTask
         }
         try {
+            storageTask?.cancelAndJoin()
             selected.commands.cancelBatch()
             selected.session.reset()
         } finally {
@@ -528,7 +630,7 @@ class ControllerConnection(
             }
             mutableState.value = state.value.copy(
                 snapshot = state.value.snapshot.copy(connection = MachineSnapshot.Connection.CLOSED, failure = null),
-                closing = false, postConnectPending = false, resetPending = false, operationPending = false,
+                closing = false, postConnectPending = false, resetPending = false, operationPending = false, storagePending = false,
             )
         }
     }
