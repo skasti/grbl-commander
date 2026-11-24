@@ -140,7 +140,7 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
         val run = operation
         val progress = run?.state?.collectAsState(context = Dispatchers.Main)?.value
         val editingLocked = progress?.isActive() == true
-        val executingLine = progress?.executingLineNumber?.takeUnless { currentConnection.reportIsStale(time) }
+        val executingLine = currentConnection.executingLineFor(run, progress, time)
         val sentLine = progress?.lastSentLineNumber?.takeIf { line ->
             val index = line - 1
             val sentSource = run.lines.getOrNull(index)
@@ -222,3 +222,9 @@ class MdiMode(private val connection: ControllerConnection) : Screen<Unit>(Unit)
     }
 
 }
+
+/** A retained MDI result can outlive its session and its controller observations. */
+internal fun ControllerConnectionState.executingLineFor(run: Operation?, progress: Operation.Progress?, now: Instant): Int? =
+    progress?.executingLineNumber?.takeIf {
+        run != null && activeExecution === run && progress.observedAt == snapshot.reportedAt && !reportIsStale(now)
+    }

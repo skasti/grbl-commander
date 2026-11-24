@@ -84,14 +84,26 @@ running Disconnect cannot be cancelled by another Disconnect action. Workspace
 buttons and softkeys share the same enabled predicate, and callbacks also guard
 against repeated activation.
 
+## Normal-command ownership
+
+The connection reserves dispatch for one session-bound execution context at a time.
+Conflicting requests fail immediately. `dispatchOwner` identifies the reservation,
+`activeExecution` identifies current work, and `operation` retains the latest
+line run. An interrupted run can keep its reservation while awaiting recovery.
+Core workflows can use `executeWorkflow` to reserve the session's command buffer
+across several commands and cleanup. Each send uses the epoch captured at admission.
+Reset has a separate barrier because it preempts work and must keep admission
+closed while the old task terminates and the session completes its handshake.
+Post-connect actions hold the reservation from connection setup through their
+configured reset and queries.
+
 ## Manual command admission
 
 `ControllerConnection.executeLine` validates with the existing protocol encoder
 and reserves a single manual command slot before dispatch through the session's
 command buffer. Admission requires an
 open, connected session with a fresh, synchronized `Idle`, `Alarm` or
-`Check` report. A reset boundary, pending manual command or post-connect
-work blocks admission. The session applies the final protocol and alarm checks.
+`Check` report. A reset boundary or an existing dispatch owner blocks admission. The session applies the final protocol and alarm checks.
 This prevents normal terminal commands during externally running work. The slot
 ends on acknowledgment or failure, never represents completed physical motion and
 is not transferred across sessions. `sendRealtime(CYCLE_START)` independently
