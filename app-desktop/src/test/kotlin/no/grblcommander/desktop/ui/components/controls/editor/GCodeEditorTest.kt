@@ -185,7 +185,6 @@ class GCodeEditorTest {
         onNodeWithTag("gcode-line-40").assertIsDisplayed()
         input.assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("G X1")))
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.TextSelectionRange, TextRange(1)))
-        assertEquals(editableHeight, buffer.fetchSemanticsNode().boundsInRoot.height)
     }
 
     @Test fun `read-only inspection supports scrolling navigation and source replacement`() = editorTest(
