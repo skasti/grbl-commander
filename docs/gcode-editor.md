@@ -1,9 +1,9 @@
 # G-code editor control
 
 The owner retains a `ui.components.controls.editor.GCodeEditor` instance for
-source, viewport position, editing actions and softkeys. The Compose extension `editor.Render(...)`
-displays its numbered source list and single-line input within the owner's
-workspace. Row numbers start at one and are independent of G-code
+source, viewport position, editing actions and softkeys. The Compose extension
+`editor.Render(...)` displays its numbered source list and single-line input
+within the owner's workspace. Row numbers start at one and are independent of G-code
 `N` words.
 
 ## Source and input
@@ -13,7 +13,8 @@ different source. Both operations preserve each line verbatim, including blank
 lines and blocks that the caller's edit validator might reject. `source` returns
 an observable, immutable snapshot of saved lines. Replacing source clears the
 row selection, drafts and validation feedback and preserves the display toggles
-and read-only setting. Initial and replacement source opens at the first row.
+and read-only setting. The viewport starts at the first row when source is
+initialized or replaced.
 Each editor retains its scroll position, selection, draft and caret while its
 view is absent. An owner can switch between editor instances at the same
 rendering site by retaining one instance per source.

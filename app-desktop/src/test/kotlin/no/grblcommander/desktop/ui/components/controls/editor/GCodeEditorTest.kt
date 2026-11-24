@@ -290,7 +290,7 @@ class GCodeEditorTest {
         onNodeWithTag("gcode-line-1").assertIsDisplayed()
         runOnIdle { second.selectLine(32) }
         input.performTextReplacement("G0 Y32")
-        input.performKeyInput { pressKey(Key.End); pressKey(Key.DirectionLeft) }
+        input.performKeyInput { pressKey(Key.MoveEnd); pressKey(Key.DirectionLeft) }
         buffer.performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 15f) }
         runOnIdle {
             assertEquals(31, second.listState.firstVisibleItemIndex)
