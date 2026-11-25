@@ -50,10 +50,10 @@ internal class CommandBuffer(
     fun `suspend`() { suspended = true }
     fun resume() { suspended = false }
 
-    private suspend fun claimDispatch() {
+    internal suspend fun awaitDispatchEligibility() {
         while (true) {
             when (gate.value) {
-                Gate.OPEN -> return // This atomic read admits the worker's current command.
+                Gate.OPEN -> return // For the worker, this read admits its current command.
                 Gate.CLOSED -> throw CancellationException("Buffer closed")
                 Gate.SUSPENDED -> gate.first { it != Gate.SUSPENDED }
             }
@@ -65,7 +65,7 @@ internal class CommandBuffer(
     private val worker = executionScope.launch(start = CoroutineStart.LAZY) {
         for (command in queue) {
             val reply = try {
-                claimDispatch()
+                awaitDispatchEligibility()
                 currentCoroutineContext().ensureActive()
                 session.executeLine(command.text, epoch,
                     onUncertainWrite = { report(command, CommandOutcome.UncertainWrite) },

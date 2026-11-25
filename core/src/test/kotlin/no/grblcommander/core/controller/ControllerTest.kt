@@ -65,6 +65,20 @@ class ControllerTest {
         assertEquals(Operation.Phase.INTERRUPTED, operation.progress.value.phase)
     }
 
+    @Test fun transientHoldCannotBeLostBetweenStatusCollections() = scenario { controller, transport ->
+        val operation = Operation(listOf("G1 X1", "G1 X2"), "MDI")
+        controller.run(operation)
+        transport.nextNonStatusWrite()
+        transport.emit("<Hold:0>\n<Run>\nok\n")
+        operation.progress.first { it.acknowledged == 1 }
+        assertTrue(transport.drainWrites().isEmpty())
+        report(controller, transport, "Hold:0")
+        controller.sendRealtime(RealtimeCommand.CYCLE_START)
+        assertEquals("~", transport.nextNonStatusWrite())
+        report(controller, transport, "Run")
+        assertEquals("N2 G1 X2\n", transport.nextNonStatusWrite())
+    }
+
     @Test fun idleInSameReadAsFinalAckCompletesOperation() = scenario { controller, transport ->
         val operation = Operation(listOf("G4 P0"), "MDI")
         controller.run(operation)

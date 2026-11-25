@@ -28,6 +28,7 @@ class Operation(lines: List<String>, val source: String) {
 
     internal suspend fun produce(buffer: CommandBuffer) {
         for (i in lines.indices) {
+            buffer.awaitDispatchEligibility()
             buffer.enqueue(SourceCommand(i + 1, program.wire(i)))
             state.update { it.copy(enqueued = i + 1) }
         }

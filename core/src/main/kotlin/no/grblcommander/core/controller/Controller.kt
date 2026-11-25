@@ -99,7 +99,10 @@ class Controller(
         }
         execution.launch {
             try {
-                buffer.start()
+                synchronized(gate) {
+                    ensureActive()
+                    buffer.start()
+                }
                 operation.produce(buffer)
                 buffer.awaitClosed()
                 operation.progress.first { it.phase in terminal }
@@ -142,6 +145,7 @@ class Controller(
         realtime.withLock {
             val current: MachineSession
             val execution: Run?
+            val cycleHold: Long?
             synchronized(gate) {
                 current = checkNotNull(session)
                 check(!transitioning)
@@ -151,17 +155,25 @@ class Controller(
                     execution?.resumeAfter = null
                     execution?.buffer?.`suspend`()
                 }
-                if (command == RealtimeCommand.CYCLE_START && execution != null) {
+                cycleHold = if (command == RealtimeCommand.CYCLE_START && execution != null) {
                     observe(current)
                     val snapshot = current.state.value
                     check(snapshot.usable() && fresh(snapshot) && snapshot.status?.executionState == "Hold:0")
-                }
+                    snapshot.lastHoldSequence
+                } else null
             }
             current.sendRealtime(command)
-            if (command == RealtimeCommand.CYCLE_START && execution != null) synchronized(gate) {
-                if (!transitioning && session === current && run === execution) {
-                    execution.resumeAfter = current.state.value.reportSequence
+            if (cycleHold != null && execution != null) {
+                val requestStatus = synchronized(gate) {
+                    val snapshot = current.state.value
+                    if (transitioning || session !== current || run !== execution ||
+                        snapshot.lastHoldSequence != cycleHold) return@withLock
+                    execution.resumeAfter = snapshot.reportSequence
+                    // A ready report can arrive during the realtime write. Solicit a
+                    // subsequent sample when that report predates our completion fence.
+                    snapshot.status?.executionState in setOf("Run", "Idle")
                 }
+                if (requestStatus) current.sendRealtime(RealtimeCommand.STATUS_QUERY)
             }
         }
     }
@@ -176,7 +188,7 @@ class Controller(
         try {
             withContext(NonCancellable) {
                 execution?.job?.join()
-                current.reset()
+                realtime.withLock { current.reset() }
             }
         } finally {
             synchronized(gate) { transitioning = false }
