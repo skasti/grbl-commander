@@ -127,3 +127,15 @@ workflows establish their contracts.
 
 See [Programs, macros and tools](programs-macros-tools.md) for program execution,
 controller-hosted workflows and implementation priorities.
+
+## Source-owned controller operations
+
+A caller constructs `core.controller.Operation(lines, source)` and retains the
+same object from admission through its terminal result. Construction snapshots
+and validates the complete source and indexes unambiguous N words. During a run
+the producer prepares wire text one line at a time and waits for space in the
+[execution buffer](controller.md). Progress distinguishes enqueue, full write,
+acknowledgment, uncertain write, rejection and sampled execution. A successful
+last reply records a report-sequence boundary. Physical completion requires a
+fresh synchronized Idle report beyond that boundary. An accepted operation is
+single-use.
