@@ -29,6 +29,7 @@ internal class CommandBuffer(
     private val session: MachineSession,
     executionScope: CoroutineScope,
     capacity: Int = 8,
+    private val epoch: Long = session.normalCommandEpoch,
     private val report: (SourceCommand, CommandOutcome) -> Unit,
 ) : Closeable {
     init {
@@ -59,7 +60,6 @@ internal class CommandBuffer(
         }
     }
 
-    private val epoch = session.normalCommandEpoch
     private val queue = Channel<SourceCommand>(capacity)
     private val terminated = CompletableDeferred<Unit>()
     private val worker = executionScope.launch(start = CoroutineStart.LAZY) {

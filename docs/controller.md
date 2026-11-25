@@ -24,3 +24,20 @@ queued commands and wakes suspended enqueue calls. Awaiting closure observes
 worker termination, including settlement of the in-flight session call.
 The session remains owned by the caller. Physical completion and realtime
 machine control are separate from this local lifecycle.
+
+## Session and execution ownership
+
+The public `Controller` connects one machine session and publishes its snapshots.
+`run(operation)` atomically reserves the supplied [operation](machine-operations.md#source-owned-controller-operations)
+against the current protocol epoch and a synchronized Idle report at most three
+seconds old. The controller parents the execution independently of the caller.
+Its active-operation flow retains the handle until the producer and dispatch
+worker have terminated.
+
+Feed Hold gates the active buffer before the realtime write. Cycle Start from
+fresh Hold:0 permits further dispatch once a subsequent fresh Run or Idle
+report arrives. Session observation continues while the producer waits for
+capacity and while the operation waits for physical completion. Reset,
+replacement, disconnect and shutdown serialize session changes and await old
+execution cleanup. A session failure or invalidated command epoch interrupts
+the affected operation.
