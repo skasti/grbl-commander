@@ -9,8 +9,11 @@ while enqueueing its next line. The desktop uses the separate
 The execution owner supplies a structured parent scope and starts the buffer
 once. The buffer creates and manages its private worker as a child of that
 execution. Cancelling the execution retires the buffer even while it waits for
-an acknowledgment. The owner supplies dispatch permission for each
-dequeued line. Granting permission admits that send. The worker executes the
+an acknowledgment. Calling `suspend()` gates new sends and retains queued and worker-held lines.
+The worker claims each send by atomically observing the open gate. A claimed
+send can settle while suspended. The read-only `suspended` property reports
+a temporary hold. Calling `resume()` releases that hold. Closure permanently
+prevents further claims. The worker executes the
 line through the session, reports transmission and reply events synchronously
 with their source position, and stops on rejection or failure. A successful
 write can still have an unknown reply. A failed write can have an uncertain

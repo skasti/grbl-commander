@@ -6,6 +6,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
@@ -27,12 +29,34 @@ internal class CommandBuffer(
     private val session: MachineSession,
     executionScope: CoroutineScope,
     capacity: Int = 8,
-    private val admitDispatch: suspend () -> Unit,
     private val report: (SourceCommand, CommandOutcome) -> Unit,
 ) : Closeable {
     init {
         requireNotNull(executionScope.coroutineContext[Job]) { "An execution lifetime is required" }
         require(capacity in 1 until Channel.UNLIMITED)
+    }
+
+    private enum class Gate { OPEN, SUSPENDED, CLOSED }
+    private val gate = MutableStateFlow(Gate.OPEN)
+
+    var suspended: Boolean
+        get() = gate.value == Gate.SUSPENDED
+        private set(value) {
+            if (value) gate.compareAndSet(Gate.OPEN, Gate.SUSPENDED)
+            else gate.compareAndSet(Gate.SUSPENDED, Gate.OPEN)
+        }
+
+    fun `suspend`() { suspended = true }
+    fun resume() { suspended = false }
+
+    private suspend fun claimDispatch() {
+        while (true) {
+            when (gate.value) {
+                Gate.OPEN -> return // This atomic read admits the worker's current command.
+                Gate.CLOSED -> throw CancellationException("Buffer closed")
+                Gate.SUSPENDED -> gate.first { it != Gate.SUSPENDED }
+            }
+        }
     }
 
     private val epoch = session.normalCommandEpoch
@@ -41,7 +65,7 @@ internal class CommandBuffer(
     private val worker = executionScope.launch(start = CoroutineStart.LAZY) {
         for (command in queue) {
             val reply = try {
-                admitDispatch()
+                claimDispatch()
                 currentCoroutineContext().ensureActive()
                 session.executeLine(command.text, epoch,
                     onUncertainWrite = { report(command, CommandOutcome.UncertainWrite) },
@@ -57,6 +81,7 @@ internal class CommandBuffer(
         }
     }.also { task ->
         task.invokeOnCompletion {
+            gate.value = Gate.CLOSED
             queue.cancel()
             terminated.complete(Unit)
         }
@@ -67,6 +92,7 @@ internal class CommandBuffer(
     fun finishProduction() { queue.close() }
 
     override fun close() {
+        gate.value = Gate.CLOSED
         worker.cancel()
         queue.cancel()
     }
