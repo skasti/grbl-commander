@@ -1,40 +1,69 @@
 package no.grblcommander.core.controller
 
+import java.io.Closeable
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import no.grblcommander.machine.session.CommandAcknowledgment
+import no.grblcommander.machine.session.MachineSession
 
 internal data class SourceCommand(val position: Int, val text: String)
 
-/** One producer and one dispatch worker per operation. Capacity excludes the worker's current command. */
-internal class CommandBuffer(capacity: Int = 8) {
+internal sealed interface CommandOutcome {
+    data object Sent : CommandOutcome
+    data object UncertainWrite : CommandOutcome
+    data class Reply(val acknowledgment: CommandAcknowledgment) : CommandOutcome
+    data class Interrupted(val cause: Exception) : CommandOutcome
+}
+
+/** Single execution. Capacity excludes the one command held by the session-owned worker. */
+internal class CommandBuffer(
+    private val session: MachineSession,
+    capacity: Int = 8,
+    private val admitDispatch: suspend () -> Unit,
+    private val report: (SourceCommand, CommandOutcome) -> Unit,
+) : Closeable {
     init {
-        require(capacity > 0 && capacity < Channel.UNLIMITED)
+        require(capacity in 1 until Channel.UNLIMITED)
     }
 
+    private val epoch = session.normalCommandEpoch
     private val queue = Channel<SourceCommand>(capacity)
-
-    suspend fun enqueue(command: SourceCommand) = queue.send(command)
-
-    /** The dispatch callback settles the command and returns false on a terminal outcome. */
-    suspend fun execute(
-        produce: suspend () -> Unit,
-        dispatch: suspend (SourceCommand) -> Boolean,
-    ) = coroutineScope {
-        val producer = launch {
-            try {
-                produce()
-            } finally {
-                queue.close()
+    private val terminated = CompletableDeferred<Unit>()
+    private val worker = session.prepareSessionTask {
+        for (command in queue) {
+            val reply = try {
+                admitDispatch()
+                currentCoroutineContext().ensureActive()
+                session.executeLine(command.text, epoch,
+                    onUncertainWrite = { report(command, CommandOutcome.UncertainWrite) },
+                    onSent = { report(command, CommandOutcome.Sent) },
+                )
+            } catch (error: Exception) {
+                report(command, CommandOutcome.Interrupted(error))
+                if (error is CancellationException) throw error
+                break
             }
+            report(command, CommandOutcome.Reply(reply))
+            if (!reply.accepted) break
         }
-        try {
-            for (command in queue) {
-                if (!dispatch(command)) break
-            }
-        } finally {
-            producer.cancel()
+    }.also { task ->
+        task.invokeOnCompletion {
             queue.cancel()
+            terminated.complete(Unit)
         }
     }
+
+    fun start() = check(worker.start()) { "Buffer has already started or closed" }
+    suspend fun enqueue(command: SourceCommand) = queue.send(command)
+    fun finishProduction() { queue.close() }
+
+    override fun close() {
+        worker.cancel()
+        queue.cancel()
+    }
+
+    suspend fun awaitClosed() = terminated.await()
 }
