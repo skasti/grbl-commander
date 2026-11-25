@@ -44,7 +44,7 @@ class Operation(lines: List<String>, val source: String) {
                 is CommandOutcome.Reply -> when {
                     !outcome.acknowledgment.accepted -> it.copy(phase = Phase.FAILED, failedLine = line, error = "error:${outcome.acknowledgment.errorCode}")
                     line == lines.size -> {
-                        finalAckSequence = sequence
+                        finalAckSequence = outcome.acknowledgment.reportSequence ?: sequence
                         it.copy(acknowledged = line, phase = Phase.WAITING_FOR_IDLE)
                     }
                     else -> it.copy(acknowledged = line)

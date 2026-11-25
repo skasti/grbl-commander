@@ -65,6 +65,15 @@ class ControllerTest {
         assertEquals(Operation.Phase.INTERRUPTED, operation.progress.value.phase)
     }
 
+    @Test fun idleInSameReadAsFinalAckCompletesOperation() = scenario { controller, transport ->
+        val operation = Operation(listOf("G4 P0"), "MDI")
+        controller.run(operation)
+        transport.nextNonStatusWrite()
+        transport.emit("ok\n<Idle>\n")
+        controller.activeOperation.first { it == null }
+        assertEquals(Operation.Phase.COMPLETED, operation.progress.value.phase)
+    }
+
     @Test fun lossAfterFinalAckInterruptsAndReplacementCanRun() = scenario { controller, transport ->
         val operation = Operation(listOf("G4 P0"), "MDI")
         controller.run(operation)
@@ -79,6 +88,71 @@ class ControllerTest {
         controller.connect(GrblMachineSession(replacement, this))
         controller.run(Operation(listOf("G4 P1"), "MDI"))
         assertEquals("G4 P1\n", replacement.nextNonStatusWrite())
+    }
+
+    @Test fun replacementWaitsForEnteredWriteAndRetainsUncertainty() = scenario { controller, transport ->
+        val entered = CompletableDeferred<Unit>()
+        val cleanup = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        transport.onWrite = {
+            entered.complete(Unit)
+            try {
+                awaitCancellation()
+            } finally {
+                withContext(NonCancellable) {
+                    cleanup.complete(Unit)
+                    release.await()
+                }
+            }
+        }
+        val first = Operation(List(8) { "G1 X$it" }, "Program")
+        controller.run(first)
+        entered.await()
+        val replacement = ConnectionTestTransport()
+        val nextSession = GrblMachineSession(replacement, this)
+        val replacing = launch { controller.connect(nextSession) }
+        try {
+            cleanup.await()
+            assertSame(first, controller.activeOperation.value)
+            assertEquals(0, replacement.connectCount)
+            assertFails { controller.run(Operation(listOf("G4 P0"), "MDI")) }
+        } finally {
+            release.complete(Unit)
+        }
+        replacing.join()
+        assertNull(controller.activeOperation.value)
+        assertEquals(1, first.progress.value.uncertainWrite)
+        assertNull(first.progress.value.sent)
+        assertNull(first.progress.value.acknowledged)
+        assertEquals(Operation.Phase.INTERRUPTED, first.progress.value.phase)
+        val second = Operation(listOf("G4 P0"), "MDI")
+        controller.run(second)
+        assertEquals("G4 P0\n", replacement.nextNonStatusWrite())
+        assertSame(second, controller.activeOperation.value)
+    }
+
+    @Test fun rejectsStaleBusyAndUnsynchronizedSessionWithoutConsumingOperation() = runBlocking {
+        withTimeout(5000) {
+            var offset = 10L
+            val controller = Controller(this, now = { java.time.Instant.now().plusSeconds(offset) })
+            val transport = ConnectionTestTransport()
+            val operation = Operation(listOf("G4 P0"), "MDI")
+            try {
+                assertFails { controller.run(operation) }
+                controller.connect(GrblMachineSession(transport, this))
+                assertFails { controller.run(operation) }
+                offset = 0
+                report(controller, transport, "Run")
+                assertFails { controller.run(operation) }
+                report(controller, transport, "Idle")
+                transport.emit("ok\n")
+                controller.state.first { !it.normalCommandsSynchronized }
+                assertFails { controller.run(operation) }
+                assertEquals(Operation.Phase.READY, operation.progress.value.phase)
+            } finally {
+                controller.close()
+            }
+        }
     }
 
     private suspend fun report(controller: Controller, transport: ConnectionTestTransport, mode: String) {

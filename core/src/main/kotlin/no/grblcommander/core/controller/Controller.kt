@@ -26,7 +26,8 @@ class Controller(
     private val active = MutableStateFlow<Operation?>(null)
     val activeOperation = active.asStateFlow()
 
-    private class Run(val operation: Operation, val job: CompletableJob, val buffer: CommandBuffer, val epoch: Long) {
+    private class Run(val operation: Operation, val job: CompletableJob, val buffer: CommandBuffer, val epoch: Long, var holdSequence: Long) {
+        var held = false
         var resumeAfter: Long? = null
     }
 
@@ -82,7 +83,7 @@ class Controller(
                 if (session === current && run?.operation === operation) observe(current)
             }
         }
-        val accepted = Run(operation, job, buffer, epoch)
+        val accepted = Run(operation, job, buffer, epoch, snapshot.lastHoldSequence)
         run = accepted
         active.value = operation
         job.invokeOnCompletion { cause ->
@@ -119,15 +120,21 @@ class Controller(
             return
         }
         val mode = snapshot.status?.executionState
-        if (mode?.substringBefore(':') == "Hold") execution.buffer.`suspend`()
+        if (snapshot.lastHoldSequence > execution.holdSequence) {
+            execution.holdSequence = snapshot.lastHoldSequence
+            execution.held = true
+            execution.resumeAfter = null
+            execution.buffer.`suspend`()
+        }
         val fresh = fresh(snapshot)
         val after = execution.resumeAfter
         if (after != null && fresh && snapshot.reportSequence > after && (mode == "Run" || mode == "Idle")) {
             execution.resumeAfter = null
+            execution.held = false
             execution.buffer.resume()
         }
         execution.operation.observe(snapshot.status?.executingLineNumber.takeIf { fresh }, snapshot.reportSequence,
-            fresh && mode == "Idle" && execution.resumeAfter == null && !execution.buffer.suspended)
+            fresh && mode == "Idle" && !execution.held)
     }
 
     suspend fun sendRealtime(command: RealtimeCommand) {
@@ -140,10 +147,12 @@ class Controller(
                 check(!transitioning)
                 execution = run
                 if (command == RealtimeCommand.FEED_HOLD) {
+                    execution?.held = true
                     execution?.resumeAfter = null
                     execution?.buffer?.`suspend`()
                 }
                 if (command == RealtimeCommand.CYCLE_START && execution != null) {
+                    observe(current)
                     val snapshot = current.state.value
                     check(snapshot.usable() && fresh(snapshot) && snapshot.status?.executionState == "Hold:0")
                 }
