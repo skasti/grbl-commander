@@ -28,7 +28,7 @@ class CommandBufferTest {
         val permits = Channel<Unit>(Channel.UNLIMITED)
         val waiting = Channel<Unit>(Channel.UNLIMITED)
         val replies = mutableListOf<Int>()
-        val buffer = CommandBuffer(session, 1, {
+        val buffer = CommandBuffer(session, this, 1, {
             waiting.send(Unit)
             permits.receive()
         }) { command, outcome -> if (outcome is CommandOutcome.Reply) replies += command.position }
@@ -59,7 +59,7 @@ class CommandBufferTest {
     }
 
     @Test fun rejectionStopsQueuedWork() = exercise { transport, session ->
-        val buffer = CommandBuffer(session, admitDispatch = {}, report = { _, _ -> })
+        val buffer = CommandBuffer(session, this, admitDispatch = {}, report = { _, _ -> })
         buffer.enqueue(line(1))
         buffer.enqueue(line(2))
         buffer.start()
@@ -71,7 +71,7 @@ class CommandBufferTest {
 
     @Test fun closeDuringAckWakesBlockedProducer() = exercise { transport, session ->
         val outcomes = mutableListOf<CommandOutcome>()
-        val buffer = CommandBuffer(session, 1, {}) { _, outcome -> outcomes += outcome }
+        val buffer = CommandBuffer(session, this, 1, {}) { _, outcome -> outcomes += outcome }
         buffer.start()
         buffer.enqueue(line(1))
         transport.nextNonStatusWrite()
@@ -95,7 +95,7 @@ class CommandBufferTest {
         assertEquals("!", transport.nextNonStatusWrite())
         val admitted = CompletableDeferred<Unit>()
         val outcomes = mutableListOf<CommandOutcome>()
-        val buffer = CommandBuffer(session, admitDispatch = { admitted.complete(Unit) }) { _, outcome -> outcomes += outcome }
+        val buffer = CommandBuffer(session, this, admitDispatch = { admitted.complete(Unit) }) { _, outcome -> outcomes += outcome }
         buffer.enqueue(line(1))
         buffer.start()
         admitted.await()
@@ -110,7 +110,7 @@ class CommandBufferTest {
     @Test fun uncertainTransmissionRetainsSourceIdentity() = exercise { transport, session ->
         transport.onWrite = { throw IOException("write outcome unknown") }
         val outcomes = mutableListOf<Pair<SourceCommand, CommandOutcome>>()
-        val buffer = CommandBuffer(session, admitDispatch = {}) { command, outcome -> outcomes += command to outcome }
+        val buffer = CommandBuffer(session, this, admitDispatch = {}) { command, outcome -> outcomes += command to outcome }
         buffer.enqueue(line(7))
         buffer.start()
         buffer.awaitClosed()
@@ -135,7 +135,7 @@ class CommandBufferTest {
             }
         }
         val outcomes = mutableListOf<CommandOutcome>()
-        val buffer = CommandBuffer(session, admitDispatch = {}) { _, event -> outcomes += event }
+        val buffer = CommandBuffer(session, this, admitDispatch = {}) { _, event -> outcomes += event }
         buffer.enqueue(line(1))
         buffer.start()
         entered.await()
@@ -150,6 +150,23 @@ class CommandBufferTest {
         termination.await()
         assertEquals(CommandOutcome.UncertainWrite, outcomes.first())
         assertIs<CommandOutcome.Interrupted>(outcomes.last())
+    }
+
+    @Test fun executionCancellationRetiresBufferWhileSessionStaysConnected() = exercise { transport, session ->
+        val execution = Job(coroutineContext[Job])
+        val buffer = CommandBuffer(session, CoroutineScope(coroutineContext + execution),
+            capacity = 1, admitDispatch = {}, report = { _, _ -> })
+        buffer.enqueue(line(1))
+        buffer.start()
+        transport.nextNonStatusWrite()
+        buffer.enqueue(line(2))
+        val blocked = async(start = CoroutineStart.UNDISPATCHED) { runCatching { buffer.enqueue(line(3)) } }
+        execution.cancelAndJoin()
+        buffer.awaitClosed()
+        assertTrue(blocked.await().isFailure)
+        assertFails { buffer.start() }
+        assertTrue(transport.drainWrites().isEmpty())
+        assertTrue(transport.isConnected)
     }
 
     private fun line(n: Int) = SourceCommand(n, "G1 X$n")

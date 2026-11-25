@@ -6,7 +6,10 @@ commands plus one held by the worker. One source producer can also be suspended
 while enqueueing its next line. The desktop uses the separate
 [controller connection](controller-connection.md).
 
-The owner starts the worker once and supplies dispatch permission for each
+The execution owner supplies a structured parent scope and starts the buffer
+once. The buffer creates and manages its private worker as a child of that
+execution. Cancelling the execution retires the buffer even while it waits for
+an acknowledgment. The owner supplies dispatch permission for each
 dequeued line. Granting permission admits that send. The worker executes the
 line through the session, reports transmission and reply events synchronously
 with their source position, and stops on rejection or failure. A successful
