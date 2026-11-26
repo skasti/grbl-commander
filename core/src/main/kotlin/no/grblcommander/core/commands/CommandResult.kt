@@ -1,4 +1,4 @@
-package no.grblcommander.core.controller
+package no.grblcommander.core.commands
 
 import no.grblcommander.machine.session.CommandAcknowledgment
 

@@ -1,4 +1,4 @@
-package no.grblcommander.core.controller
+package no.grblcommander.core.commands
 
 import java.io.Closeable
 import kotlinx.coroutines.CompletableDeferred

@@ -2,6 +2,9 @@ package no.grblcommander.core.controller
 
 import java.io.IOException
 import kotlinx.coroutines.*
+import no.grblcommander.core.commands.Command
+import no.grblcommander.core.commands.CommandBuffer
+import no.grblcommander.core.commands.CommandResult
 import no.grblcommander.core.connection.ConnectionTestTransport
 import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.RealtimeCommand
@@ -27,7 +30,7 @@ class CommandBufferTest {
     @Test fun sendsCommandsInEnqueueOrder() = exercise { transport, session ->
         val replies = mutableListOf<Int>()
         val buffer = CommandBuffer(session, this, 3) { command, outcome ->
-            if (outcome is CommandResult.Reply) replies += command.position
+            if (outcome is CommandResult.Reply) replies += checkNotNull(command.line)
         }
         buffer.enqueue(line(1))
         buffer.enqueue(line(2))
@@ -45,7 +48,7 @@ class CommandBufferTest {
     @Test fun waitsForPermissionBeforeSendingNextCommand() = exercise { transport, session ->
         val firstReply = CompletableDeferred<Unit>()
         val buffer = CommandBuffer(session, this, 1) { command, outcome ->
-            if (command.position == 1 && outcome is CommandResult.Reply) firstReply.complete(Unit)
+            if (command.line == 1 && outcome is CommandResult.Reply) firstReply.complete(Unit)
         }
         buffer.enqueue(line(1))
         buffer.start()
@@ -192,7 +195,8 @@ class CommandBufferTest {
 
     @Test fun executionCancellationRetiresBufferWhileSessionStaysConnected() = exercise { transport, session ->
         val execution = Job(coroutineContext[Job])
-        val buffer = CommandBuffer(session, CoroutineScope(coroutineContext + execution),
+        val buffer = CommandBuffer(
+            session, CoroutineScope(coroutineContext + execution),
             capacity = 1, report = { _, _ -> })
         buffer.enqueue(line(1))
         buffer.start()

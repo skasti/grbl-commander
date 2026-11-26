@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import no.grblcommander.core.commands.Command
+import no.grblcommander.core.commands.CommandBuffer
+import no.grblcommander.core.commands.CommandResult
 import no.grblcommander.machine.session.MachineSession
 import no.grblcommander.machine.session.MachineSnapshot
 
@@ -62,7 +65,7 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
             val commands = CommandBuffer(session, this, bufferCapacity, epoch) { command, outcome ->
                 record(command, outcome, session, isFresh)
             }
-            try {
+            commands.use { commands ->
                 synchronized(gate) {
                     ensureActive()
                     buffer = commands
@@ -72,8 +75,6 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
                 produce(commands)
                 commands.awaitClosed()
                 progress.first { it.phase in terminal }
-            } finally {
-                commands.close()
             }
         }
         state.value = Progress(Phase.RUNNING)
@@ -148,7 +149,7 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
         isFresh: (MachineSnapshot) -> Boolean,
     ) {
         val invalidated = synchronized(gate) {
-            val line = command.position
+            val line = checkNotNull(command.line) { "Operation command must have a source line" }
             val sequence = session.state.value.reportSequence
             if (outcome == CommandResult.Sent) sentAfterReport[line - 1] = sequence
             if (outcome is CommandResult.Reply && outcome.acknowledgment.accepted && line == lines.size) {
