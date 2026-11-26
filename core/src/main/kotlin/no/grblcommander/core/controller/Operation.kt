@@ -1,6 +1,7 @@
 package no.grblcommander.core.controller
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -37,6 +38,7 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
     val progress = state.asStateFlow()
     private val gate = Any()
     private val sentAfterReport = LongArray(lines.size) { Long.MAX_VALUE }
+    private val finished = CompletableDeferred<Unit>()
     private var execution: Job? = null
     private var buffer: CommandBuffer? = null
     private var epoch = -1L
@@ -53,7 +55,7 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
         initialHoldSequence: Long,
         isFresh: (MachineSnapshot) -> Boolean,
     ) = synchronized(gate) {
-        check(execution == null) { "Operation already accepted" }
+        check(state.value.phase == Phase.READY) { "Operation already accepted" }
         this.epoch = epoch
         holdSequence = initialHoldSequence
         execution = parent.launch(start = CoroutineStart.LAZY) {
@@ -82,6 +84,7 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
         job.invokeOnCompletion { cause ->
             synchronized(gate) {
                 buffer = null
+                execution = null
                 state.update {
                     if (it.phase in terminal) it.copy(executing = null)
                     else it.copy(
@@ -91,7 +94,11 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
                     )
                 }
             }
-            onFinished()
+            try {
+                onFinished()
+            } finally {
+                finished.complete(Unit)
+            }
         }
         job.start()
     }
@@ -104,10 +111,7 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
         job?.cancel(CancellationException(reason))
     }
 
-    internal suspend fun awaitFinished() {
-        val job = synchronized(gate) { execution }
-        job?.join()
-    }
+    internal suspend fun awaitFinished() = finished.await()
 
     internal fun pauseDispatch() = synchronized(gate) {
         holdDispatch()
