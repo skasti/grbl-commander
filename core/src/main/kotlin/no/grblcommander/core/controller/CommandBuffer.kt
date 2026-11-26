@@ -12,17 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import no.grblcommander.machine.session.CommandAcknowledgment
 import no.grblcommander.machine.session.MachineSession
-
-internal data class SourceCommand(val position: Int, val text: String)
-
-internal sealed interface CommandOutcome {
-    data object Sent : CommandOutcome
-    data object UncertainWrite : CommandOutcome
-    data class Reply(val acknowledgment: CommandAcknowledgment) : CommandOutcome
-    data class Interrupted(val cause: Exception) : CommandOutcome
-}
 
 /** Single execution. Capacity excludes the one command held by the buffer worker. */
 internal class CommandBuffer(
@@ -30,7 +20,7 @@ internal class CommandBuffer(
     executionScope: CoroutineScope,
     capacity: Int = DEFAULT_CAPACITY,
     private val epoch: Long = session.normalCommandEpoch,
-    private val report: (SourceCommand, CommandOutcome) -> Unit,
+    private val report: (Command, CommandResult) -> Unit,
 ) : Closeable {
     init {
         requireNotNull(executionScope.coroutineContext[Job]) { "An execution lifetime is required" }
@@ -60,7 +50,7 @@ internal class CommandBuffer(
         }
     }
 
-    private val queue = Channel<SourceCommand>(capacity)
+    private val queue = Channel<Command>(capacity)
     private val terminated = CompletableDeferred<Unit>()
     private val worker = executionScope.launch(start = CoroutineStart.LAZY) {
         for (command in queue) {
@@ -68,15 +58,15 @@ internal class CommandBuffer(
                 awaitDispatchEligibility()
                 currentCoroutineContext().ensureActive()
                 session.executeLine(command.text, epoch,
-                    onUncertainWrite = { report(command, CommandOutcome.UncertainWrite) },
-                    onSent = { report(command, CommandOutcome.Sent) },
+                    onUncertainWrite = { report(command, CommandResult.UncertainWrite) },
+                    onSent = { report(command, CommandResult.Sent) },
                 )
             } catch (error: Exception) {
-                report(command, CommandOutcome.Interrupted(error))
+                report(command, CommandResult.Interrupted(error))
                 if (error is CancellationException) throw error
                 break
             }
-            report(command, CommandOutcome.Reply(reply))
+            report(command, CommandResult.Reply(reply))
             if (!reply.accepted) break
         }
     }.also { task ->
@@ -88,7 +78,7 @@ internal class CommandBuffer(
     }
 
     fun start() = check(worker.start()) { "Buffer has already started or closed" }
-    suspend fun enqueue(command: SourceCommand) = queue.send(command)
+    suspend fun enqueue(command: Command) = queue.send(command)
     fun finishProduction() { queue.close() }
 
     override fun close() {

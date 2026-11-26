@@ -135,33 +135,33 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
     private suspend fun produce(buffer: CommandBuffer) {
         for (i in lines.indices) {
             buffer.awaitDispatchEligibility()
-            buffer.enqueue(SourceCommand(i + 1, program.wire(i)))
+            buffer.enqueue(Command(i + 1, program.wire(i)))
             state.update { it.copy(enqueued = i + 1) }
         }
         buffer.finishProduction()
     }
 
     private fun record(
-        command: SourceCommand,
-        outcome: CommandOutcome,
+        command: Command,
+        outcome: CommandResult,
         session: MachineSession,
         isFresh: (MachineSnapshot) -> Boolean,
     ) {
         val invalidated = synchronized(gate) {
             val line = command.position
             val sequence = session.state.value.reportSequence
-            if (outcome == CommandOutcome.Sent) sentAfterReport[line - 1] = sequence
-            if (outcome is CommandOutcome.Reply && outcome.acknowledgment.accepted && line == lines.size) {
+            if (outcome == CommandResult.Sent) sentAfterReport[line - 1] = sequence
+            if (outcome is CommandResult.Reply && outcome.acknowledgment.accepted && line == lines.size) {
                 finalAckSequence = outcome.acknowledgment.reportSequence ?: sequence
             }
             state.update {
                 when (outcome) {
-                    CommandOutcome.Sent -> it.copy(sent = line)
-                    CommandOutcome.UncertainWrite -> it.copy(uncertainWrite = line)
-                    is CommandOutcome.Interrupted -> it.copy(
+                    CommandResult.Sent -> it.copy(sent = line)
+                    CommandResult.UncertainWrite -> it.copy(uncertainWrite = line)
+                    is CommandResult.Interrupted -> it.copy(
                         phase = Phase.INTERRUPTED, failedLine = line, error = interruption ?: outcome.cause.message,
                     )
-                    is CommandOutcome.Reply -> when {
+                    is CommandResult.Reply -> when {
                         !outcome.acknowledgment.accepted -> it.copy(
                             phase = Phase.FAILED, failedLine = line, error = "error:${outcome.acknowledgment.errorCode}",
                         )

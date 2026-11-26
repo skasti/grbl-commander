@@ -27,7 +27,7 @@ class CommandBufferTest {
     @Test fun sendsCommandsInEnqueueOrder() = exercise { transport, session ->
         val replies = mutableListOf<Int>()
         val buffer = CommandBuffer(session, this, 3) { command, outcome ->
-            if (outcome is CommandOutcome.Reply) replies += command.position
+            if (outcome is CommandResult.Reply) replies += command.position
         }
         buffer.enqueue(line(1))
         buffer.enqueue(line(2))
@@ -45,7 +45,7 @@ class CommandBufferTest {
     @Test fun waitsForPermissionBeforeSendingNextCommand() = exercise { transport, session ->
         val firstReply = CompletableDeferred<Unit>()
         val buffer = CommandBuffer(session, this, 1) { command, outcome ->
-            if (command.position == 1 && outcome is CommandOutcome.Reply) firstReply.complete(Unit)
+            if (command.position == 1 && outcome is CommandResult.Reply) firstReply.complete(Unit)
         }
         buffer.enqueue(line(1))
         buffer.start()
@@ -94,7 +94,7 @@ class CommandBufferTest {
     }
 
     @Test fun rejectionStopsQueuedWork() = exercise { transport, session ->
-        val outcomes = mutableListOf<Pair<SourceCommand, CommandOutcome>>()
+        val outcomes = mutableListOf<Pair<Command, CommandResult>>()
         val buffer = CommandBuffer(session, this) { command, outcome -> outcomes += command to outcome }
         buffer.enqueue(line(1))
         buffer.enqueue(line(2))
@@ -103,14 +103,14 @@ class CommandBufferTest {
         transport.emit("error:20\n")
         buffer.awaitClosed()
         assertEquals(listOf(line(1), line(1)), outcomes.map { it.first })
-        assertEquals(CommandOutcome.Sent, outcomes.first().second)
-        val reply = assertIs<CommandOutcome.Reply>(outcomes.last().second)
+        assertEquals(CommandResult.Sent, outcomes.first().second)
+        val reply = assertIs<CommandResult.Reply>(outcomes.last().second)
         assertEquals(20, reply.acknowledgment.errorCode)
         assertTrue(transport.drainWrites().isEmpty())
     }
 
     @Test fun closeDuringAckWakesBlockedProducer() = exercise { transport, session ->
-        val outcomes = mutableListOf<CommandOutcome>()
+        val outcomes = mutableListOf<CommandResult>()
         val buffer = CommandBuffer(session, this, 1) { _, outcome -> outcomes += outcome }
         buffer.start()
         buffer.enqueue(line(1))
@@ -121,8 +121,8 @@ class CommandBufferTest {
         buffer.close()
         buffer.awaitClosed()
         assertTrue(blocked.await().isFailure)
-        assertEquals(CommandOutcome.Sent, outcomes.first())
-        assertIs<CommandOutcome.Interrupted>(outcomes.last())
+        assertEquals(CommandResult.Sent, outcomes.first())
+        assertIs<CommandResult.Interrupted>(outcomes.last())
         assertTrue(transport.drainWrites().isEmpty())
         assertFalse(transport.closed)
     }
@@ -132,7 +132,7 @@ class CommandBufferTest {
         transport.onWrite = { if (it == "!") release.await() }
         val realtime = launch { session.sendRealtime(RealtimeCommand.FEED_HOLD) }
         assertEquals("!", transport.nextNonStatusWrite())
-        val outcomes = mutableListOf<CommandOutcome>()
+        val outcomes = mutableListOf<CommandResult>()
         val buffer = CommandBuffer(session, this) { _, outcome -> outcomes += outcome }
         buffer.enqueue(line(1))
         buffer.start()
@@ -141,20 +141,20 @@ class CommandBufferTest {
         buffer.awaitClosed()
         release.complete(Unit)
         realtime.join()
-        assertIs<CommandOutcome.Interrupted>(outcomes.single())
+        assertIs<CommandResult.Interrupted>(outcomes.single())
         assertTrue(transport.drainWrites().isEmpty())
     }
 
     @Test fun uncertainTransmissionRetainsSourceIdentity() = exercise { transport, session ->
         transport.onWrite = { throw IOException("write outcome unknown") }
-        val outcomes = mutableListOf<Pair<SourceCommand, CommandOutcome>>()
+        val outcomes = mutableListOf<Pair<Command, CommandResult>>()
         val buffer = CommandBuffer(session, this) { command, outcome -> outcomes += command to outcome }
         buffer.enqueue(line(7))
         buffer.start()
         buffer.awaitClosed()
         assertEquals(listOf(line(7), line(7)), outcomes.map { it.first })
-        assertEquals(CommandOutcome.UncertainWrite, outcomes.first().second)
-        assertIs<CommandOutcome.Interrupted>(outcomes.last().second)
+        assertEquals(CommandResult.UncertainWrite, outcomes.first().second)
+        assertIs<CommandResult.Interrupted>(outcomes.last().second)
     }
 
     @Test fun closeDuringEnteredWriteAwaitsUncertaintyAndCleanup() = exercise { transport, session ->
@@ -172,7 +172,7 @@ class CommandBufferTest {
                 }
             }
         }
-        val outcomes = mutableListOf<CommandOutcome>()
+        val outcomes = mutableListOf<CommandResult>()
         val buffer = CommandBuffer(session, this) { _, event -> outcomes += event }
         buffer.enqueue(line(1))
         buffer.start()
@@ -186,8 +186,8 @@ class CommandBufferTest {
             release.complete(Unit)
         }
         termination.await()
-        assertEquals(CommandOutcome.UncertainWrite, outcomes.first())
-        assertIs<CommandOutcome.Interrupted>(outcomes.last())
+        assertEquals(CommandResult.UncertainWrite, outcomes.first())
+        assertIs<CommandResult.Interrupted>(outcomes.last())
     }
 
     @Test fun executionCancellationRetiresBufferWhileSessionStaysConnected() = exercise { transport, session ->
@@ -235,5 +235,5 @@ class CommandBufferTest {
         assertFails { buffer.enqueue(line(3)) }
     }
 
-    private fun line(n: Int) = SourceCommand(n, "G1 X$n")
+    private fun line(n: Int) = Command(n, "G1 X$n")
 }
