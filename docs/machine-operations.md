@@ -132,10 +132,14 @@ controller-hosted workflows and implementation priorities.
 
 A caller constructs `core.controller.Operation(lines, source)` and retains the
 same object from admission through its terminal result. Construction snapshots
-and validates the complete source and indexes unambiguous N words. During a run
-the producer prepares wire text one line at a time and waits for space in the
-[execution buffer](controller.md). Progress distinguishes enqueue, full write,
-acknowledgment, uncertain write, rejection and sampled execution. A successful
-last reply records a report-sequence boundary. Physical completion requires a
-fresh synchronized Idle report beyond that boundary. An accepted operation is
-single-use.
+and validates the complete source and indexes unambiguous N words. An accepted
+operation is single-use. It owns its execution coroutine, incremental producer
+and [execution buffer](controller.md). The producer prepares wire text one line
+at a time and waits for buffer space. Interruption cancels the producer and
+worker, and operation termination includes waiting for owned sends to settle.
+
+Progress distinguishes enqueue, full write, acknowledgment, uncertain write,
+rejection and sampled execution. An execution position comes from a fresh Run
+or Hold report with a mapped Ln received after the corresponding line was
+written. A successful last reply records a report-sequence boundary. Physical
+completion requires a fresh synchronized Idle report beyond that boundary.

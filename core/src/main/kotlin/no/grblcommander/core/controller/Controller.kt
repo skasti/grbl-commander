@@ -13,7 +13,6 @@ import no.grblcommander.machine.session.*
 /** Exclusive owner of one connection and at most one accepted execution. */
 class Controller(
     parent: CoroutineScope,
-    private val capacity: Int = 8,
     private val now: () -> Instant = Instant::now,
 ) {
     private val owner = SupervisorJob(requireNotNull(parent.coroutineContext[Job]))
@@ -26,18 +25,11 @@ class Controller(
     private val active = MutableStateFlow<Operation?>(null)
     val activeOperation = active.asStateFlow()
 
-    private class Run(val operation: Operation, val job: CompletableJob, val buffer: CommandBuffer, val epoch: Long, var holdSequence: Long) {
-        var held = false
-        var resumeAfter: Long? = null
-    }
-
     private var session: MachineSession? = null
     private var observer: Job? = null
-    private var run: Run? = null
+    private var statusPoller: Job? = null
     private var transitioning = false
     private var readyAfter = -1L
-
-    init { require(capacity in 1 until Int.MAX_VALUE) }
 
     suspend fun connect(endpoint: ControllerEndpoint) = replace { controllerSession(endpoint, scope) }
     internal suspend fun connect(session: MachineSession) = replace { session }
@@ -60,6 +52,7 @@ class Controller(
                         }
                     }
                 }
+                statusPoller = scope.launch { pollStatus(next) }
             }
         } catch (failure: Throwable) {
             next.close()
@@ -72,106 +65,75 @@ class Controller(
         val current = checkNotNull(session)
         val epoch = current.normalCommandEpoch
         val snapshot = current.state.value
-        check(owner.isActive && !transitioning && run == null && snapshot.usable() &&
+        check(owner.isActive && !transitioning && active.value == null && snapshot.usable() &&
             fresh(snapshot) && snapshot.status?.executionState == "Idle" && snapshot.reportSequence > readyAfter)
-        check(operation.reserve()) { "Operation already accepted" }
-        val job = Job(owner)
-        val execution = CoroutineScope(scope.coroutineContext + job)
-        val buffer = CommandBuffer(current, execution, capacity, epoch) { command, result ->
-            synchronized(gate) {
-                operation.outcome(command, result, current.state.value.reportSequence)
-                if (session === current && run?.operation === operation) observe(current)
-            }
-        }
-        val accepted = Run(operation, job, buffer, epoch, snapshot.lastHoldSequence)
-        run = accepted
+        operation.prepare(current, scope, epoch, snapshot.lastHoldSequence, ::fresh)
         active.value = operation
-        job.invokeOnCompletion { cause ->
+        operation.start {
             synchronized(gate) {
-                if (run === accepted) {
-                    operation.interrupt(cause?.message ?: "Execution ended")
-                    if (operation.progress.value.phase != Operation.Phase.COMPLETED)
+                if (active.value === operation) {
+                    if (operation.progress.value.phase != Operation.Phase.COMPLETED) {
                         readyAfter = current.state.value.reportSequence
-                    run = null
+                    }
                     active.value = null
                 }
             }
         }
-        execution.launch {
-            try {
-                synchronized(gate) {
-                    ensureActive()
-                    buffer.start()
-                }
-                operation.produce(buffer)
-                buffer.awaitClosed()
-                operation.progress.first { it.phase in terminal }
-            } finally {
-                buffer.close()
-                job.complete()
-            }
-        }
-        Unit
     }
 
     private fun observe(current: MachineSession) {
-        val snapshot = current.state.value
-        machine.value = snapshot
-        val execution = run ?: return
-        if (transitioning || !snapshot.usable() || current.normalCommandEpoch != execution.epoch) {
-            stop(execution)
-            return
+        machine.value = current.state.value
+        if (!transitioning) active.value?.observe(current, ::fresh)
+    }
+
+    private suspend fun pollStatus(current: MachineSession) {
+        while (currentCoroutineContext().isActive) {
+            delay(500)
+            if (current.state.value.connection != MachineSnapshot.Connection.CONNECTED) return
+            realtime.withLock {
+                val shouldPoll = synchronized(gate) {
+                    session === current && !transitioning && !current.state.value.resetInProgress
+                }
+                if (shouldPoll) {
+                    try {
+                        current.sendRealtime(RealtimeCommand.STATUS_QUERY)
+                    } catch (_: Exception) {
+                        // The session records write failures. Preserve cancellation.
+                        currentCoroutineContext().ensureActive()
+                    }
+                }
+            }
         }
-        val mode = snapshot.status?.executionState
-        if (snapshot.lastHoldSequence > execution.holdSequence) {
-            execution.holdSequence = snapshot.lastHoldSequence
-            execution.held = true
-            execution.resumeAfter = null
-            execution.buffer.`suspend`()
-        }
-        val fresh = fresh(snapshot)
-        val after = execution.resumeAfter
-        if (after != null && fresh && snapshot.reportSequence > after && (mode == "Run" || mode == "Idle")) {
-            execution.resumeAfter = null
-            execution.held = false
-            execution.buffer.resume()
-        }
-        execution.operation.observe(snapshot.status?.executingLineNumber.takeIf { fresh }, snapshot.reportSequence,
-            fresh && mode == "Idle" && !execution.held)
     }
 
     suspend fun sendRealtime(command: RealtimeCommand) {
         if (command == RealtimeCommand.SOFT_RESET) return reset()
         realtime.withLock {
             val current: MachineSession
-            val execution: Run?
+            val operation: Operation?
             val cycleHold: Long?
             synchronized(gate) {
                 current = checkNotNull(session)
                 check(!transitioning)
-                execution = run
-                if (command == RealtimeCommand.FEED_HOLD) {
-                    execution?.held = true
-                    execution?.resumeAfter = null
-                    execution?.buffer?.`suspend`()
-                }
-                cycleHold = if (command == RealtimeCommand.CYCLE_START && execution != null) {
-                    observe(current)
+                operation = active.value
+                if (command == RealtimeCommand.FEED_HOLD) operation?.pauseDispatch()
+                cycleHold = if (command == RealtimeCommand.CYCLE_START && operation != null) {
                     val snapshot = current.state.value
                     check(snapshot.usable() && fresh(snapshot) && snapshot.status?.executionState == "Hold:0")
                     snapshot.lastHoldSequence
                 } else null
             }
             current.sendRealtime(command)
-            if (cycleHold != null && execution != null) {
+            if (cycleHold != null && operation != null) {
                 val requestStatus = synchronized(gate) {
                     val snapshot = current.state.value
-                    if (transitioning || session !== current || run !== execution ||
-                        snapshot.lastHoldSequence != cycleHold) return@withLock
-                    execution.resumeAfter = snapshot.reportSequence
-                    // A ready report can arrive during the realtime write. Solicit a
-                    // subsequent sample when that report predates our completion fence.
-                    snapshot.status?.executionState in setOf("Run", "Idle")
+                    if (transitioning || session !== current || active.value !== operation ||
+                        snapshot.lastHoldSequence != cycleHold
+                    ) return@withLock
+                    operation.cycleStarted(cycleHold, snapshot.reportSequence)
+                    // Request another sample if Run or Idle arrived before the write returned.
+                    val mode = snapshot.status?.executionState?.substringBefore(':')
+                    mode == "Run" || mode == "Idle"
                 }
                 if (requestStatus) current.sendRealtime(RealtimeCommand.STATUS_QUERY)
             }
@@ -180,14 +142,14 @@ class Controller(
 
     suspend fun reset() = lifecycle.withLock {
         val current: MachineSession
-        val execution = synchronized(gate) {
+        val operation = synchronized(gate) {
             current = checkNotNull(session)
             transitioning = true
-            run?.also(::stop)
+            active.value?.also { it.interrupt("Controller reset requested") }
         }
         try {
             withContext(NonCancellable) {
-                execution?.job?.join()
+                operation?.awaitFinished()
                 realtime.withLock { current.reset() }
             }
         } finally {
@@ -206,37 +168,30 @@ class Controller(
 
     private suspend fun disposeSession() = withContext(NonCancellable) {
         val current: MachineSession
-        val execution = synchronized(gate) {
+        val operation = synchronized(gate) {
             current = session ?: return@withContext
             transitioning = true
-            run?.also(::stop)
+            active.value?.also { it.interrupt("Controller session closed") }
         }
         current.close()
-        execution?.job?.join()
+        statusPoller?.cancelAndJoin()
+        operation?.awaitFinished()
         observer?.cancelAndJoin()
         current.awaitClosed()
         synchronized(gate) {
             machine.value = current.state.value
             session = null
             observer = null
+            statusPoller = null
             transitioning = false
         }
-    }
-
-    private fun stop(execution: Run) {
-        execution.buffer.close()
-        execution.job.cancel()
     }
 
     private fun fresh(snapshot: MachineSnapshot): Boolean {
         val age = Duration.between(snapshot.reportedAt ?: return false, now())
         return !age.isNegative && age <= Duration.ofSeconds(3)
     }
-
-    private fun MachineSnapshot.usable() = connection == MachineSnapshot.Connection.CONNECTED &&
-        normalCommandsSynchronized && !resetInProgress && !resetRequired && alarmCode == null && status?.isAlarm != true
-
-    private companion object {
-        val terminal = setOf(Operation.Phase.COMPLETED, Operation.Phase.INTERRUPTED, Operation.Phase.FAILED)
-    }
 }
+
+internal fun MachineSnapshot.usable() = connection == MachineSnapshot.Connection.CONNECTED &&
+    normalCommandsSynchronized && !resetInProgress && !resetRequired && alarmCode == null && status?.isAlarm != true

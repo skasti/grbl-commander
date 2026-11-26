@@ -6,10 +6,10 @@ commands plus one held by the worker. One source producer can also be suspended
 while enqueueing its next line. The desktop uses the separate
 [controller connection](controller-connection.md).
 
-The execution owner supplies a structured parent scope and starts the buffer
-once. The buffer creates and manages its private worker as a child of that
+The operation supplies its execution scope and starts the buffer once. The buffer creates and manages its private worker as a child of that
 execution. Cancelling the execution retires the buffer even while it waits for
-an acknowledgment. Calling `suspend()` gates new sends and retains queued and worker-held lines.
+an acknowledgment. Calling `suspend()` gates new sends and retains queued and
+worker-held lines.
 The worker claims each send by atomically observing the open gate. A claimed
 send can settle while suspended. The read-only `suspended` property reports
 a temporary hold. Calling `resume()` releases that hold. Closure permanently
@@ -27,17 +27,20 @@ machine control are separate from this local lifecycle.
 
 ## Session and execution ownership
 
-The public `Controller` connects one machine session and publishes its snapshots.
+The public `Controller` owns one machine session and publishes its snapshots.
+It polls for status every 500 ms after connection, using the session's realtime
+writer. Polling skips reset and ends with the session. The session reader
+handles report parsing.
+
 `run(operation)` atomically reserves the supplied [operation](machine-operations.md#source-owned-controller-operations)
 against the current protocol epoch and a synchronized Idle report at most three
-seconds old. The controller parents the execution independently of the caller.
-Its active-operation flow retains the handle until the producer and dispatch
-worker have terminated.
+seconds old. Controller supplies the parent scope independently of the caller.
+Its active-operation flow retains the handle until the operation has finished
+and its dispatch worker has terminated.
 
-Feed Hold gates the active buffer before the realtime write. Cycle Start from
-fresh Hold:0 permits further dispatch once a subsequent fresh Run or Idle
-report arrives. Session observation continues while the producer waits for
-capacity and while the operation waits for physical completion. Reset,
-replacement, disconnect and shutdown serialize session changes and await old
-execution cleanup. A session failure or invalidated command epoch interrupts
-the affected operation.
+Controller sends realtime commands and coordinates the active operation's
+dispatch. Feed Hold pauses dispatch before the realtime write. An explicit Cycle
+Start from fresh Hold:0 authorizes the operation to resume once it observes a
+later fresh Run or Idle for the same hold. Reset, replacement, disconnect and
+shutdown interrupt the operation and await its cleanup. A session failure or
+invalidated command epoch also interrupts the affected operation.

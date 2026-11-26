@@ -28,7 +28,7 @@ internal sealed interface CommandOutcome {
 internal class CommandBuffer(
     private val session: MachineSession,
     executionScope: CoroutineScope,
-    capacity: Int = 8,
+    capacity: Int = DEFAULT_CAPACITY,
     private val epoch: Long = session.normalCommandEpoch,
     private val report: (SourceCommand, CommandOutcome) -> Unit,
 ) : Closeable {
@@ -98,4 +98,8 @@ internal class CommandBuffer(
     }
 
     suspend fun awaitClosed() = terminated.await()
+
+    companion object {
+        const val DEFAULT_CAPACITY = 8
+    }
 }

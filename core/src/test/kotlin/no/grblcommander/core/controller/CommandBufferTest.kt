@@ -94,16 +94,18 @@ class CommandBufferTest {
     }
 
     @Test fun rejectionStopsQueuedWork() = exercise { transport, session ->
-        val outcomes = mutableListOf<CommandOutcome>()
-        val buffer = CommandBuffer(session, this) { _, outcome -> outcomes += outcome }
+        val outcomes = mutableListOf<Pair<SourceCommand, CommandOutcome>>()
+        val buffer = CommandBuffer(session, this) { command, outcome -> outcomes += command to outcome }
         buffer.enqueue(line(1))
         buffer.enqueue(line(2))
         buffer.start()
         assertEquals("G1 X1\n", transport.nextNonStatusWrite())
         transport.emit("error:20\n")
         buffer.awaitClosed()
-        val reply = assertIs<CommandOutcome.Reply>(outcomes.single())
-        assertFalse(reply.acknowledgment.accepted)
+        assertEquals(listOf(line(1), line(1)), outcomes.map { it.first })
+        assertEquals(CommandOutcome.Sent, outcomes.first().second)
+        val reply = assertIs<CommandOutcome.Reply>(outcomes.last().second)
+        assertEquals(20, reply.acknowledgment.errorCode)
         assertTrue(transport.drainWrites().isEmpty())
     }
 

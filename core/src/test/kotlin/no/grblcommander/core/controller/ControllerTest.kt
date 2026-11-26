@@ -10,7 +10,7 @@ import kotlin.test.*
 class ControllerTest {
     private fun scenario(block: suspend CoroutineScope.(Controller, ConnectionTestTransport) -> Unit) = runBlocking {
         withTimeout(8000) {
-            val controller = Controller(this, capacity = 1)
+            val controller = Controller(this)
             val transport = ConnectionTestTransport()
             try {
                 controller.connect(GrblMachineSession(transport, this))
@@ -45,7 +45,7 @@ class ControllerTest {
     }
 
     @Test fun heldQueueRequiresExplicitStartAndSubsequentReadiness() = scenario { controller, transport ->
-        val operation = Operation(List(4) { "G0 X$it" }, "Program")
+        val operation = Operation(List(4) { "G0 X$it" }, "Program", bufferCapacity = 1)
         controller.run(operation)
         assertEquals("N1 G0 X0\n", transport.nextNonStatusWrite())
         controller.sendRealtime(RealtimeCommand.FEED_HOLD)
@@ -88,6 +88,55 @@ class ControllerTest {
         assertEquals(Operation.Phase.COMPLETED, operation.progress.value.phase)
     }
 
+    @Test fun idleBeforeFinalAckCannotCompleteOperation() = scenario { controller, transport ->
+        transport.autoStatus = false
+        val operation = Operation(listOf("G4 P0"), "MDI")
+        controller.run(operation)
+        transport.nextNonStatusWrite()
+        transport.emit("<Idle>\nok\n")
+        operation.progress.first { it.phase == Operation.Phase.WAITING_FOR_IDLE }
+        assertSame(operation, controller.activeOperation.value)
+        report(controller, transport, "Idle")
+        controller.activeOperation.first { it == null }
+        assertEquals(Operation.Phase.COMPLETED, operation.progress.value.phase)
+    }
+
+    @Test fun pollingCompletesAnOperationWithoutUnsolicitedStatus() = scenario { controller, transport ->
+        val initial = controller.state.value.reportSequence
+        controller.state.first { it.reportSequence > initial }
+        val operation = Operation(listOf("G4 P0"), "MDI")
+        controller.run(operation)
+        assertEquals("G4 P0\n", transport.nextNonStatusWrite())
+        transport.emit("ok\n")
+        controller.activeOperation.first { it == null }
+        assertEquals(Operation.Phase.COMPLETED, operation.progress.value.phase)
+    }
+
+    @Test fun executingLineRequiresAFreshRunOrHoldReportAfterItsWrite() = scenario { controller, transport ->
+        val release = CompletableDeferred<Unit>()
+        transport.autoStatus = false
+        transport.onWrite = { if (it == "N1 G1 X1\n") release.await() }
+        val operation = Operation(listOf("G1 X1"), "MDI")
+        controller.run(operation)
+        try {
+            assertEquals("N1 G1 X1\n", transport.nextNonStatusWrite())
+            report(controller, transport, "Run|Ln:1")
+            assertNull(operation.progress.value.executing)
+        } finally {
+            release.complete(Unit)
+        }
+        operation.progress.first { it.sent == 1 }
+        transport.emit("ok\n")
+        operation.progress.first { it.phase == Operation.Phase.WAITING_FOR_IDLE }
+        assertNull(operation.progress.value.executing)
+        report(controller, transport, "Run|Ln:1")
+        operation.progress.first { it.executing == 1 }
+        report(controller, transport, "Idle|Ln:1")
+        controller.activeOperation.first { it == null }
+        assertEquals(Operation.Phase.COMPLETED, operation.progress.value.phase)
+        assertNull(operation.progress.value.executing)
+    }
+
     @Test fun lossAfterFinalAckInterruptsAndReplacementCanRun() = scenario { controller, transport ->
         val operation = Operation(listOf("G4 P0"), "MDI")
         controller.run(operation)
@@ -119,7 +168,7 @@ class ControllerTest {
                 }
             }
         }
-        val first = Operation(List(8) { "G1 X$it" }, "Program")
+        val first = Operation(List(8) { "G1 X$it" }, "Program", bufferCapacity = 1)
         controller.run(first)
         entered.await()
         val replacement = ConnectionTestTransport()
@@ -172,6 +221,6 @@ class ControllerTest {
     private suspend fun report(controller: Controller, transport: ConnectionTestTransport, mode: String) {
         val previous = controller.state.value.reportSequence
         transport.emit("<$mode>\n")
-        controller.state.first { it.reportSequence > previous && it.status?.executionState == mode }
+        controller.state.first { it.reportSequence > previous && it.status?.executionState == mode.substringBefore('|') }
     }
 }
