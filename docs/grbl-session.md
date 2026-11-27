@@ -70,6 +70,11 @@ failure. Admission failure and known local rejection invoke neither callback.
 Each session implementation supplies these signals at its write boundary.
 
 
+The correlated acknowledgment carries the status-report sequence at receipt. A
+consumer can distinguish a later report even when both lines arrive in one read.
+Snapshots retain the sequence at entry into the latest Hold so a consumer can
+detect it after successive status updates.
+
 ## Alarms and command correlation
 
 Alarm presentation, transport health and ordinary command correlation are

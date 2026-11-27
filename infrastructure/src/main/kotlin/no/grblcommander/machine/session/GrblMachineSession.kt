@@ -344,6 +344,9 @@ class GrblMachineSession(
                     status = message.report, reportedAt = Instant.now(),
                     reportSequence = previous.reportSequence + 1, alarmCode = code,
                     alarmDescription = code?.let { alarmDescriptions[it] },
+                    lastHoldSequence = if (message.report.executionState.substringBefore(':') == "Hold" &&
+                        previous.status?.executionState?.substringBefore(':') != "Hold")
+                        previous.reportSequence + 1 else previous.lastHoldSequence,
                 )
                 if (message.report.blockingCriticalEvent == true && !blockingAlarmLatched) {
                     blockingAlarmLatched = true
@@ -470,7 +473,7 @@ class GrblMachineSession(
         }
         pending = null
         refreshSynchronization()
-        request.response.complete(CommandAcknowledgment(errorCode, Collections.unmodifiableList(request.lines.toList())))
+        request.response.complete(CommandAcknowledgment(errorCode, Collections.unmodifiableList(request.lines.toList()), state.value.reportSequence))
     }
 
     /** Keep one tombstone for a transmitted line; only its acknowledgment can drain it. */

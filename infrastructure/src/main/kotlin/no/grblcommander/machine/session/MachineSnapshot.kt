@@ -22,6 +22,8 @@ data class MachineSnapshot(
     val normalCommandsSynchronized: Boolean = true,
     /** Local write/query diagnostic, separate from controller messages and fatal failure. */
     val lastRealtimeFailure: String? = null,
+    /** Sequence at entry into the latest Hold, retained across conflated observations. */
+    val lastHoldSequence: Long = 0,
 ) {
     val alarm: ControllerAlarm? get() = alarmCode?.let { ControllerAlarm.fromCode(it, alarmDescription) }
 

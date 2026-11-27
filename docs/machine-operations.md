@@ -127,3 +127,39 @@ workflows establish their contracts.
 
 See [Programs, macros and tools](programs-macros-tools.md) for program execution,
 controller-hosted workflows and implementation priorities.
+
+## Source-owned controller operations
+
+This API is implemented in `core.controller`; desktop workflows use
+`core.connection.ControllerConnection`.
+
+A caller constructs `core.controller.Operation(lines, source, now)` and retains
+the same object from admission through its terminal result. `source` is a
+`CommandSource` identifying Terminal, MDI or a named Program. Each queued
+`Command` carries that source and an optional one-based source line. Construction
+snapshots and validates the complete source and indexes unambiguous N words. An
+accepted operation is single-use. The `Controller` owns session admission and
+creates the bounded [command buffer](controller.md) using the operation's
+capacity and the captured session epoch. It passes that buffer to
+`Operation.prepare` together with the initial machine snapshot. The operation
+binds buffer reports to its progress recorder, and the controller forwards
+session snapshots through the operation's state handler. Both paths provide a
+snapshot directly, so the operation does not read the session. It deduplicates
+equal status observations delivered through the session flow and buffer reports.
+After a command result changes progress, the operation reevaluates the snapshot
+carried by that event. The controller monitors the accepted command epoch and
+interrupts the operation if it changes. The producer prepares wire text one line
+at a time and waits for buffer space. Interruption cancels the producer, closes
+the buffer and waits for its worker to settle.
+
+Preparation binds the buffer while the operation remains in the READY phase.
+Starting changes it to RUNNING immediately before launching the execution job.
+
+`Controller` and `Operation` use an injectable clock for the shared
+`MachineSnapshot.isFresh` policy.
+
+Progress distinguishes enqueue, full write, acknowledgment, uncertain write,
+rejection and sampled execution. An execution position comes from a fresh Run
+or Hold report with a mapped Ln received after the corresponding line was
+written. A successful last reply records a report-sequence boundary. Physical
+completion requires a fresh synchronized Idle report beyond that boundary.
