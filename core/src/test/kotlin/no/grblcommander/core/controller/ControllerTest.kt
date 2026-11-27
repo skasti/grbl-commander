@@ -2,6 +2,7 @@ package no.grblcommander.core.controller
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
+import no.grblcommander.core.commands.CommandSource
 import no.grblcommander.core.connection.ConnectionTestTransport
 import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.RealtimeCommand
@@ -23,7 +24,7 @@ class ControllerTest {
 
     @Test fun concurrentAdmissionRetainsWinnerUntilLaterIdle() = scenario { controller, transport ->
         val start = CompletableDeferred<Unit>()
-        val contenders = List(2) { Operation(listOf("G1 X1"), "MDI") }
+        val contenders = List(2) { Operation(listOf("G1 X1"), CommandSource.MDI) }
         val accepted = contenders.map { operation ->
             async(Dispatchers.Default) {
                 start.await()
@@ -45,7 +46,7 @@ class ControllerTest {
     }
 
     @Test fun heldQueueRequiresExplicitStartAndSubsequentReadiness() = scenario { controller, transport ->
-        val operation = Operation(List(4) { "G0 X$it" }, "Program", bufferCapacity = 1)
+        val operation = Operation(List(4) { "G0 X$it" }, CommandSource.Program("program.nc"), bufferCapacity = 1)
         controller.run(operation)
         assertEquals("N1 G0 X0\n", transport.nextNonStatusWrite())
         controller.sendRealtime(RealtimeCommand.FEED_HOLD)
@@ -66,7 +67,7 @@ class ControllerTest {
     }
 
     @Test fun transientHoldCannotBeLostBetweenStatusCollections() = scenario { controller, transport ->
-        val operation = Operation(listOf("G1 X1", "G1 X2"), "MDI")
+        val operation = Operation(listOf("G1 X1", "G1 X2"), CommandSource.MDI)
         controller.run(operation)
         transport.nextNonStatusWrite()
         transport.emit("<Hold:0>\n<Run>\nok\n")
@@ -80,7 +81,7 @@ class ControllerTest {
     }
 
     @Test fun idleInSameReadAsFinalAckCompletesOperation() = scenario { controller, transport ->
-        val operation = Operation(listOf("G4 P0"), "MDI")
+        val operation = Operation(listOf("G4 P0"), CommandSource.MDI)
         controller.run(operation)
         transport.nextNonStatusWrite()
         transport.emit("ok\n<Idle>\n")
@@ -90,7 +91,7 @@ class ControllerTest {
 
     @Test fun idleBeforeFinalAckCannotCompleteOperation() = scenario { controller, transport ->
         transport.autoStatus = false
-        val operation = Operation(listOf("G4 P0"), "MDI")
+        val operation = Operation(listOf("G4 P0"), CommandSource.MDI)
         controller.run(operation)
         transport.nextNonStatusWrite()
         transport.emit("<Idle>\nok\n")
@@ -104,7 +105,7 @@ class ControllerTest {
     @Test fun pollingCompletesAnOperationWithoutUnsolicitedStatus() = scenario { controller, transport ->
         val initial = controller.state.value.reportSequence
         controller.state.first { it.reportSequence > initial }
-        val operation = Operation(listOf("G4 P0"), "MDI")
+        val operation = Operation(listOf("G4 P0"), CommandSource.MDI)
         controller.run(operation)
         assertEquals("G4 P0\n", transport.nextNonStatusWrite())
         transport.emit("ok\n")
@@ -116,7 +117,7 @@ class ControllerTest {
         val release = CompletableDeferred<Unit>()
         transport.autoStatus = false
         transport.onWrite = { if (it == "N1 G1 X1\n") release.await() }
-        val operation = Operation(listOf("G1 X1"), "MDI")
+        val operation = Operation(listOf("G1 X1"), CommandSource.MDI)
         controller.run(operation)
         try {
             assertEquals("N1 G1 X1\n", transport.nextNonStatusWrite())
@@ -138,7 +139,7 @@ class ControllerTest {
     }
 
     @Test fun lossAfterFinalAckInterruptsAndReplacementCanRun() = scenario { controller, transport ->
-        val operation = Operation(listOf("G4 P0"), "MDI")
+        val operation = Operation(listOf("G4 P0"), CommandSource.MDI)
         controller.run(operation)
         transport.nextNonStatusWrite()
         transport.emit("ok\n")
@@ -146,10 +147,10 @@ class ControllerTest {
         transport.disconnect()
         controller.activeOperation.first { it == null }
         assertEquals(Operation.Phase.INTERRUPTED, operation.progress.value.phase)
-        assertFails { controller.run(Operation(listOf("G4 P0"), "MDI")) }
+        assertFails { controller.run(Operation(listOf("G4 P0"), CommandSource.MDI)) }
         val replacement = ConnectionTestTransport()
         controller.connect(GrblMachineSession(replacement, this))
-        controller.run(Operation(listOf("G4 P1"), "MDI"))
+        controller.run(Operation(listOf("G4 P1"), CommandSource.MDI))
         assertEquals("G4 P1\n", replacement.nextNonStatusWrite())
     }
 
@@ -168,7 +169,7 @@ class ControllerTest {
                 }
             }
         }
-        val first = Operation(List(8) { "G1 X$it" }, "Program", bufferCapacity = 1)
+        val first = Operation(List(8) { "G1 X$it" }, CommandSource.Program("program.nc"), bufferCapacity = 1)
         controller.run(first)
         entered.await()
         val replacement = ConnectionTestTransport()
@@ -178,7 +179,7 @@ class ControllerTest {
             cleanup.await()
             assertSame(first, controller.activeOperation.value)
             assertEquals(0, replacement.connectCount)
-            assertFails { controller.run(Operation(listOf("G4 P0"), "MDI")) }
+            assertFails { controller.run(Operation(listOf("G4 P0"), CommandSource.MDI)) }
         } finally {
             release.complete(Unit)
         }
@@ -188,7 +189,7 @@ class ControllerTest {
         assertNull(first.progress.value.sent)
         assertNull(first.progress.value.acknowledged)
         assertEquals(Operation.Phase.INTERRUPTED, first.progress.value.phase)
-        val second = Operation(listOf("G4 P0"), "MDI")
+        val second = Operation(listOf("G4 P0"), CommandSource.MDI)
         controller.run(second)
         assertEquals("G4 P0\n", replacement.nextNonStatusWrite())
         assertSame(second, controller.activeOperation.value)
@@ -199,7 +200,7 @@ class ControllerTest {
             var offset = 10L
             val controller = Controller(this, now = { java.time.Instant.now().plusSeconds(offset) })
             val transport = ConnectionTestTransport()
-            val operation = Operation(listOf("G4 P0"), "MDI")
+            val operation = Operation(listOf("G4 P0"), CommandSource.MDI)
             try {
                 assertFails { controller.run(operation) }
                 controller.connect(GrblMachineSession(transport, this))

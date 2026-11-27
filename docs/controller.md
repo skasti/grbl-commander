@@ -43,4 +43,8 @@ dispatch. Feed Hold pauses dispatch before the realtime write. An explicit Cycle
 Start from fresh Hold:0 authorizes the operation to resume once it observes a
 later fresh Run or Idle for the same hold. Reset, replacement, disconnect and
 shutdown interrupt the operation and await its cleanup. A session failure or
-invalidated command epoch also interrupts the affected operation.
+invalidated command epoch also interrupts the affected operation. Controller
+forwards session snapshots to the operation; command-buffer reports carry the
+snapshot current at the event as well. The operation consumes these snapshots
+without reading the session, and ignores duplicate status observations. It
+reevaluates the event snapshot after command results update operation progress.

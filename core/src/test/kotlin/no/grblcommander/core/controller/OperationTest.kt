@@ -1,12 +1,13 @@
 package no.grblcommander.core.controller
 
+import no.grblcommander.core.commands.CommandSource
 import kotlin.test.*
 
 class OperationTest {
     @Test fun validatesAndKeepsTheOriginalSource() {
-        assertFailsWith<IllegalArgumentException> { Operation(listOf("G1 X1", "?"), "MDI") }
+        assertFailsWith<IllegalArgumentException> { Operation(listOf("G1 X1", "?"), CommandSource.MDI) }
         val lines = mutableListOf("N7 G1 X1", "N7 G1 X2", "N9 G1 X3")
-        val op = Operation(lines, "MDI")
+        val op = Operation(lines, CommandSource.MDI)
         lines.clear()
         assertEquals(3, op.lines.size)
     }

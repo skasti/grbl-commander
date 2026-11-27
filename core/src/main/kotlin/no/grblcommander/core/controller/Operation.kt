@@ -1,5 +1,6 @@
 package no.grblcommander.core.controller
 
+import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -14,11 +15,23 @@ import kotlinx.coroutines.launch
 import no.grblcommander.core.commands.Command
 import no.grblcommander.core.commands.CommandBuffer
 import no.grblcommander.core.commands.CommandResult
-import no.grblcommander.machine.session.MachineSession
+import no.grblcommander.core.commands.CommandSource
 import no.grblcommander.machine.session.MachineSnapshot
 
-class Operation internal constructor(lines: List<String>, val source: String, private val bufferCapacity: Int) {
-    constructor(lines: List<String>, source: String) : this(lines, source, CommandBuffer.DEFAULT_CAPACITY)
+class Operation internal constructor(
+    lines: List<String>,
+    val source: CommandSource,
+    internal val bufferCapacity: Int,
+    private val now: () -> Instant,
+) {
+    constructor(
+        lines: List<String>,
+        source: CommandSource,
+        now: () -> Instant = Instant::now,
+    ) : this(lines, source, CommandBuffer.DEFAULT_CAPACITY, now)
+
+    internal constructor(lines: List<String>, source: CommandSource, bufferCapacity: Int) :
+        this(lines, source, bufferCapacity, Instant::now)
 
     init { require(bufferCapacity in 1 until Int.MAX_VALUE) }
 
@@ -44,7 +57,7 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
     private val finished = CompletableDeferred<Unit>()
     private var execution: Job? = null
     private var buffer: CommandBuffer? = null
-    private var epoch = -1L
+    private var lastSnapshot: MachineSnapshot? = null
     private var holdSequence = -1L
     private var held = false
     private var resumeAfter: Long? = null
@@ -52,36 +65,48 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
     private var interruption: String? = null
 
     internal fun prepare(
-        session: MachineSession,
+        commandBuffer: CommandBuffer,
         parent: CoroutineScope,
-        epoch: Long,
-        initialHoldSequence: Long,
-        isFresh: (MachineSnapshot) -> Boolean,
+        initialSnapshot: MachineSnapshot,
     ) = synchronized(gate) {
         check(state.value.phase == Phase.READY) { "Operation already accepted" }
-        this.epoch = epoch
-        holdSequence = initialHoldSequence
-        execution = parent.launch(start = CoroutineStart.LAZY) {
-            val commands = CommandBuffer(session, this, bufferCapacity, epoch) { command, outcome ->
-                record(command, outcome, session, isFresh)
-            }
-            commands.use { commands ->
-                synchronized(gate) {
-                    ensureActive()
-                    buffer = commands
-                    if (held) commands.`suspend`()
-                    commands.start()
-                }
-                produce(commands)
-                commands.awaitClosed()
-                progress.first { it.phase in terminal }
-            }
-        }
-        state.value = Progress(Phase.RUNNING)
+        commandBuffer.bindReport(::record)
+        lastSnapshot = initialSnapshot
+        holdSequence = initialSnapshot.lastHoldSequence
+        buffer = commandBuffer
+        execution = parent.launch(start = CoroutineStart.LAZY) { executor() }
     }
 
-    internal fun start(onFinished: () -> Unit) {
-        val job = synchronized(gate) { checkNotNull(execution) }
+    private suspend fun CoroutineScope.executor() {
+        val commandBuffer = synchronized(gate) {
+            checkNotNull(buffer) { "Operation has not been prepared" }
+        }
+        commandBuffer.use {
+            synchronized(gate) {
+                ensureActive()
+                if (held) commandBuffer.`suspend`()
+                commandBuffer.start(this)
+            }
+
+            for (i in lines.indices) {
+                commandBuffer.awaitDispatchEligibility()
+                commandBuffer.enqueue(Command(source, i + 1, program.wire(i)))
+                state.update { it.copy(enqueued = i + 1) }
+            }
+
+            commandBuffer.finishProduction()
+            commandBuffer.awaitClosed()
+            progress.first { it.phase in terminal }
+        }
+    }
+
+    internal fun start(onFinished: (operation: Operation) -> Unit) {
+        val job = synchronized(gate) {
+            check(state.value.phase == Phase.READY) { "Operation has already started" }
+            val preparedExecution = checkNotNull(execution) { "Operation has not been prepared" }
+            state.value = Progress(Phase.RUNNING)
+            preparedExecution
+        }
         job.invokeOnCompletion { cause ->
             synchronized(gate) {
                 buffer = null
@@ -96,7 +121,7 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
                 }
             }
             try {
-                onFinished()
+                onFinished(this)
             } finally {
                 finished.complete(Unit)
             }
@@ -128,29 +153,19 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
         }
     }
 
-    internal fun observe(session: MachineSession, isFresh: (MachineSnapshot) -> Boolean) {
-        val invalidated = synchronized(gate) { !observeSession(session, isFresh) }
+    internal fun stateHandler(snapshot: MachineSnapshot) {
+        val invalidated = synchronized(gate) { !observeSnapshot(snapshot, reevaluateDuplicate = false) }
         if (invalidated) interrupt("Controller session or command correlation lost")
-    }
-
-    private suspend fun produce(buffer: CommandBuffer) {
-        for (i in lines.indices) {
-            buffer.awaitDispatchEligibility()
-            buffer.enqueue(Command(i + 1, program.wire(i)))
-            state.update { it.copy(enqueued = i + 1) }
-        }
-        buffer.finishProduction()
     }
 
     private fun record(
         command: Command,
         outcome: CommandResult,
-        session: MachineSession,
-        isFresh: (MachineSnapshot) -> Boolean,
+        snapshot: MachineSnapshot,
     ) {
         val invalidated = synchronized(gate) {
             val line = checkNotNull(command.line) { "Operation command must have a source line" }
-            val sequence = session.state.value.reportSequence
+            val sequence = snapshot.reportSequence
             if (outcome == CommandResult.Sent) sentAfterReport[line - 1] = sequence
             if (outcome is CommandResult.Reply && outcome.acknowledgment.accepted && line == lines.size) {
                 finalAckSequence = outcome.acknowledgment.reportSequence ?: sequence
@@ -171,16 +186,17 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
                     }
                 }
             }
-            // Check the latest status before the worker can dispatch the next line.
-            !observeSession(session, isFresh)
+            // Re-evaluate after the command result changes progress, even if the flow saw this snapshot first.
+            !observeSnapshot(snapshot, reevaluateDuplicate = true)
         }
         if (invalidated) interrupt("Controller session or command correlation lost")
     }
 
-    private fun observeSession(session: MachineSession, isFresh: (MachineSnapshot) -> Boolean): Boolean {
+    private fun observeSnapshot(snapshot: MachineSnapshot, reevaluateDuplicate: Boolean): Boolean {
         if (interruption != null) return true
-        val snapshot = session.state.value
-        if (!snapshot.usable() || session.normalCommandEpoch != epoch) return false
+        if (!snapshot.usable()) return false
+        if (snapshot == lastSnapshot && !reevaluateDuplicate) return true
+        if (snapshot != lastSnapshot) lastSnapshot = snapshot
 
         if (snapshot.lastHoldSequence > holdSequence) {
             holdSequence = snapshot.lastHoldSequence
@@ -188,7 +204,7 @@ class Operation internal constructor(lines: List<String>, val source: String, pr
         }
         val mode = snapshot.status?.executionState?.substringBefore(':')
         val sequence = snapshot.reportSequence
-        val fresh = isFresh(snapshot)
+        val fresh = snapshot.isFresh(now)
         val after = resumeAfter
         if (after != null && fresh && sequence > after && (mode == "Run" || mode == "Idle")) {
             resumeAfter = null

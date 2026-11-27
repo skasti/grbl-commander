@@ -5,6 +5,7 @@ import kotlinx.coroutines.*
 import no.grblcommander.core.commands.Command
 import no.grblcommander.core.commands.CommandBuffer
 import no.grblcommander.core.commands.CommandResult
+import no.grblcommander.core.commands.CommandSource
 import no.grblcommander.core.connection.ConnectionTestTransport
 import no.grblcommander.machine.session.GrblMachineSession
 import no.grblcommander.machine.session.RealtimeCommand
@@ -29,13 +30,14 @@ class CommandBufferTest {
 
     @Test fun sendsCommandsInEnqueueOrder() = exercise { transport, session ->
         val replies = mutableListOf<Int>()
-        val buffer = CommandBuffer(session, this, 3) { command, outcome ->
+        val buffer = CommandBuffer(session, 3)
+        buffer.bindReport { command, outcome, _ ->
             if (outcome is CommandResult.Reply) replies += checkNotNull(command.line)
         }
         buffer.enqueue(line(1))
         buffer.enqueue(line(2))
         buffer.enqueue(line(3))
-        buffer.start()
+        buffer.start(this)
         for (n in 1..3) {
             assertEquals("G1 X$n\n", transport.nextNonStatusWrite())
             transport.emit("ok\n")
@@ -47,11 +49,12 @@ class CommandBufferTest {
 
     @Test fun waitsForPermissionBeforeSendingNextCommand() = exercise { transport, session ->
         val firstReply = CompletableDeferred<Unit>()
-        val buffer = CommandBuffer(session, this, 1) { command, outcome ->
+        val buffer = CommandBuffer(session, 1)
+        buffer.bindReport { command, outcome, _ ->
             if (command.line == 1 && outcome is CommandResult.Reply) firstReply.complete(Unit)
         }
         buffer.enqueue(line(1))
-        buffer.start()
+        buffer.start(this)
         assertEquals("G1 X1\n", transport.nextNonStatusWrite())
         buffer.enqueue(line(2))
         buffer.`suspend`()
@@ -67,7 +70,7 @@ class CommandBufferTest {
     }
 
     @Test fun suspendAndResumeAreIdempotent() = exercise { _, session ->
-        val buffer = CommandBuffer(session, this, report = { _, _ -> })
+        val buffer = CommandBuffer(session)
         buffer.`suspend`()
         buffer.`suspend`()
         assertTrue(buffer.suspended)
@@ -79,10 +82,11 @@ class CommandBufferTest {
     }
 
     @Test fun finishingProductionDrainsQueuedCommandsThenCloses() = exercise { transport, session ->
-        val buffer = CommandBuffer(session, this, 2) { _, _ -> }
+        val buffer = CommandBuffer(session, 2)
+        buffer.bindReport { _, _, _ -> }
         buffer.enqueue(line(1))
         buffer.enqueue(line(2))
-        buffer.start()
+        buffer.start(this)
         assertEquals("G1 X1\n", transport.nextNonStatusWrite())
         buffer.finishProduction()
         assertFails { buffer.enqueue(line(3)) }
@@ -98,10 +102,11 @@ class CommandBufferTest {
 
     @Test fun rejectionStopsQueuedWork() = exercise { transport, session ->
         val outcomes = mutableListOf<Pair<Command, CommandResult>>()
-        val buffer = CommandBuffer(session, this) { command, outcome -> outcomes += command to outcome }
+        val buffer = CommandBuffer(session)
+        buffer.bindReport { command, outcome, _ -> outcomes += command to outcome }
         buffer.enqueue(line(1))
         buffer.enqueue(line(2))
-        buffer.start()
+        buffer.start(this)
         assertEquals("G1 X1\n", transport.nextNonStatusWrite())
         transport.emit("error:20\n")
         buffer.awaitClosed()
@@ -114,8 +119,9 @@ class CommandBufferTest {
 
     @Test fun closeDuringAckWakesBlockedProducer() = exercise { transport, session ->
         val outcomes = mutableListOf<CommandResult>()
-        val buffer = CommandBuffer(session, this, 1) { _, outcome -> outcomes += outcome }
-        buffer.start()
+        val buffer = CommandBuffer(session, 1)
+        buffer.bindReport { _, outcome, _ -> outcomes += outcome }
+        buffer.start(this)
         buffer.enqueue(line(1))
         transport.nextNonStatusWrite()
         buffer.enqueue(line(2))
@@ -136,9 +142,10 @@ class CommandBufferTest {
         val realtime = launch { session.sendRealtime(RealtimeCommand.FEED_HOLD) }
         assertEquals("!", transport.nextNonStatusWrite())
         val outcomes = mutableListOf<CommandResult>()
-        val buffer = CommandBuffer(session, this) { _, outcome -> outcomes += outcome }
+        val buffer = CommandBuffer(session)
+        buffer.bindReport { _, outcome, _ -> outcomes += outcome }
         buffer.enqueue(line(1))
-        buffer.start()
+        buffer.start(this)
         yield() // Let the worker run to the occupied session writer.
         buffer.close()
         buffer.awaitClosed()
@@ -151,9 +158,10 @@ class CommandBufferTest {
     @Test fun uncertainTransmissionRetainsSourceIdentity() = exercise { transport, session ->
         transport.onWrite = { throw IOException("write outcome unknown") }
         val outcomes = mutableListOf<Pair<Command, CommandResult>>()
-        val buffer = CommandBuffer(session, this) { command, outcome -> outcomes += command to outcome }
+        val buffer = CommandBuffer(session)
+        buffer.bindReport { command, outcome, _ -> outcomes += command to outcome }
         buffer.enqueue(line(7))
-        buffer.start()
+        buffer.start(this)
         buffer.awaitClosed()
         assertEquals(listOf(line(7), line(7)), outcomes.map { it.first })
         assertEquals(CommandResult.UncertainWrite, outcomes.first().second)
@@ -176,9 +184,10 @@ class CommandBufferTest {
             }
         }
         val outcomes = mutableListOf<CommandResult>()
-        val buffer = CommandBuffer(session, this) { _, event -> outcomes += event }
+        val buffer = CommandBuffer(session)
+        buffer.bindReport { _, event, _ -> outcomes += event }
         buffer.enqueue(line(1))
-        buffer.start()
+        buffer.start(this)
         entered.await()
         buffer.close()
         val termination = async(start = CoroutineStart.UNDISPATCHED) { buffer.awaitClosed() }
@@ -195,27 +204,28 @@ class CommandBufferTest {
 
     @Test fun executionCancellationRetiresBufferWhileSessionStaysConnected() = exercise { transport, session ->
         val execution = Job(coroutineContext[Job])
-        val buffer = CommandBuffer(
-            session, CoroutineScope(coroutineContext + execution),
-            capacity = 1, report = { _, _ -> })
+        val executionScope = CoroutineScope(coroutineContext + execution)
+        val buffer = CommandBuffer(session, capacity = 1)
+        buffer.bindReport { _, _, _ -> }
         buffer.enqueue(line(1))
-        buffer.start()
+        buffer.start(executionScope)
         transport.nextNonStatusWrite()
         buffer.enqueue(line(2))
         val blocked = async(start = CoroutineStart.UNDISPATCHED) { runCatching { buffer.enqueue(line(3)) } }
         execution.cancelAndJoin()
         buffer.awaitClosed()
         assertTrue(blocked.await().isFailure)
-        assertFails { buffer.start() }
+        assertFails { buffer.start(executionScope) }
         assertTrue(transport.drainWrites().isEmpty())
         assertTrue(transport.isConnected)
     }
 
     @Test fun resuspendingBeforeWorkerDispatchKeepsCommandBlocked() = exercise { transport, session ->
-        val buffer = CommandBuffer(session, this, 1) { _, _ -> }
+        val buffer = CommandBuffer(session, 1)
+        buffer.bindReport { _, _, _ -> }
         buffer.`suspend`()
         buffer.enqueue(line(1))
-        buffer.start()
+        buffer.start(this)
         buffer.enqueue(line(2)) // First command has left the single queue slot.
         buffer.resume()
         buffer.`suspend`() // Revoke permission before the worker can claim on this dispatcher.
@@ -227,10 +237,11 @@ class CommandBufferTest {
     }
 
     @Test fun closingSuspendedBufferPreventsTransmissionEvenAfterResume() = exercise { transport, session ->
-        val buffer = CommandBuffer(session, this, 1) { _, _ -> }
+        val buffer = CommandBuffer(session, 1)
+        buffer.bindReport { _, _, _ -> }
         buffer.`suspend`()
         buffer.enqueue(line(1))
-        buffer.start()
+        buffer.start(this)
         buffer.enqueue(line(2)) // The worker has taken line 1 and is waiting at the suspension gate.
         buffer.close()
         buffer.resume()
@@ -239,5 +250,5 @@ class CommandBufferTest {
         assertFails { buffer.enqueue(line(3)) }
     }
 
-    private fun line(n: Int) = Command(n, "G1 X$n")
+    private fun line(n: Int) = Command(CommandSource.MDI, n, "G1 X$n")
 }

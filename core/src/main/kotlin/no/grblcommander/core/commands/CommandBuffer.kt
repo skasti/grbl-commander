@@ -13,19 +13,15 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import no.grblcommander.machine.session.MachineSession
+import no.grblcommander.machine.session.MachineSnapshot
 
 /** Single execution. Capacity excludes the one command held by the buffer worker. */
 internal class CommandBuffer(
     private val session: MachineSession,
-    executionScope: CoroutineScope,
     capacity: Int = DEFAULT_CAPACITY,
     private val epoch: Long = session.normalCommandEpoch,
-    private val report: (Command, CommandResult) -> Unit,
 ) : Closeable {
-    init {
-        requireNotNull(executionScope.coroutineContext[Job]) { "An execution lifetime is required" }
-        require(capacity in 1 until Channel.UNLIMITED)
-    }
+    init { require(capacity in 1 until Channel.UNLIMITED) }
 
     private enum class Gate { OPEN, SUSPENDED, CLOSED }
     private val gate = MutableStateFlow(Gate.OPEN)
@@ -40,6 +36,21 @@ internal class CommandBuffer(
     fun `suspend`() { suspended = true }
     fun resume() { suspended = false }
 
+    private var reportHandler: ((Command, CommandResult, MachineSnapshot) -> Unit)? = null
+    private var worker: Job? = null
+
+    @Synchronized
+    internal fun bindReport(handler: (Command, CommandResult, MachineSnapshot) -> Unit) {
+        check(worker == null && gate.value != Gate.CLOSED) { "Report handler must be bound before the buffer starts" }
+        check(reportHandler == null) { "Report handler is already bound" }
+        reportHandler = handler
+    }
+
+    private fun report(command: Command, result: CommandResult) {
+        val handler = checkNotNull(reportHandler) { "Report handler must be bound before the buffer starts" }
+        handler(command, result, session.state.value)
+    }
+
     internal suspend fun awaitDispatchEligibility() {
         while (true) {
             when (gate.value) {
@@ -52,7 +63,7 @@ internal class CommandBuffer(
 
     private val queue = Channel<Command>(capacity)
     private val terminated = CompletableDeferred<Unit>()
-    private val worker = executionScope.launch(start = CoroutineStart.LAZY) {
+    private fun createWorker(executionScope: CoroutineScope) = executionScope.launch(start = CoroutineStart.LAZY) {
         for (command in queue) {
             val reply = try {
                 awaitDispatchEligibility()
@@ -77,13 +88,23 @@ internal class CommandBuffer(
         }
     }
 
-    fun start() = check(worker.start()) { "Buffer has already started or closed" }
+    @Synchronized
+    fun start(executionScope: CoroutineScope) {
+        checkNotNull(executionScope.coroutineContext[Job]) { "An execution lifetime is required" }
+        check(gate.value != Gate.CLOSED) { "Buffer is closed" }
+        check(worker == null) { "Buffer has already started or closed" }
+        checkNotNull(reportHandler) { "Report handler must be bound before the buffer starts" }
+        val task = createWorker(executionScope)
+        worker = task
+        check(task.start()) { "Buffer has already started or closed" }
+    }
     suspend fun enqueue(command: Command) = queue.send(command)
     fun finishProduction() { queue.close() }
 
+    @Synchronized
     override fun close() {
         gate.value = Gate.CLOSED
-        worker.cancel()
+        worker?.cancel() ?: terminated.complete(Unit)
         queue.cancel()
     }
 

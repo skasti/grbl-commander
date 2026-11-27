@@ -6,6 +6,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import no.grblcommander.core.commands.CommandBuffer
 import no.grblcommander.core.connection.ControllerEndpoint
 import no.grblcommander.core.connection.controllerSession
 import no.grblcommander.machine.session.*
@@ -30,6 +31,7 @@ class Controller(
     private var statusPoller: Job? = null
     private var transitioning = false
     private var readyAfter = -1L
+    private var activeEpoch: Long? = null
 
     suspend fun connect(endpoint: ControllerEndpoint) = replace { controllerSession(endpoint, scope) }
     internal suspend fun connect(session: MachineSession) = replace { session }
@@ -66,24 +68,40 @@ class Controller(
         val epoch = current.normalCommandEpoch
         val snapshot = current.state.value
         check(owner.isActive && !transitioning && active.value == null && snapshot.usable() &&
-            fresh(snapshot) && snapshot.status?.executionState == "Idle" && snapshot.reportSequence > readyAfter)
-        operation.prepare(current, scope, epoch, snapshot.lastHoldSequence, ::fresh)
+            snapshot.isFresh(now) && snapshot.status?.executionState == "Idle" && snapshot.reportSequence > readyAfter)
+        val commandBuffer = CommandBuffer(current, operation.bufferCapacity, epoch)
+        try {
+            operation.prepare(commandBuffer, scope, snapshot)
+        } catch (failure: Throwable) {
+            commandBuffer.close()
+            throw failure
+        }
+        activeEpoch = epoch
         active.value = operation
-        operation.start {
-            synchronized(gate) {
-                if (active.value === operation) {
-                    if (operation.progress.value.phase != Operation.Phase.COMPLETED) {
-                        readyAfter = current.state.value.reportSequence
-                    }
-                    active.value = null
-                }
+        operation.start(::handleOperationFinished)
+    }
+
+    private fun handleOperationFinished(operation: Operation) = synchronized(gate) {
+        if (active.value === operation) {
+            val current = checkNotNull(session)
+            if (operation.progress.value.phase != Operation.Phase.COMPLETED) {
+                readyAfter = current.state.value.reportSequence
             }
+            active.value = null
+            activeEpoch = null
         }
     }
 
     private fun observe(current: MachineSession) {
-        machine.value = current.state.value
-        if (!transitioning) active.value?.observe(current, ::fresh)
+        val snapshot = current.state.value
+        machine.value = snapshot
+        if (!transitioning) active.value?.let { operation ->
+            if (current.normalCommandEpoch != activeEpoch) {
+                operation.interrupt("Controller session or command correlation lost")
+            } else {
+                operation.stateHandler(snapshot)
+            }
+        }
     }
 
     private suspend fun pollStatus(current: MachineSession) {
@@ -119,7 +137,7 @@ class Controller(
                 if (command == RealtimeCommand.FEED_HOLD) operation?.pauseDispatch()
                 cycleHold = if (command == RealtimeCommand.CYCLE_START && operation != null) {
                     val snapshot = current.state.value
-                    check(snapshot.usable() && fresh(snapshot) && snapshot.status?.executionState == "Hold:0")
+                    check(snapshot.usable() && snapshot.isFresh(now) && snapshot.status?.executionState == "Hold:0")
                     snapshot.lastHoldSequence
                 } else null
             }
@@ -181,16 +199,18 @@ class Controller(
         synchronized(gate) {
             machine.value = current.state.value
             session = null
+            activeEpoch = null
             observer = null
             statusPoller = null
             transitioning = false
         }
     }
 
-    private fun fresh(snapshot: MachineSnapshot): Boolean {
-        val age = Duration.between(snapshot.reportedAt ?: return false, now())
-        return !age.isNegative && age <= Duration.ofSeconds(3)
-    }
+}
+
+internal fun MachineSnapshot.isFresh(now: () -> Instant): Boolean {
+    val age = Duration.between(reportedAt ?: return false, now())
+    return !age.isNegative && age <= Duration.ofSeconds(3)
 }
 
 internal fun MachineSnapshot.usable() = connection == MachineSnapshot.Connection.CONNECTED &&
